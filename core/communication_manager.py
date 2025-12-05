@@ -27,6 +27,8 @@ class CommunicationManager:
             "serial.error", lambda reason: self._bus.publish("comm.error", reason)
         )
         self._bus.subscribe("tcp.error", lambda reason: self._bus.publish("comm.error", reason))
+        # 协议帧请求发送 -> 调用当前会话发送
+        self._bus.subscribe("protocol.tx", self._handle_protocol_tx)
 
     def select_serial(self, port: str, baud: int) -> None:
         """选择串口通道并连接。"""
@@ -68,3 +70,9 @@ class CommunicationManager:
     def list_serial_ports(self) -> list[str]:
         """返回可用串口列表，供 UI 使用。"""
         return SerialManager.list_ports()
+
+    def _handle_protocol_tx(self, data: bytes) -> None:
+        """处理协议层构造好的帧并发送。"""
+        if not data:
+            return
+        self.send(data)

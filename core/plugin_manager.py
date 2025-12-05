@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import inspect
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -13,8 +14,9 @@ from core.event_bus import EventBus
 
 
 class PluginManager:
-    def __init__(self, bus: EventBus, plugin_dir: str = "plugins") -> None:
+    def __init__(self, bus: EventBus, plugin_dir: str = "plugins", protocol=None) -> None:
         self.bus = bus
+        self.protocol = protocol
         self.plugin_dir = Path(plugin_dir)
         self._plugins: Dict[str, ModuleType] = {}
 
@@ -38,8 +40,8 @@ class PluginManager:
         try:
             module = self._import_module(name, path)
             if not hasattr(module, "register"):
-                raise AttributeError(f"插件缺少 register(bus): {name}")
-            module.register(self.bus)
+                raise AttributeError(f"插件缺少 register: {name}")
+            self._call_register(module)
             self._plugins[name] = module
             self._log(f"插件已加载: {name}")
             self.bus.publish("plugin.loaded", name)
@@ -58,13 +60,23 @@ class PluginManager:
         try:
             reloaded = importlib.reload(module)
             if not hasattr(reloaded, "register"):
-                raise AttributeError(f"插件缺少 register(bus): {name}")
-            reloaded.register(self.bus)
+                raise AttributeError(f"插件缺少 register: {name}")
+            self._call_register(reloaded)
             self._plugins[name] = reloaded
             self._log(f"插件已重载: {name}")
             self.bus.publish("plugin.loaded", name)
         except Exception as exc:
             self._publish_error(f"重载插件失败 {name}: {exc}")
+
+    def _call_register(self, module: ModuleType) -> None:
+        """根据 register 签名决定是否传入 protocol。"""
+        register = module.register
+        sig = inspect.signature(register)
+        params = sig.parameters
+        if len(params) >= 2 or any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in params.values()):
+            register(self.bus, self.protocol)
+        else:
+            register(self.bus)
 
     def _import_module(self, name: str, path: Path) -> ModuleType:
         """从文件路径加载模块，不要求 plugins 目录是包。"""
