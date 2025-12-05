@@ -84,16 +84,16 @@ ToolOfCOM 是嵌入式设备的行为执行引擎——MCU 被编排，而非被
 
 ## English Version
 
-### What is ToolOfCOM?
+### 🌟 What is ToolOfCOM?
 ToolOfCOM is not a plain serial console; it’s an embedded communication runtime with:
-- Multi-transport (Serial / TCP, extensible)
-- Configurable protocol; FSM-driven OTA
-- Pluggable logic
-- Qt GUI for visibility
+- 🔌 Multi-transport (Serial / TCP, extensible)
+- 📡 Configurable protocol; FSM-driven OTA
+- 🧩 Pluggable logic
+- 🖥️ Qt GUI for visibility
 
 In one line: describe flows in config, not in code—the system runs the logic.
 
-### Architecture
+### 🧱 Architecture
 ```
               UI / MainWindow
     UI presents data; no protocol/logic inside
@@ -116,32 +116,32 @@ In one line: describe flows in config, not in code—the system runs the logic.
     Physical device              Virtual MCU / Renode
 ```
 
-### What it means
+### ✅ What it means
 | Concept | Old way | ToolOfCOM |
 | --- | --- | --- |
 | Protocol | Hard-coded | YAML-configured |
 | Upgrade flow | if/else | FSM |
 | Extensibility | Rare | Plugins |
 
-### Highlights
+### ⚡ Highlights
 | Feature | Description |
 | --- | --- |
-| Multi-channel | UART / TCP / future BLE, CAN |
-| Configurable protocol | header/length/CRC/command in YAML |
-| Event loop | Every step is event-driven |
-| FSM OTA | State-machine-driven upgrade |
-| Plugin system | Add capabilities via plugins |
-| GUI | Visual operations, no CLI required |
-| OTA | Write YAML, system drives the flow |
+| 🔌 Multi-channel | UART / TCP / future BLE, CAN |
+| 📡 Configurable protocol | header/length/CRC/command in YAML |
+| 🔁 Event loop | Every step is event-driven |
+| ⚙️ FSM OTA | State-machine-driven upgrade |
+| 🧩 Plugin system | Add capabilities via plugins |
+| 🖥️ GUI | Visual operations, no CLI required |
+| 🚀 OTA | Write YAML, system drives the flow |
 
-### Use cases
-- Bootloader upgrade
-- Embedded lab testing
-- Production-line flashing
-- Multi-device ops & remote upgrade
-- Renode virtual MCU testing
+### 🧭 Use cases
+- 💡 Bootloader upgrade
+- 🛠️ Embedded lab testing
+- 📦 Production-line flashing
+- 🌐 Multi-device ops & remote upgrade
+- 🧪 Renode virtual MCU testing
 
-### Why different
+### 🎯 Why different
 Breaks typical blockers:
 | Obstacle | Traditional | ToolOfCOM |
 | --- | --- | --- |
@@ -150,11 +150,11 @@ Breaks typical blockers:
 
 Essentially an **Embedded Device Runtime System**—a blend of Node.js + Nginx + HomeAssistant for embedded comms.
 
-### Roadmap
+### 📈 Roadmap
 - v1.0 single-device comms & OTA
 - v2.0 multi-device parallel mgmt
 - v3.0 distributed remote ops
 - vX.X embedded runtime ecosystem
 
-### TL;DR
+### 📝 TL;DR
 ToolOfCOM is a behavior execution engine for embedded devices—MCUs are orchestrated, not manually driven.
