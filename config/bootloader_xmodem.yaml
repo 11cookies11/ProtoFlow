@@ -2,21 +2,25 @@ version: 1
 
 vars:
   block: 1
-  file_path: ./firmware.bin      # 待发送的固件路径
-  max_blocks: 960                # 120 KB / 128B
+  file_path: ./app.bin      # firmware BIN path
+  max_blocks: 960           # 120 KB / 128B
+  retry: 0                  # current retry count
+  max_retry: 5              # max retries per block before abort
 
 channels:
   boot:
-    type: uart
-    device: COM3                 # 替换为实际 UART3 对应串口
-    baudrate: 115200
+    type: tcp
+    host: 192.168.31.135    # Renode UART bridge host
+    port: 4321              # Renode UART bridge port
+    timeout: 10             # connection timeout seconds
+    log_path: ./logs/boot_uart.log
 
 state_machine:
   initial: wait_handshake
   states:
     wait_handshake:
       do:
-        - log: "等待 bootloader 发送 'C'（XMODEM-CRC 握手）"
+        - log: "waiting for 'C' from bootloader (XMODEM-CRC handshake)"
       on_event:
         "C": send_block
       timeout: 10000
@@ -30,19 +34,23 @@ state_machine:
       on_event:
         "\x06": next_block      # ACK
         "\x15": resend_block    # NAK
-        "\x18": abort           # CAN（尺寸超限/致命错误）
-      timeout: 2000
+        "\x18": abort           # CAN (size overflow or fatal error)
+      timeout: 5000
       on_timeout: resend_block
 
     resend_block:
       do:
-        - log: "重发块 $block"
+        - set: { retry: "$retry + 1" }
+        - log: "resend block"
+      when: "$retry < $max_retry"
       goto: send_block
+      else_goto: abort
 
     next_block:
       do:
         - set: { block: "$block + 1" }
-      when: "$block <= file.block_count and $block <= max_blocks"
+        - set: { retry: 0 }
+      when: "$block <= $file_block_count and $block <= $max_blocks"
       goto: send_block
       else_goto: send_eot
 
@@ -52,19 +60,19 @@ state_machine:
       on_event:
         "\x06": done            # ACK
         "\x18": abort
-      timeout: 2000
+      timeout: 5000
       on_timeout: abort
 
     abort:
       do:
-        - log: "Bootloader 返回 CAN 或超时，停止传输"
+        - log: "bootloader returned CAN or timeout, stop transfer"
       goto: done
 
     fail:
       do:
-        - log: "等待握手超时，未开始 XMODEM 传输"
+        - log: "handshake timeout, XMODEM not started"
       goto: done
 
     done:
       do:
-        - log: "XMODEM 传输流程结束（成功需在 boot 自动跳转）"
+        - log: "XMODEM flow ended (boot should jump on success)"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import tempfile
 import threading
 import time
@@ -119,12 +120,14 @@ class ScriptRunnerQt(QThread):
         register_protocol_actions()
 
         channels = {}
+        tmp_path: str | None = None
         try:
             # 将编辑器内容写入临时文件，复用 parser
-            with tempfile.NamedTemporaryFile("w+", suffix=".yaml", delete=True) as tmp:
+            with tempfile.NamedTemporaryFile("w+", suffix=".yaml", delete=False) as tmp:
                 tmp.write(self.yaml_text)
                 tmp.flush()
-                ast = parse_script(tmp.name)
+                tmp_path = tmp.name
+            ast = parse_script(tmp_path)
             channels = build_channels(ast.channels)
             if not channels:
                 raise ValueError("未定义 channels")
@@ -146,6 +149,11 @@ class ScriptRunnerQt(QThread):
         except Exception as exc:  # 报错直接显示
             self.sig_log.emit(f"[ERROR] {exc}")
         finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
             for ch in channels.values():
                 if hasattr(ch, "close"):
                     try:

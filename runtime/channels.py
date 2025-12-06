@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import socket
 import time
+from pathlib import Path
 from typing import Any, Dict
 
 try:
@@ -101,6 +102,49 @@ class TcpChannel(BaseChannel):
         return bytes(buf)
 
 
+class LoggingChannel(BaseChannel):
+    """Wrap a channel and log RX/TX to a file for debugging."""
+
+    def __init__(self, inner: BaseChannel, log_path: str) -> None:
+        self.inner = inner
+        self.log_path = Path(log_path)
+        if self.log_path.parent:
+            self.log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _log(self, direction: str, payload: bytes | str) -> None:
+        data = payload.encode() if isinstance(payload, str) else payload
+        try:
+            with self.log_path.open("a", encoding="utf-8") as f:
+                f.write(f"{time.time():.3f} {direction} {data.hex().upper()}\n")
+        except Exception:
+            # Logging failure should not block IO
+            pass
+
+    def write(self, data: bytes | str):
+        self._log("TX", data)
+        self.inner.write(data)
+
+    def read(self, size: int = 1, timeout: float = 1.0) -> bytes:
+        chunk = self.inner.read(size, timeout)
+        if chunk:
+            self._log("RX", chunk)
+        return chunk
+
+    def read_event(self, timeout: float = 0.1):
+        evt = self.inner.read_event(timeout)
+        if evt is not None:
+            try:
+                raw = evt if isinstance(evt, bytes) else str(evt).encode()
+                self._log("EVT", raw)
+            except Exception:
+                pass
+        return evt
+
+    def __getattr__(self, name):
+        # Delegate everything else (e.g., close)
+        return getattr(self.inner, name)
+
+
 def build_channels(cfg: Dict[str, Any]) -> Dict[str, BaseChannel]:
     channels: Dict[str, BaseChannel] = {}
     for name, ch_cfg in cfg.items():
@@ -111,4 +155,7 @@ def build_channels(cfg: Dict[str, Any]) -> Dict[str, BaseChannel]:
             channels[name] = TcpChannel(ch_cfg)
         else:
             raise ValueError(f"未知通道类型: {typ}")
+        log_path = ch_cfg.get("log_path")
+        if log_path:
+            channels[name] = LoggingChannel(channels[name], log_path)
     return channels
