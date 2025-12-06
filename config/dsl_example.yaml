@@ -1,0 +1,55 @@
+version: 1
+
+vars:
+  block: 1
+  file_path: ./firmware.bin
+
+channels:
+  boot:
+    type: uart
+    device: COM5
+    baudrate: 115200
+
+state_machine:
+  initial: wait_C
+  states:
+    wait_C:
+      on_event:
+        "C": send_block
+      timeout: 5000
+      on_timeout: fail
+
+    send_block:
+      do:
+        - action: send_xmodem_block
+          args:
+            block: "$block"
+      on_event:
+        ACK: next_block
+        NAK: send_block
+      timeout: 2000
+      on_timeout: fail
+
+    next_block:
+      do:
+        - set: { block: "$block + 1" }
+      when: "$block <= file.block_count"
+      goto: send_block
+      else_goto: send_eot
+
+    send_eot:
+      do:
+        - action: send_eot
+      on_event:
+        ACK: done
+      timeout: 2000
+      on_timeout: fail
+
+    fail:
+      do:
+        - log: "Failed"
+      goto: done
+
+    done:
+      do:
+        - log: "Completed"
