@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import binascii
+import codecs
 from typing import List
 
 try:
@@ -41,13 +42,16 @@ from core.communication_manager import CommunicationManager
 
 
 class MainWindow(QMainWindow):
-    log_signal = Signal(str)
+    log_signal = Signal(object)
 
     def __init__(self, bus: EventBus, comm: CommunicationManager) -> None:
         super().__init__()
         self.bus = bus
         self.comm = comm
 
+        self.display_mode = "hex"
+        self._text_decoder = codecs.getincrementaldecoder("utf-8")()
+        self._rx_text_buffer: str = ""
         self.setWindowTitle("ToolOfCOM")
         self._build_ui()
         self._wire_events()
@@ -71,12 +75,16 @@ class MainWindow(QMainWindow):
 
         self.refresh_btn = QPushButton("刷新")
         self.close_btn = QPushButton("关闭连接")
+        self.display_combo = QComboBox()
+        self.display_combo.addItems(["HEX", "Text"])
 
         top_bar = QHBoxLayout()
         top_bar.addWidget(QLabel("连接方式"))
         top_bar.addWidget(self.mode_combo)
         top_bar.addWidget(self.refresh_btn)
         top_bar.addWidget(self.close_btn)
+        top_bar.addWidget(QLabel("显示格式"))
+        top_bar.addWidget(self.display_combo)
 
         serial_bar = QHBoxLayout()
         serial_bar.addWidget(QLabel("串口:"))
@@ -123,6 +131,7 @@ class MainWindow(QMainWindow):
         self.connect_serial_btn.clicked.connect(self._connect_serial)
         self.connect_tcp_btn.clicked.connect(self._connect_tcp)
         self.send_btn.clicked.connect(self._send_data)
+        self.display_combo.currentIndexChanged.connect(self._change_display_mode)
 
         self.bus.subscribe("comm.connected", self._on_comm_connected)
         self.bus.subscribe("comm.disconnected", lambda _: self._log("通信已断开"))
@@ -145,6 +154,12 @@ class MainWindow(QMainWindow):
         self.ip_edit.setEnabled(not is_serial)
         self.tcp_port_edit.setEnabled(not is_serial)
         self.connect_tcp_btn.setEnabled(not is_serial)
+
+    def _change_display_mode(self) -> None:
+        self.display_mode = self.display_combo.currentText().lower()
+        # reset incremental decoder when switching mode to avoid broken multibyte sequences
+        self._text_decoder = codecs.getincrementaldecoder("utf-8")()
+        self._rx_text_buffer = ""
 
     def _close_comm(self) -> None:
         self.comm.close()
@@ -171,13 +186,38 @@ class MainWindow(QMainWindow):
         except Exception:
             return None
 
+    def _format_payload(self, data: bytes, *, stream: bool = False) -> str:
+        if self.display_mode == "text":
+            if stream:
+                return self._text_decoder.decode(data, final=False)
+            return data.decode("utf-8", errors="replace")
+        return binascii.hexlify(data, sep=b" ").decode().upper()
+
     def _on_comm_rx(self, data: bytes) -> None:
-        hex_str = binascii.hexlify(data, sep=b" ").decode().upper()
-        self._log(f"[RX] {hex_str}")
+        if self.display_mode == "text":
+            decoded = self._format_payload(data, stream=True)
+            combined = self._rx_text_buffer + decoded
+            lines = combined.splitlines(keepends=True)
+            self._rx_text_buffer = ""
+            for line in lines:
+                if line.endswith("\n") or line.endswith("\r"):
+                    clean = line.rstrip("\r\n")
+                    if clean:
+                        self._log(f"[RX] {clean}")
+                else:
+                    self._rx_text_buffer += line
+            if len(self._rx_text_buffer) > 1024:
+                self._log(f"[RX] {self._rx_text_buffer}")
+                self._rx_text_buffer = ""
+            return
+
+            # fall back to hex if needed
+        payload = self._format_payload(data, stream=False)
+        self._log(f"[RX] {payload}")
 
     def _on_comm_tx(self, data: bytes) -> None:
-        hex_str = binascii.hexlify(data, sep=b" ").decode().upper()
-        self._log(f"[TX] {hex_str}")
+        payload = self._format_payload(data, stream=False)
+        self._log(f"[TX] {payload}")
 
     def _on_comm_connected(self, info) -> None:
         self._log(f"连接成功: {info}")
