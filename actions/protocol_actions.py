@@ -25,6 +25,8 @@ class XMODEMPacketBuilder:
 
 def send_xmodem_block(ctx, args: Dict[str, object]):
     meta = get_file_meta(ctx)
+    # Cache file metadata so DSL can reference $file.size / $file.block_count in transitions.
+    ctx.set_var("file", meta)
     block = int(ctx.eval_value(args.get("block", 1)))
     data = read_block(meta["path"], block, 128)
     packet = XMODEMPacketBuilder.build_block(block, data)
