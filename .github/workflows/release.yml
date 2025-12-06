@@ -32,6 +32,7 @@ jobs:
           pyinstaller --name ToolOfCom --windowed --onefile main.py
 
       - name: Package artifacts
+        shell: bash
         run: |
           if [ "${{ runner.os }}" == "Windows" ]; then
             powershell Compress-Archive dist\\ToolOfCom.exe ToolOfCom-${{ github.ref_name }}-win.zip
