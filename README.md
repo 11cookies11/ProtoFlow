@@ -1,77 +1,262 @@
-# ToolOfCom
+<p align="center">
+  <img src="./docs/pictures/logo.png" width="200" alt="ToolOfCom logo"/>
+</p>
 
-ToolOfCom 是面向嵌入式/工控/自动化测试的通信运行时，采用 YAML DSL + 状态机驱动，编排串口/TCP 交互、固件传输、Modbus 读写等任务。核心链路：`YAML DSL → 状态机 → 动作 (Actions) → 协议适配 → 通道 (UART/TCP)`。
+<p align="center">
+  <b>别再发送字节了，开始执行协议。</b>
+</p>
 
-## 特性一览
-- 声明式 DSL：用 YAML 描述状态机流程、变量、条件、事件、超时。
-- 动作系统：内置 set/log/wait/wait_for_event，支持协议动作（XMODEM、预留 Modbus），可扩展自定义动作。
-- 协议适配：XMODEM/YMODEM（示例）、Modbus RTU/ASCII/TCP 封装器。
-- 通道抽象：UART（pyserial）与 TCP。
-- 插件式扩展：注册新动作/协议/DSL 语法即可扩展。
+<p align="center">
+ToolOfCom 是一个通信运行时引擎，让 UART / TCP / Modbus / XMODEM 的交互流程不再是零散的收发字节，而是可编排、可执行的协议工作流。
+</p>
 
-## 快速开始
-1) 安装依赖：
-```bash
-pip install pyyaml
-# 串口需要
-pip install pyserial
+---
+
+## 🌐 项目简介（Overview）
+
+传统串口或通信工具的核心能力只有一件事：
+发送一些字节，然后等待回应。
+
+
+但真实的设备通信从不是单次发送，而是完整的协议流程：
+
+- 握手与协商  
+- 多帧数据交互  
+- CRC 校验  
+- 重试与超时处理  
+- 条件跳转与流程驱动  
+- 最终执行动作
+
+**ToolOfCom 重新定义了通信方式**：
+
+你不再写脚本，也不再依赖 GUI 点点点，而是通过 DSL 描述协议行为，由运行时引擎自动执行通信流程。
+
+换句话说：
+
+通信 → 不再是动作
+通信 → 是状态驱动的执行逻辑
+
+
+---
+
+
+
+## 🤔 为什么要做 ToolOfCom？
+
+现有通信工具存在几个本质问题：
+
+| 痛点 | 现状 |
+|------|------|
+| 操作层次过低 | 停留在字节收发层面 |
+| 协议逻辑脆弱 | 通过脚本或人工操作维持 |
+| 无状态 | 无法正确表达协议的流程与条件 |
+| 难扩展 | 每种协议都要重新写代码 |
+
+通信世界其实是「状态机」，不是「一次性指令」。  
+ToolOfCom 的价值在于：
+
++ 将协议逻辑 → 声明式 DSL
++ 将通信流程 → 状态机执行器
++ 将设备交互 → 可编排工作流
+
+
+**从此，协议不是代码，而是数据。**
+
+---
+
+
+
+## 🚀 核心特性（Features）
+
+| 特性 | 描述 |
+|------|------|
+| 🧩 声明式 DSL | 用 YAML 描述通信流程，而不是写脚本 |
+| 🔁 状态机运行时 | 自动执行收发、等待、跳转、重试等逻辑 |
+| 🔌 协议驱动层 | UART / TCP / Modbus / XMODEM / 自定义协议 |
+| 🧱 分层架构 | 通道、协议、动作完全解耦 |
+| ⏱ 可控执行 | 无随机等待，全流程可预测 |
+| 🪢 可扩展注册表 | 自定义协议行为无需修改核心代码 |
+| 📡 多设备并行 | 支持 orchestrate 多通道工作流 |
+
+---
+
+
+
+## 🧱 架构设计（Architecture）
+
+```lua
+                                           +----------------+
+                                           |   Workflow     |  <-- YAML DSL
+                                           +----------------+
+                                                    |
+                                                    v
+                                          +---------------------+
+                                          |  State Machine Core |
+                                          +---------------------+
+                                           /        |        \
+                                          v         v         v
+                                    +---------+ +---------+ +---------+
+                                    | Driver |  | Driver |  | Driver   | <-- Modbus / XMODEM / TCP / UART
+                                    +---------+ +---------+ +---------+
+                                                    |
+                                                    v
+                                                +---------+
+                                                | Channel | <-- 串口/网络/自定义端口
+                                                +---------+
+
 ```
-2) 运行示例 DSL：
-```bash
-python dsl_main.py config/dsl_example.yaml
-```
-示例实现 XMODEM 固件发送的状态机：等待 "C" → 发送块 → 等 ACK/NAK → 自增块 → 发送 EOT。
 
-## DSL 结构概览
+**通信不再以“发送什么”为中心  
+而是以“下一步应该发生什么”为中心。**
+
+---
+
+
+
+## 📝 DSL 示例（Example）
+
 ```yaml
-version: 1
-vars: {...}          # 初始变量
-channels: {...}      # 通道 (uart/tcp)
-state_machine:
-  initial: <state>
-  states:
-    <state_name>:
-      do: [...]      # 动作列表
-      on_event: {...}
-      timeout: <ms>
-      on_timeout: <state>
-      when: <expr>
-      goto: <state>
-      else_goto: <state>
-```
-表达式支持算术/比较/逻辑，变量以 `$var` 访问，内置 `$now`（ms）、`$event`（最近事件）。
+version: 1		#可配合BootAppOfRAM仓库代码进行测试
 
-## 内置动作
-- `set`: 更新变量，示例 `- set: { block: "$block + 1" }`
-- `log`: 记录日志，示例 `- log: "progress $block"`
-- `wait`: 休眠 ms，示例 `- wait: { ms: 500 }`
-- `wait_for_event`: 阻塞等待事件，示例 `- wait_for_event: { event: "C", timeout: 2 }`
+vars:
+  block: 1
+  file_path: ./logs/app.bin      # firmware BIN path
+  max_blocks: 960           # 120 KB / 128B
+  retry: 0                  # current retry count
+  max_retry: 5              # max retries per block before abort
 
-## 协议动作（示例）
-- `send_xmodem_block`：发送指定块号（128B，0x1A 填充），参数 `block: "$block"`
-- `send_eot`：发送 XMODEM 结束 EOT
-（可扩展：Modbus 读写、YMODEM 等，参考 `actions` 目录和扩展指南）
-
-## 通道配置示例
-```yaml
 channels:
   boot:
-    type: uart
-    device: COM5
-    baudrate: 115200
-  plc:
     type: tcp
-    host: 192.168.1.10
-    port: 502
+    host: 192.168.31.135    # Renode UART bridge host
+    port: 4321              # Renode UART bridge port
+    baudrate: 19200         # baudrate hint if using a serial bridge
+    timeout: 10             # connection timeout seconds
+    log_path: ./logs/boot_uart.log
+
+state_machine:
+  initial: wait_handshake
+  states:
+    wait_handshake:
+      do:
+        - log: "waiting for 'C' from bootloader (XMODEM-CRC handshake)"
+      on_event:
+        "C": send_block
+      timeout: 10000
+      on_timeout: fail
+
+    send_block:
+      do:
+        - action: send_xmodem_block
+          args:
+            block: "$block"
+        - wait: { ms: 50 }        # inter-packet gap to allow device processing
+      on_event:
+        "\x06": next_block      # ACK
+        "\x15": resend_block    # NAK
+        "\x18": abort           # CAN (size overflow or fatal error)
+      timeout: 5000
+      on_timeout: resend_block
+
+    resend_block:
+      do:
+        - set: { retry: "$retry + 1" }
+        - log: "resend block"
+      when: "$retry < $max_retry"
+      goto: send_block
+      else_goto: abort
+
+    next_block:
+      do:
+        - set: { block: "$block + 1" }
+        - set: { retry: 0 }
+      when: "$block <= $file_block_count and $block <= $max_blocks"
+      goto: send_block
+      else_goto: send_eot
+
+    send_eot:
+      do:
+        - action: send_eot
+      on_event:
+        "\x06": done            # ACK
+        "\x18": abort
+      timeout: 5000
+      on_timeout: abort
+
+    abort:
+      do:
+        - log: "bootloader returned CAN or timeout, stop transfer"
+      goto: done
+
+    fail:
+      do:
+        - log: "handshake timeout, XMODEM not started"
+      goto: done
+
+    done:
+      do:
+        - log: "XMODEM flow ended (boot should jump on success)"
+
 ```
 
-## 目录结构
-- `dsl/`：AST、表达式、解析器、执行器
-- `actions/`：动作注册、内置动作、协议动作示例
-- `protocols/`：协议适配（Modbus、X/YMODEM 等）
-- `runtime/`：上下文、通道、运行器
-- `config/dsl_example.yaml`：XMODEM DSL 示例
-- `docs/USER_GUIDE.md`：完整用户手册
+**没有 Python，没有回调，没有 if-else**
+ 通信逻辑变成声明式流。
+
+---
+
+
+
+⚡ 快速开始（Quick Start）
+
++ release版本可以直接运行(未测试Liunx版本)
+
+---
+
+
+
+## 🔌 已支持协议（Supported Protocols）
+
+| 协议           | 状态 |
+| -------------- | ---- |
+| UART           | ✔️    |
+| TCP            | ✔️    |
+| Modbus RTU     | ✔️    |
+| XMODEM         | ✔️    |
+| 自定义协议插件 | ✔️    |
+
+---
+
+
+
+## 🛣 开发路线图（Roadmap）
+
+-  Web 可视化流程编辑器
+-  二进制数据传输增强
+-  固件更新模板
+-  MQTT 适配层
+-  设备拓扑与发现功能
+
+------
+
+
+
+## 🤝 如何贡献（Contribute）
+
+欢迎提交 PR、Issue 或协议扩展插件。
+ ToolOfCom 的设计目标就是成为通信协议执行层的基础设施。
+
+---
+
+
+
+## 📄 许可证（License）
+
+MIT — 商用、私人或与硬件产品集成都可自由使用。
+
+---
+
+
 
 ## 学习更多
-请阅读 `docs/USER_GUIDE.md` 获取完整 DSL 语法、状态机详解、协议动作说明、扩展方法与最佳实践。***
+
+**请阅读 `docs/USER_GUIDE.md` 获取完整 DSL 语法、状态机详解、协议动作说明、扩展方法与最佳实践。**
