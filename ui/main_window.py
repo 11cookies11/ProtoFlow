@@ -102,14 +102,11 @@ class MainWindow(QMainWindow):
         top_bar.addWidget(self.mode_label)
         top_bar.addStretch()
 
-        # 左侧导航
+        # 左侧导航（标题在外，按钮在圆角面板内）
         self.nav_buttons: dict[str, QPushButton] = {}
         nav_frame = QFrame()
         nav_frame.setObjectName("navFrame")
         nav_layout = QVBoxLayout(nav_frame)
-        nav_title = QLabel("导航")
-        nav_title.setObjectName("sectionTitle")
-        nav_layout.addWidget(nav_title)
         nav_items = [
             ("手动调试", "control"),
             ("自动脚本", "scripts"),
@@ -125,14 +122,16 @@ class MainWindow(QMainWindow):
             self.nav_buttons[key] = btn
         nav_layout.addStretch()
 
-        # 控制面板（通道/发送/脚本）供“控制面板”视图使用
+        nav_container = QVBoxLayout()
+        nav_title = QLabel("导航")
+        nav_title.setObjectName("sectionTitle")
+        nav_container.addWidget(nav_title)
+        nav_container.addWidget(nav_frame)
+
+        # 控制面板（通道/发送）供“手动调试”视图使用，标题放在外部
         properties_frame = QFrame()
         properties_frame.setObjectName("panel")
         properties_layout = QVBoxLayout(properties_frame)
-
-        prop_title = QLabel("控制面板")
-        prop_title.setObjectName("sectionTitle")
-        properties_layout.addWidget(prop_title)
 
         channel_group = QGroupBox("通道与连接")
         channel_form = QFormLayout(channel_group)
@@ -248,9 +247,28 @@ class MainWindow(QMainWindow):
         self.comm_display.setMinimumHeight(180)
         self.comm_display.setStyleSheet("font-family: Consolas, 'SF Mono', 'JetBrains Mono', monospace; font-size: 12px;")
 
+        display_frame = QFrame()
+        display_frame.setObjectName("panel")
+        display_layout = QVBoxLayout(display_frame)
+        display_layout.addWidget(self.comm_display)
+
+        display_container = QWidget()
+        display_container_layout = QVBoxLayout(display_container)
+        display_title = QLabel("通信收发")
+        display_title.setObjectName("sectionTitle")
+        display_container_layout.addWidget(display_title)
+        display_container_layout.addWidget(display_frame)
+
+        control_container = QWidget()
+        control_container_layout = QVBoxLayout(control_container)
+        control_title = QLabel("控制与连接")
+        control_title.setObjectName("sectionTitle")
+        control_container_layout.addWidget(control_title)
+        control_container_layout.addWidget(properties_frame)
+
         control_top = QSplitter(Qt.Horizontal)
-        control_top.addWidget(self.comm_display)
-        control_top.addWidget(properties_frame)
+        control_top.addWidget(display_container)
+        control_top.addWidget(control_container)
         control_top.setStretchFactor(0, 1)
         control_top.setStretchFactor(1, 0)
         control_top.setSizes([960, 360])
@@ -271,12 +289,21 @@ class MainWindow(QMainWindow):
         self.yaml_edit = QPlainTextEdit()
         self.yaml_edit.setPlaceholderText("在此粘贴或编辑 YAML，或点击“加载 YAML”载入文件")
 
+        editor_frame = QFrame()
+        editor_frame.setObjectName("panel")
+        editor_layout = QVBoxLayout(editor_frame)
+        editor_layout.addWidget(self.yaml_edit)
+
+        editor_container = QWidget()
+        editor_container_layout = QVBoxLayout(editor_container)
+        editor_title = QLabel("自动脚本编辑")
+        editor_title.setObjectName("sectionTitle")
+        editor_container_layout.addWidget(editor_title)
+        editor_container_layout.addWidget(editor_frame)
+
         script_actions = QFrame()
         script_actions.setObjectName("panel")
         actions_layout = QVBoxLayout(script_actions)
-        actions_title = QLabel("自动脚本")
-        actions_title.setObjectName("sectionTitle")
-        actions_layout.addWidget(actions_title)
 
         script_btn_row = QHBoxLayout()
         script_btn_row.addWidget(self.load_yaml_btn)
@@ -292,9 +319,16 @@ class MainWindow(QMainWindow):
         actions_layout.addWidget(self.script_progress)
         actions_layout.addStretch()
 
+        actions_container = QWidget()
+        actions_container_layout = QVBoxLayout(actions_container)
+        actions_title = QLabel("自动脚本控制")
+        actions_title.setObjectName("sectionTitle")
+        actions_container_layout.addWidget(actions_title)
+        actions_container_layout.addWidget(script_actions)
+
         script_top = QSplitter(Qt.Horizontal)
-        script_top.addWidget(self.yaml_edit)
-        script_top.addWidget(script_actions)
+        script_top.addWidget(editor_container)
+        script_top.addWidget(actions_container)
         script_top.setStretchFactor(0, 1)
         script_top.setStretchFactor(1, 0)
         script_top.setSizes([1100, 240])
@@ -318,8 +352,12 @@ class MainWindow(QMainWindow):
             "scripts": self.main_stack.addWidget(script_view),
         }
 
+        # 左侧容器包含标题与导航面板
+        nav_widget = QWidget()
+        nav_widget.setLayout(nav_container)
+
         main_split = QSplitter(Qt.Horizontal)
-        main_split.addWidget(nav_frame)
+        main_split.addWidget(nav_widget)
         main_split.addWidget(self.main_stack)
         main_split.setStretchFactor(0, 0)
         main_split.setStretchFactor(1, 1)
@@ -393,10 +431,14 @@ class MainWindow(QMainWindow):
 
     def _build_channels_tab(self) -> QWidget:
         tab = QWidget()
-        layout = QVBoxLayout(tab)
+        outer = QVBoxLayout(tab)
         title = QLabel("通道列表")
         title.setObjectName("sectionTitle")
-        layout.addWidget(title)
+        outer.addWidget(title)
+
+        frame = QFrame()
+        frame.setObjectName("panel")
+        layout = QVBoxLayout(frame)
         self._add_card(
             layout,
             "UART 通道",
@@ -421,6 +463,7 @@ class MainWindow(QMainWindow):
             ],
         )
         layout.addStretch()
+        outer.addWidget(frame)
         return tab
 
     def _build_protocols_tab(self) -> QWidget:
