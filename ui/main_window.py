@@ -384,6 +384,9 @@ class MainWindow(QMainWindow):
         container.setMouseTracking(True)
         container.installEventFilter(self)
         self.installEventFilter(self)
+        app = QApplication.instance()
+        if app:
+            app.installEventFilter(self)
 
         self.log_signal.connect(self._append_log)
         # 默认选中控制面板
@@ -893,27 +896,40 @@ class MainWindow(QMainWindow):
 
     def eventFilter(self, obj, event):
         et = event.type()
-        if et == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
-            gp = event.globalPosition() if hasattr(event, "globalPosition") else event.globalPos()
-            if self._start_resize_if_needed(gp):
-                return True
-        elif et == QEvent.MouseMove:
-            if getattr(self, "_resizing", False) and event.buttons() & Qt.LeftButton:
-                gp = event.globalPosition().toPoint() if hasattr(event, "globalPosition") else event.globalPos()
-                self._perform_resize(gp)
-                return True
-            elif not getattr(self, "_resizing", False):
-                gp = event.globalPosition().toPoint() if hasattr(event, "globalPosition") else event.globalPos()
+        if et in (QEvent.MouseButtonPress, QEvent.MouseMove, QEvent.MouseButtonRelease):
+            gp = event.globalPosition().toPoint() if hasattr(event, "globalPosition") else event.globalPos()
+
+            # 正在缩放时，不受范围限制，确保反向拖拽顺畅
+            if getattr(self, "_resizing", False):
+                if et == QEvent.MouseMove and event.buttons() & Qt.LeftButton:
+                    self._perform_resize(gp)
+                    return True
+                if et == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+                    self._resizing = False
+                    self._resize_dir = None
+                    self._resize_start_pos = None
+                    self._resize_start_geom = None
+                    self.unsetCursor()
+                    return True
+
+            frame = self.frameGeometry().adjusted(-self.RESIZE_MARGIN, -self.RESIZE_MARGIN, self.RESIZE_MARGIN, self.RESIZE_MARGIN)
+            if not frame.contains(gp):
+                return super().eventFilter(obj, event)
+
+            if et == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                if self._start_resize_if_needed(gp):
+                    return True
+            elif et == QEvent.MouseMove:
                 self._update_hover_cursor(gp)
         return super().eventFilter(obj, event)
 
-    def _start_resize_if_needed(self, global_pos) -> bool:
-        pos = self.mapFromGlobal(global_pos.toPoint() if hasattr(global_pos, "toPoint") else global_pos)
+    def _start_resize_if_needed(self, global_pos: QPoint) -> bool:
+        pos = self.mapFromGlobal(global_pos)
         hit = self._hit_test(pos)
         if hit:
             self._resizing = True
             self._resize_dir = hit
-            self._resize_start_pos = global_pos.toPoint() if hasattr(global_pos, "toPoint") else global_pos
+            self._resize_start_pos = global_pos
             self._resize_start_geom = self.geometry()
             return True
         return False
