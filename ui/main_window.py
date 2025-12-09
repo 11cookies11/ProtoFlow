@@ -85,7 +85,7 @@ class TitleButton(QPushButton):
             "QPushButton:pressed{background: #0f1626;}"
         )
         self.setStyleSheet(self._base_style)
-        self._update_icon(QColor("#E7F1FF"))
+        self._update_icon(QColor("#1b2333"))
 
     def enterEvent(self, event) -> None:
         if self.kind == "close":
@@ -103,12 +103,12 @@ class TitleButton(QPushButton):
 
     def leaveEvent(self, event) -> None:
         self.setStyleSheet(self._base_style)
-        self._update_icon(QColor("#E7F1FF"))
+        self._update_icon(QColor("#1b2333"))
         super().leaveEvent(event)
 
     def set_restore_mode(self, restore: bool) -> None:
         self.state = "restore" if restore else "max"
-        self._update_icon(QColor("#E7F1FF"))
+        self._update_icon(QColor("#1b2333"))
 
     def _update_icon(self, color: QColor) -> None:
         size = 18
@@ -170,8 +170,8 @@ class TitleBar(QFrame):
         layout.addWidget(self.close_btn)
 
         effect = QGraphicsDropShadowEffect(self)
-        effect.setBlurRadius(14)
-        effect.setColor(QColor(0, 0, 0, 110))
+        effect.setBlurRadius(12)
+        effect.setColor(QColor(0, 0, 0, 60))
         effect.setOffset(0, 2)
         self.setGraphicsEffect(effect)
 
@@ -585,10 +585,10 @@ class MainWindow(QMainWindow):
             QProgressBar::chunk { background-color: #00bcd4; border-radius: 6px; }
             QListWidget { background: #ffffff; border: 1px solid #cfd8e8; border-radius: 6px; }
             QLineEdit#logSearch { padding-left: 10px; }
-            QFrame#titleBar { background: #0b1220; border-bottom: 1px solid #1c2435; border-top-left-radius: 6px; border-top-right-radius: 6px; }
-            QLabel#titleText { color: #e7f1ff; font-weight: 600; letter-spacing: 0.2px; }
+            QFrame#titleBar { background: #f7f9fc; border-bottom: 1px solid #d8deea; border-top-left-radius: 6px; border-top-right-radius: 6px; }
+            QLabel#titleText { color: #1b2333; font-weight: 600; letter-spacing: 0.2px; }
             QLabel#titleLogo { background: transparent; }
-            QPushButton#titleBtn_min, QPushButton#titleBtn_max, QPushButton#titleBtn_close { background: transparent; border: none; color: #e7f1ff; border-radius: 6px; padding: 0px; min-height: 28px; min-width: 28px; }
+            QPushButton#titleBtn_min, QPushButton#titleBtn_max, QPushButton#titleBtn_close { background: transparent; border: none; color: #1b2333; border-radius: 6px; padding: 0px; min-height: 28px; min-width: 28px; }
             QPushButton#titleBtn_close:hover { background: #f05454; }
             """
         )
