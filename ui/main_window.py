@@ -111,8 +111,8 @@ class MainWindow(QMainWindow):
         nav_title.setObjectName("sectionTitle")
         nav_layout.addWidget(nav_title)
         nav_items = [
-            ("手动功能", "control"),
-            ("脚本 / YAML", "scripts"),
+            ("手动调试", "control"),
+            ("自动脚本", "scripts"),
             ("通道管理", "channels"),
             ("协议驱动", "protocols"),
         ]
@@ -270,21 +270,11 @@ class MainWindow(QMainWindow):
         # 脚本/YAML 视图：顶部左右分区，底部日志
         self.yaml_edit = QPlainTextEdit()
         self.yaml_edit.setPlaceholderText("在此粘贴或编辑 YAML，或点击“加载 YAML”载入文件")
-        self.yaml_preview = QPlainTextEdit()
-        self.yaml_preview.setReadOnly(True)
-        self.yaml_preview.setPlaceholderText("YAML 预览")
-
-        yaml_column = QSplitter(Qt.Vertical)
-        yaml_column.addWidget(self.yaml_edit)
-        yaml_column.addWidget(self.yaml_preview)
-        yaml_column.setStretchFactor(0, 1)
-        yaml_column.setStretchFactor(1, 1)
-        yaml_column.setSizes([420, 380])
 
         script_actions = QFrame()
         script_actions.setObjectName("panel")
         actions_layout = QVBoxLayout(script_actions)
-        actions_title = QLabel("脚本操作")
+        actions_title = QLabel("自动脚本")
         actions_title.setObjectName("sectionTitle")
         actions_layout.addWidget(actions_title)
 
@@ -303,11 +293,11 @@ class MainWindow(QMainWindow):
         actions_layout.addStretch()
 
         script_top = QSplitter(Qt.Horizontal)
-        script_top.addWidget(yaml_column)
+        script_top.addWidget(self.yaml_edit)
         script_top.addWidget(script_actions)
         script_top.setStretchFactor(0, 1)
         script_top.setStretchFactor(1, 0)
-        script_top.setSizes([1000, 300])
+        script_top.setSizes([1100, 240])
 
         self.script_log_host = QWidget()
         self.script_log_host.setLayout(QVBoxLayout())
@@ -641,7 +631,6 @@ class MainWindow(QMainWindow):
             text = Path(path).read_text(encoding="utf-8")
             self.yaml_edit.setPlainText(text)
             self._log_script(f"已加载脚本: {path}")
-            self.yaml_preview.setPlainText(text)
             try:
                 data = yaml.safe_load(text) or {}
                 if isinstance(data, dict):
@@ -667,7 +656,6 @@ class MainWindow(QMainWindow):
         try:
             Path(path).write_text(text, encoding="utf-8")
             self._log_script(f"已保存脚本: {path}")
-            self.yaml_preview.setPlainText(text)
         except Exception as exc:
             self._log_script(f"[ERROR] 保存失败: {exc}")
 
