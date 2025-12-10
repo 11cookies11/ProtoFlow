@@ -9,8 +9,8 @@ from typing import Any, Dict
 
 import yaml
 
-from actions import modbus_request, xmodem_send, ymodem_send
-from protocols import modbus_ascii, modbus_rtu, modbus_tcp, xmodem, ymodem  # noqa: F401 触发注册
+from actions import at_command, modbus_request, xmodem_send, ymodem_send
+from protocols import at, modbus_ascii, modbus_rtu, modbus_tcp, xmodem, ymodem  # noqa: F401 触发注册
 from utils.path_utils import resolve_resource_path
 
 try:
@@ -103,6 +103,7 @@ class TcpChannel(BaseChannel):
 
 
 ACTIONS = {
+    "at_command": at_command.run,
     "modbus_request": modbus_request.run,
     "xmodem_send": xmodem_send.run,
     "ymodem_send": ymodem_send.run,
