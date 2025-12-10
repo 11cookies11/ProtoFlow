@@ -4,6 +4,7 @@ import logging
 
 from actions.builtin_actions import register_builtin_actions
 from actions.protocol_actions import register_protocol_actions
+from actions.schema_protocol import register_schema_protocol_actions
 from dsl.executor import StateMachineExecutor
 from dsl.parser import parse_script
 from runtime.channels import build_channels
@@ -13,6 +14,7 @@ from runtime.context import RuntimeContext
 def _register_actions() -> None:
     register_builtin_actions()
     register_protocol_actions()
+    register_schema_protocol_actions()
 
 
 def run_dsl(path: str) -> int:

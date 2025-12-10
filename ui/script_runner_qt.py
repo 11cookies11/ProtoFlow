@@ -10,6 +10,7 @@ from PySide6.QtCore import QThread, Signal
 
 from actions.builtin_actions import register_builtin_actions
 from actions.protocol_actions import register_protocol_actions
+from actions.schema_protocol import register_schema_protocol_actions
 from dsl.executor import StateMachineExecutor
 from dsl.parser import parse_script
 from runtime.channels import build_channels
@@ -118,6 +119,7 @@ class ScriptRunnerQt(QThread):
         # 注册动作
         register_builtin_actions()
         register_protocol_actions()
+        register_schema_protocol_actions()
 
         channels = {}
         tmp_path: str | None = None
