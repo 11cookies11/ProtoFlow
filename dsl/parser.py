@@ -4,7 +4,7 @@ from typing import Any, Dict, List
 
 import yaml
 
-from dsl.ast_nodes import ActionCall, ScriptAST, State, StateMachine
+from dsl.ast_nodes import ActionCall, ChartSpec, ScriptAST, State, StateMachine, UIConfig
 
 
 def _parse_actions(items: List[Any]) -> List[ActionCall]:
@@ -42,6 +42,33 @@ def _parse_state(name: str, node: Dict[str, Any]) -> State:
     )
 
 
+def _parse_ui(ui_data: Dict[str, Any]) -> UIConfig:
+    charts_cfg = ui_data.get("charts") or []
+    charts = []
+    for idx, item in enumerate(charts_cfg):
+        if not isinstance(item, dict):
+            raise ValueError(f"ui.charts[{idx}] must be a mapping")
+        cid = str(item.get("id") or f"chart_{idx}")
+        bind = item.get("bind")
+        if not bind:
+            raise ValueError(f"ui.charts[{idx}] missing bind")
+        group = item.get("group")
+        separate = bool(item.get("separate", False))
+        if group and separate:
+            raise ValueError(f"ui.charts[{idx}] cannot have both group and separate")
+        charts.append(
+            ChartSpec(
+                id=cid,
+                title=str(item.get("title", cid)),
+                bind=str(bind),
+                group=str(group) if group else None,
+                separate=separate,
+                max_points=int(item.get("max_points", 1000)),
+            )
+        )
+    return UIConfig(charts=charts)
+
+
 def parse_script(path: str) -> ScriptAST:
     with open(path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
@@ -49,6 +76,7 @@ def parse_script(path: str) -> ScriptAST:
     version = int(data.get("version", 1))
     vars_def = data.get("vars", {}) or {}
     channels = data.get("channels", {}) or {}
+    ui_cfg = _parse_ui(data.get("ui") or {})
 
     sm_cfg = data.get("state_machine") or {}
     initial = sm_cfg.get("initial")
@@ -60,4 +88,4 @@ def parse_script(path: str) -> ScriptAST:
         raise ValueError("state_machine.initial 未定义或未在 states 中声明")
 
     sm = StateMachine(initial=initial, states=states)
-    return ScriptAST(version=version, vars=vars_def, channels=channels, state_machine=sm)
+    return ScriptAST(version=version, vars=vars_def, channels=channels, state_machine=sm, ui=ui_cfg)

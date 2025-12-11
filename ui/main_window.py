@@ -8,6 +8,7 @@ import codecs
 import subprocess
 import importlib
 import pkgutil
+import tempfile
 from pathlib import Path
 from typing import List, Optional
 
@@ -71,6 +72,10 @@ from core.event_bus import EventBus
 from protocols.registry import ProtocolRegistry
 import protocols as protocols_pkg
 from ui.script_runner_qt import ScriptRunnerQt
+from actions.chart_bridge import chart_bridge
+from ui.charts.window_manager import WindowManager
+from ui.charts.ui_builder import charts_from_ast
+from dsl.parser import parse_script
 from ui.title_bar import TitleBar
 
 
@@ -86,6 +91,7 @@ class MainWindow(QMainWindow):
         self.comm = comm
         self.script_runner: Optional[ScriptRunnerQt] = None
         self.mode: str = "manual"  # manual | script
+        self.chart_manager: Optional[WindowManager] = None
 
         self.display_mode = "hex"
         self._text_decoder = codecs.getincrementaldecoder("utf-8")()
@@ -1157,6 +1163,30 @@ class MainWindow(QMainWindow):
         if self.script_runner and self.script_runner.isRunning():
             self._log_script("脚本正在运行中")
             return
+
+        # 解析 YAML 以构建曲线窗口（如有）
+        tmp_path: Optional[str] = None
+        try:
+            with tempfile.NamedTemporaryFile("w+", suffix=".yaml", delete=False) as tmp:
+                tmp.write(yaml_text)
+                tmp.flush()
+                tmp_path = tmp.name
+                ast = parse_script(tmp_path)
+            charts = charts_from_ast(ast)
+            if charts:
+                self.chart_manager = WindowManager(charts, parent=self)
+                if chart_bridge:
+                    chart_bridge.sig_data.connect(self.chart_manager.handle_data)
+        except Exception as exc:
+            self._log_script(f"[ERROR] 解析脚本失败: {exc}")
+            return
+        finally:
+            if tmp_path:
+                try:
+                    Path(tmp_path).unlink(missing_ok=True)
+                except Exception:
+                    pass
+
         self._switch_to_script_mode()
         self.comm.close()
         self.script_runner = ScriptRunnerQt(yaml_text)
@@ -1175,6 +1205,9 @@ class MainWindow(QMainWindow):
         self._log_script("脚本结束")
         self.script_runner = None
         self._switch_to_manual_mode()
+        if self.chart_manager:
+            self.chart_manager.close_all()
+            self.chart_manager = None
 
     def _update_script_state(self, state: str) -> None:
         self.script_state_label.setText(self._t("script_status_template").format(state=state))

@@ -29,8 +29,24 @@ class StateMachine:
 
 
 @dataclass
+class ChartSpec:
+    id: str
+    title: str
+    bind: str
+    group: Optional[str] = None
+    separate: bool = False
+    max_points: int = 1000
+
+
+@dataclass
+class UIConfig:
+    charts: List[ChartSpec] = field(default_factory=list)
+
+
+@dataclass
 class ScriptAST:
     version: int
     vars: Dict[str, Any]
     channels: Dict[str, Dict[str, Any]]
     state_machine: StateMachine
+    ui: UIConfig = field(default_factory=UIConfig)

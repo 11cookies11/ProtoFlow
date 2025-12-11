@@ -1,0 +1,23 @@
+version: 1
+vars: {}
+channels: {}
+state_machine:
+  initial: done
+  states:
+    done: {}
+ui:
+  charts:
+    - id: temp
+      title: "Temperature"
+      bind: temp
+      group: main
+
+    - id: current
+      title: "Current"
+      bind: current
+      group: main
+
+    - id: voltage
+      title: "Voltage"
+      bind: voltage
+      separate: true

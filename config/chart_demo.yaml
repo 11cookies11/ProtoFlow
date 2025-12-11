@@ -1,0 +1,41 @@
+version: 1
+vars:
+  temp_val: 0
+  current_val: 0
+  voltage_val: 0
+
+channels:
+  dummy:
+    type: tcp
+    host: 127.0.0.1
+    port: 502
+
+ui:
+  charts:
+    - id: temp
+      title: "Temperature"
+      bind: temp
+      group: main
+    - id: current
+      title: "Current"
+      bind: current
+      group: main
+    - id: voltage
+      title: "Voltage"
+      bind: voltage
+      separate: true
+
+state_machine:
+  initial: loop
+  states:
+    loop:
+      do:
+        - set: { temp_val: "$temp_val + 0.5", current_val: "$current_val + 0.2", voltage_val: "$voltage_val + 0.1" }
+        - action: chart_add
+          args: { bind: temp, value: "$temp_val", ts: "$now/1000" }
+        - action: chart_add
+          args: { bind: current, value: "$current_val", ts: "$now/1000" }
+        - action: chart_add
+          args: { bind: voltage, value: "$voltage_val", ts: "$now/1000" }
+        - wait: 500
+      goto: loop
