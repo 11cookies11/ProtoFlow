@@ -90,6 +90,7 @@ class MainWindow(QMainWindow):
         self.display_mode = "hex"
         self._text_decoder = codecs.getincrementaldecoder("utf-8")()
         self._rx_text_buffer: str = ""
+        self._channel_info: dict | None = None
         self.language_map = {"简体中文": "zh", "English": "en"}
         self.language_label_map = {code: label for label, code in self.language_map.items()}
         self.current_language = "zh"
@@ -149,6 +150,14 @@ class MainWindow(QMainWindow):
                 "protocol_desc_placeholder": "暂无描述",
                 "protocol_type_label": "类型：{type}",
                 "protocols_empty": "暂未注册协议，请检查 protocols/registry.py。",
+                "channel_serial_title": "串口",
+                "channel_tcp_title": "TCP",
+                "channel_status_connected": "已连接",
+                "channel_status_disconnected": "未连接",
+                "channel_serial_ports": "可用串口：{ports}",
+                "channel_serial_empty": "未检测到可用串口",
+                "channel_current": "当前连接：{detail}",
+                "channel_tcp_hint": "设置 IP 和端口后建立连接。",
             },
             "en": {
                 "window_title": "TOC Console",
@@ -205,6 +214,14 @@ class MainWindow(QMainWindow):
                 "protocol_desc_placeholder": "No description",
                 "protocol_type_label": "Type: {type}",
                 "protocols_empty": "No protocols registered; check protocols/registry.py.",
+                "channel_serial_title": "Serial",
+                "channel_tcp_title": "TCP",
+                "channel_status_connected": "Connected",
+                "channel_status_disconnected": "Disconnected",
+                "channel_serial_ports": "Available ports: {ports}",
+                "channel_serial_empty": "No serial ports detected",
+                "channel_current": "Current: {detail}",
+                "channel_tcp_hint": "Set IP and port, then connect.",
             },
         }
         self.app_version = self._get_app_version()
@@ -709,6 +726,7 @@ class MainWindow(QMainWindow):
         self.channels_title.setText(self._t("channels_tab_title"))
         self.protocols_title.setText(self._t("protocols_tab_title"))
         self._render_protocol_cards()
+        self._render_channel_cards()
         # 视图内可能存在的显示模式占位符刷新
         self._change_display_mode()
 
@@ -781,6 +799,46 @@ class MainWindow(QMainWindow):
             )
         layout.addStretch()
 
+    def _render_channel_cards(self) -> None:
+        if not hasattr(self, "channels_layout"):
+            return
+        layout = self.channels_layout
+        while layout.count():
+            item = layout.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+
+        ports = self.comm.list_serial_ports()
+        connected_type = (self._channel_info or {}).get("type")
+        detail = (self._channel_info or {}).get("detail", "")
+
+        serial_lines: List[str] = []
+        if ports:
+            serial_lines.append(self._t("channel_serial_ports").format(ports=", ".join(ports)))
+        else:
+            serial_lines.append(self._t("channel_serial_empty"))
+        if connected_type == "serial" and detail:
+            serial_lines.append(self._t("channel_current").format(detail=detail))
+        self._add_card(
+            layout,
+            self._t("channel_serial_title"),
+            self._t("channel_status_connected") if connected_type == "serial" else self._t("channel_status_disconnected"),
+            "#4cc38a" if connected_type == "serial" else "#f5a524",
+            serial_lines,
+        )
+
+        tcp_lines = [self._t("channel_tcp_hint")]
+        if connected_type == "tcp" and detail:
+            tcp_lines.append(self._t("channel_current").format(detail=detail))
+        self._add_card(
+            layout,
+            self._t("channel_tcp_title"),
+            self._t("channel_status_connected") if connected_type == "tcp" else self._t("channel_status_disconnected"),
+            "#4cc38a" if connected_type == "tcp" else "#f5a524",
+            tcp_lines,
+        )
+        layout.addStretch()
+
     def _build_settings_tab(self) -> QWidget:
         tab = QWidget()
         outer = QVBoxLayout(tab)
@@ -835,34 +893,21 @@ class MainWindow(QMainWindow):
         self.channels_title.setObjectName("sectionTitle")
         outer.addWidget(self.channels_title)
 
-        frame = QFrame()
-        frame.setObjectName("panel")
-        layout = QVBoxLayout(frame)
-        self._add_card(
-            layout,
-            "UART 通道",
-            "已连接",
-            "#4cc38a",
-            [
-                "类型：串口",
-                "端口：COM3",
-                "波特率：115200",
-                "标签：boot, debug",
-            ],
-        )
-        self._add_card(
-            layout,
-            "TCP 通道",
-            "未连接",
-            "#f5a524",
-            [
-                "类型：TCP",
-                "地址：192.168.1.100:4321",
-                "标签：bridge, test",
-            ],
-        )
-        layout.addStretch()
-        outer.addWidget(frame)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.channels_frame = QWidget()
+        self.channels_frame.setObjectName("panel")
+        self.channels_frame.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        self.channels_layout = QVBoxLayout(self.channels_frame)
+        self.channels_layout.setSpacing(10)
+        self.channels_layout.setContentsMargins(14, 14, 14, 14)
+        self.channels_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        scroll.setWidget(self.channels_frame)
+
+        outer.addWidget(scroll)
+        self._render_channel_cards()
         return tab
 
     def _build_protocols_tab(self) -> QWidget:
@@ -912,6 +957,7 @@ class MainWindow(QMainWindow):
         self.bus.subscribe("comm.rx", self._on_comm_rx)
         self.bus.subscribe("comm.tx", self._on_comm_tx)
         self.bus.subscribe("comm.error", self._on_comm_error)
+        self.bus.subscribe("comm.disconnected", self._on_comm_disconnected)
 
     # -------------------- 手动通信 --------------------
     def _refresh_ports(self) -> None:
@@ -1027,9 +1073,19 @@ class MainWindow(QMainWindow):
 
     def _on_comm_connected(self, info) -> None:
         self._log(f"连接成功: {info}")
+        if isinstance(info, dict):
+            kind = info.get("type")
+            detail = info.get("port") or info.get("address") or ""
+            self._channel_info = {"type": kind, "detail": detail}
+            self._render_channel_cards()
 
     def _on_comm_error(self, reason) -> None:
         self._log(f"[ERROR] {reason}")
+
+    def _on_comm_disconnected(self, _) -> None:
+        self._log("通信已断开")
+        self._channel_info = None
+        self._render_channel_cards()
 
     def _connect_serial(self) -> None:
         port = self.port_combo.currentText()
