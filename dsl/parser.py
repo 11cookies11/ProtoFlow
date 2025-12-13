@@ -10,6 +10,7 @@ from dsl.ast_nodes import (
     ControlActionSpec,
     ControlInputSpec,
     ControlSpec,
+    LayoutNode,
     ScriptAST,
     State,
     StateMachine,
@@ -140,6 +141,48 @@ def _parse_controls(ui_data: Dict[str, Any]) -> List[ControlSpec]:
     return controls
 
 
+def _parse_layout_node(node: Dict[str, Any]) -> LayoutNode:
+    if "split" in node:
+        orient_raw = node.get("split")
+        orientation = str(orient_raw).lower()
+        if orientation not in {"horizontal", "vertical"}:
+            raise ValueError(f"layout split orientation invalid: {orient_raw}")
+        children: List[LayoutNode] = []
+        for key in ("left", "right", "top", "bottom", "children"):
+            child_cfg = node.get(key)
+            if child_cfg:
+                if key == "children":
+                    if not isinstance(child_cfg, list):
+                        raise ValueError("layout.children must be list")
+                    children.extend(_parse_layout_node(item) for item in child_cfg)
+                else:
+                    if not isinstance(child_cfg, dict):
+                        raise ValueError(f"layout {key} must be mapping")
+                    children.append(_parse_layout_node(child_cfg))
+        if not children:
+            raise ValueError("layout split requires children")
+        return LayoutNode(type="split", orientation=orientation, children=children)
+
+    charts = node.get("charts") or []
+    controls = node.get("controls") or []
+    if not charts and not controls:
+        raise ValueError("layout leaf requires charts or controls")
+    if charts and not isinstance(charts, list):
+        raise ValueError("layout leaf charts must be list")
+    if controls and not isinstance(controls, list):
+        raise ValueError("layout leaf controls must be list")
+    return LayoutNode(type="leaf", charts=[str(c) for c in charts], controls=[str(c) for c in controls])
+
+
+def _parse_layout(ui_data: Dict[str, Any]) -> LayoutNode | None:
+    layout_cfg = ui_data.get("layout")
+    if not layout_cfg:
+        return None
+    if not isinstance(layout_cfg, dict):
+        raise ValueError("ui.layout must be a mapping")
+    return _parse_layout_node(layout_cfg)
+
+
 def parse_script(path: str) -> ScriptAST:
     with open(path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
@@ -150,6 +193,7 @@ def parse_script(path: str) -> ScriptAST:
     ui_cfg_raw = data.get("ui") or {}
     ui_cfg = _parse_ui(ui_cfg_raw)
     ui_cfg.controls = _parse_controls(ui_cfg_raw)
+    ui_cfg.layout = _parse_layout(ui_cfg_raw)
 
     sm_cfg = data.get("state_machine") or {}
     initial = sm_cfg.get("initial")

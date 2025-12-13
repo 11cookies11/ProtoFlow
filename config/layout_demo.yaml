@@ -1,0 +1,62 @@
+version: 1
+
+vars:
+  temp_val: 0
+  current_val: 0
+  note: ""
+
+channels:
+  demo:
+    type: dummy
+
+ui:
+  charts:
+    - id: temp
+      title: "Temperature"
+      bind: temp
+    - id: current
+      title: "Current"
+      bind: current
+  controls:
+    - id: tx_params
+      title: "Parameters"
+      separate: true
+      inputs:
+        - { name: temp_step,   label: Temp Step,    type: float, min: -5, max: 5, step: 0.5, default: 0.5 }
+        - { name: current_step,label: Current Step, type: float, min: -5, max: 5, step: 0.2, default: 0.2 }
+        - { name: note,        label: Note,         type: text,  placeholder: "comment", default: "hello" }
+      actions:
+        apply: { emit: ui.param.apply }
+
+  layout:
+    split: horizontal
+    left:
+      charts: [temp, current]
+    right:
+      controls: [tx_params]
+
+state_machine:
+  initial: loop
+  states:
+    loop:
+      do:
+        - set:
+            temp_val: "$temp_val + 0.5"
+            current_val: "$current_val + 0.2"
+        - action: chart_add
+          args: { bind: temp, value: "$temp_val", ts: "$now/1000" }
+        - action: chart_add
+          args: { bind: current, value: "$current_val", ts: "$now/1000" }
+        - wait: 500
+      on_event:
+        ui.param.apply: apply_params
+      goto: loop
+
+    apply_params:
+      do:
+        - set:
+            temp_val: "$temp_val + $event.temp_step"
+            current_val: "$current_val + $event.current_step"
+            note: "$event.note"
+        - log: "applied steps -> temp_val=$temp_val, current_val=$current_val, note=$note"
+      goto: loop

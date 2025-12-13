@@ -68,9 +68,18 @@ class ControlWindow(QMainWindow):
 
     def __init__(self, spec: ControlSpec, bus) -> None:
         super().__init__()
+        self.widget = ControlWidget(spec, bus)
+        self.setWindowTitle(spec.title)
+        self.setCentralWidget(self.widget)
+
+
+class ControlWidget(QWidget):
+    """Embeddable control panel used by ControlWindow and layout system."""
+
+    def __init__(self, spec: ControlSpec, bus) -> None:
+        super().__init__()
         self.spec = spec
         self.bus = bus
-        self.setWindowTitle(spec.title)
         self.inputs: Dict[str, _InputAdapter] = {}
         self._build_ui(spec.inputs, spec.actions)
 
@@ -95,7 +104,7 @@ class ControlWindow(QMainWindow):
         layout.addLayout(form)
         layout.addLayout(action_row)
         layout.addStretch()
-        self.setCentralWidget(container)
+        self.setLayout(layout)
 
     def _create_input_widget(self, spec: ControlInputSpec) -> tuple[QWidget, _InputAdapter]:
         itype = spec.itype

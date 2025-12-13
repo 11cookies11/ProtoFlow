@@ -68,9 +68,19 @@ class ControlSpec:
 
 
 @dataclass
+class LayoutNode:
+    type: str  # "split" | "leaf"
+    orientation: Optional[str] = None  # horizontal | vertical for split
+    children: List["LayoutNode"] = field(default_factory=list)
+    charts: List[str] = field(default_factory=list)
+    controls: List[str] = field(default_factory=list)
+
+
+@dataclass
 class UIConfig:
     charts: List[ChartSpec] = field(default_factory=list)
     controls: List[ControlSpec] = field(default_factory=list)
+    layout: Optional[LayoutNode] = None
 
 
 @dataclass

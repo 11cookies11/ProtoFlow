@@ -77,6 +77,7 @@ from ui.charts.window_manager import WindowManager
 from ui.charts.ui_builder import charts_from_ast
 from ui.controls.window_manager import ControlWindowManager
 from ui.controls.ui_builder import controls_from_ast
+from ui.layout.layout_manager import LayoutManager
 from dsl.parser import parse_script
 from ui.title_bar import TitleBar
 
@@ -95,6 +96,7 @@ class MainWindow(QMainWindow):
         self.mode: str = "manual"  # manual | script
         self.chart_manager: Optional[WindowManager] = None
         self.control_manager: Optional[ControlWindowManager] = None
+        self.layout_manager: Optional[LayoutManager] = None
 
         self.display_mode = "hex"
         self._text_decoder = codecs.getincrementaldecoder("utf-8")()
@@ -1170,6 +1172,7 @@ class MainWindow(QMainWindow):
         # 解析 YAML 以构建曲线窗口（如有）
         tmp_path: Optional[str] = None
         controls = []
+        layout_root = None
         try:
             with tempfile.NamedTemporaryFile("w+", suffix=".yaml", delete=False) as tmp:
                 tmp.write(yaml_text)
@@ -1178,18 +1181,27 @@ class MainWindow(QMainWindow):
                 ast = parse_script(tmp_path)
             charts = charts_from_ast(ast)
             controls = controls_from_ast(ast)
+            layout_root = ast.ui.layout if ast.ui else None
             if self.chart_manager:
                 self.chart_manager.close_all()
                 self.chart_manager = None
             if self.control_manager:
                 self.control_manager.close_all()
                 self.control_manager = None
-            if charts:
-                self.chart_manager = WindowManager(charts, parent=self)
+            if self.layout_manager:
+                self.layout_manager.close_all()
+                self.layout_manager = None
+            if layout_root:
+                self.layout_manager = LayoutManager(layout_root, charts, controls, bus=self.bus, title="Layout")
                 if chart_bridge:
-                    chart_bridge.sig_data.connect(self.chart_manager.handle_data)
-            if controls:
-                self.control_manager = ControlWindowManager(controls, bus=self.bus, parent=self)
+                    chart_bridge.sig_data.connect(self.layout_manager.handle_data)
+            else:
+                if charts:
+                    self.chart_manager = WindowManager(charts, parent=self)
+                    if chart_bridge:
+                        chart_bridge.sig_data.connect(self.chart_manager.handle_data)
+                if controls:
+                    self.control_manager = ControlWindowManager(controls, bus=self.bus, parent=self)
         except Exception as exc:
             self._log_script(f"[ERROR] 解析脚本失败: {exc}")
             return
@@ -1225,6 +1237,9 @@ class MainWindow(QMainWindow):
         if self.control_manager:
             self.control_manager.close_all()
             self.control_manager = None
+        if self.layout_manager:
+            self.layout_manager.close_all()
+            self.layout_manager = None
 
     def _update_script_state(self, state: str) -> None:
         self.script_state_label.setText(self._t("script_status_template").format(state=state))
@@ -1342,7 +1357,8 @@ class MainWindow(QMainWindow):
             if handled:
                 return
             gp = event.globalPosition().toPoint() if hasattr(event, "globalPosition") else event.globalPos()
-            self._drag_pos = gp - self.frameGeometry().topLeft()
+            top_left = self.frameGeometry().topLeft()
+            self._drag_pos = gp - top_left if hasattr(gp, "__sub__") else None
             event.accept()
         super().mousePressEvent(event)
 
@@ -1354,7 +1370,13 @@ class MainWindow(QMainWindow):
             return
 
         if event.buttons() & Qt.LeftButton and hasattr(self, "_drag_pos"):
-            self.move(gp - self._drag_pos)
+            try:
+                delta = gp - self._drag_pos  # type: ignore[operator]
+                self.move(self.frameGeometry().topLeft() + delta)
+            except Exception:
+                dx = gp.x() - getattr(self, "_drag_pos", QPoint(0, 0)).x()
+                dy = gp.y() - getattr(self, "_drag_pos", QPoint(0, 0)).y()
+                self.move(self.frameGeometry().x() + dx, self.frameGeometry().y() + dy)
             event.accept()
             return
 
