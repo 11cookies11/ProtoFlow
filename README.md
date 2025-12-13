@@ -141,91 +141,18 @@ ToolOfCom 的价值在于：
 
 
 
-## 📝 DSL 示例（Example）
+## 📝 YAML 示例（Demos）
 
-```yaml
-version: 1		#可配合BootAppOfRAM仓库代码进行测试
+仓库内提供若干可直接运行的 DSL YAML，用于演示不同能力（README 不展开完整 YAML，避免过长）：
 
-vars:
-  block: 1
-  file_path: ./logs/app.bin      # firmware BIN path
-  max_blocks: 960           # 120 KB / 128B
-  retry: 0                  # current retry count
-  max_retry: 5              # max retries per block before abort
+- `config/chart_demo.yaml`：曲线窗口（`ui.charts`），演示 `group/separate` 多窗口；使用 `chart_add` 推送数据点。
+- `config/controls_demo.yaml`：交互控件（`ui.controls`），演示输入面板与按钮 `emit` 事件；状态机用 `$event.<field>` 取值。
+- `config/layout_demo.yaml`：声明式布局（`ui.layout`），演示 split 组合 charts/controls 到单窗口；包含 `scatter3d` + `chart_add3d`。
+- `charts_example.yaml`：最小 `ui.charts` 示例；可用 `python charts_main.py charts_example.yaml` 快速预览（随机数据）。
 
-channels:
-  boot:
-    type: tcp
-    host: 192.168.31.135    # Renode UART bridge host
-    port: 4321              # Renode UART bridge port
-    baudrate: 19200         # baudrate hint if using a serial bridge
-    timeout: 10             # connection timeout seconds
-    log_path: ./logs/boot_uart.log
-
-state_machine:
-  initial: wait_handshake
-  states:
-    wait_handshake:
-      do:
-        - log: "waiting for 'C' from bootloader (XMODEM-CRC handshake)"
-      on_event:
-        "C": send_block
-      timeout: 10000
-      on_timeout: fail
-
-    send_block:
-      do:
-        - action: send_xmodem_block
-          args:
-            block: "$block"
-        - wait: { ms: 50 }        # inter-packet gap to allow device processing
-      on_event:
-        "\x06": next_block      # ACK
-        "\x15": resend_block    # NAK
-        "\x18": abort           # CAN (size overflow or fatal error)
-      timeout: 5000
-      on_timeout: resend_block
-
-    resend_block:
-      do:
-        - set: { retry: "$retry + 1" }
-        - log: "resend block"
-      when: "$retry < $max_retry"
-      goto: send_block
-      else_goto: abort
-
-    next_block:
-      do:
-        - set: { block: "$block + 1" }
-        - set: { retry: 0 }
-      when: "$block <= $file_block_count and $block <= $max_blocks"
-      goto: send_block
-      else_goto: send_eot
-
-    send_eot:
-      do:
-        - action: send_eot
-      on_event:
-        "\x06": done            # ACK
-        "\x18": abort
-      timeout: 5000
-      on_timeout: abort
-
-    abort:
-      do:
-        - log: "bootloader returned CAN or timeout, stop transfer"
-      goto: done
-
-    fail:
-      do:
-        - log: "handshake timeout, XMODEM not started"
-      goto: done
-
-    done:
-      do:
-        - log: "XMODEM flow ended (boot should jump on success)"
-
-```
+运行方式：
+- GUI：`python main.py` → 脚本模式加载/粘贴 YAML → Run
+- CLI（无 GUI）：`python dsl_main.py <yaml>`（不包含 charts/controls 的可视化）
 
 **没有 Python，没有回调，没有 if-else**
  通信逻辑变成声明式流。

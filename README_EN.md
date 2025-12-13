@@ -132,39 +132,18 @@ ToolOfCOM unlocks:
 
 ------
 
-## 📝 DSL Example
+## 📝 YAML Demos
 
-```
-version: 1      # Testable with BootAppOfRAM repository
+This repo includes several runnable DSL YAML demos (the full YAML is not in README to keep it short):
 
-vars:
-  block: 1
-  file_path: ./logs/app.bin
-  max_blocks: 960
-  retry: 0
-  max_retry: 5
+- `config/chart_demo.yaml`: chart windows (`ui.charts`), multi-window via `group/separate`; pushes points with `chart_add`.
+- `config/controls_demo.yaml`: non-blocking controls (`ui.controls`), input panel + button `emit` events; access payload via `$event.<field>`.
+- `config/layout_demo.yaml`: declarative layout (`ui.layout`), split a single window with charts/controls; includes `scatter3d` + `chart_add3d`.
+- `charts_example.yaml`: minimal `ui.charts`; preview via `python charts_main.py charts_example.yaml` (random data).
 
-channels:
-  boot:
-    type: tcp
-    host: 192.168.31.135
-    port: 4321
-    baudrate: 19200
-    timeout: 10
-    log_path: ./logs/boot_uart.log
-
-state_machine:
-  initial: wait_handshake
-  states:
-    wait_handshake:
-      do:
-        - log: "waiting for 'C' from bootloader (XMODEM-CRC handshake)"
-      on_event:
-        "C": send_block
-      timeout: 10000
-      on_timeout: fail
-...
-```
+How to run:
+- GUI: `python main.py` → Script mode → load/paste YAML → Run
+- CLI (no GUI): `python dsl_main.py <yaml>` (no charts/controls visualization)
 
 **No Python, no callbacks, no if-else statements.**
 
