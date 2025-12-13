@@ -5,10 +5,8 @@ vars:
   voltage_val: 0
 
 channels:
-  dummy:
-    type: tcp
-    host: 127.0.0.1
-    port: 502
+  demo:
+    type: dummy  # no real connection needed for chart demo
 
 ui:
   charts:
