@@ -48,6 +48,7 @@ class ControlInputSpec:
     step: Optional[float] = None
     default: Optional[object] = None
     options: List[str] = field(default_factory=list)
+    placeholder: Optional[str] = None
 
 
 @dataclass

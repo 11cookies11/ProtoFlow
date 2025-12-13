@@ -13,6 +13,7 @@ try:
         QLabel,
         QMainWindow,
         QPushButton,
+        QLineEdit,
         QSlider,
         QSpinBox,
         QVBoxLayout,
@@ -29,6 +30,7 @@ except ImportError:  # pragma: no cover
         QLabel,
         QMainWindow,
         QPushButton,
+        QLineEdit,
         QSlider,
         QSpinBox,
         QVBoxLayout,
@@ -51,6 +53,8 @@ class _InputAdapter:
             return bool(self.widget.isChecked())
         if isinstance(self.widget, QComboBox):
             return self.widget.currentText()
+        if hasattr(self.widget, "text"):
+            return self.widget.text()
         if isinstance(self.widget, (QSpinBox, QDoubleSpinBox)):
             return float(self.widget.value()) if self.spec.itype == "float" else int(self.widget.value())
         if isinstance(self.widget, QSlider):
@@ -98,6 +102,14 @@ class ControlWindow(QMainWindow):
         minimum = spec.minimum if spec.minimum is not None else 0
         maximum = spec.maximum if spec.maximum is not None else (1 if itype == "bool" else 100)
         step = spec.step if spec.step is not None else (0.1 if itype == "float" else 1)
+
+        if itype in {"text", "string", "field"}:
+            line = QLineEdit()
+            if spec.placeholder:
+                line.setPlaceholderText(str(spec.placeholder))
+            if spec.default is not None:
+                line.setText(str(spec.default))
+            return line, _InputAdapter(line, spec)
 
         if itype == "bool":
             cb = QCheckBox()
@@ -171,4 +183,3 @@ class ControlWindow(QMainWindow):
                 self.bus.publish(emit_name, payload)
             except Exception:
                 pass
-

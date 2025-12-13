@@ -191,6 +191,7 @@ stateDiagram-v2
           apply: { emit: ui.param.apply }
   ```
 - 输入类型：`float/int`（滑条 + 数值框）、`bool`（checkbox）、`select`（下拉 options）。
+- 新增：`text`/`string`（可编辑文本框，可用 `default` 显示初始值，`placeholder` 提示）。
 - 行为：按钮点击时收集输入为 dict 并以 EventBus 发布 `emit` 事件；FSM 直接用既有 `on_event` / `wait_for_event`（`$event` 为 payload，`$event_name` 为事件名）。
 
 ## 9. XMODEM 动作

@@ -18,6 +18,7 @@ ui:
         - { name: voltage, label: Voltage, type: float, min: 0, max: 24, step: 0.1, default: 12.0 }
         - { name: enable, label: Enable, type: bool, default: true }
         - { name: mode, label: Mode, type: select, options: [A, B, C], default: A }
+        - { name: comment, label: Comment, type: text, placeholder: "optional note", default: "hello" }
       actions:
         apply: { emit: ui.param.apply }
 
@@ -36,5 +37,6 @@ state_machine:
             target_voltage: "$event.voltage"
             target_enable: "$event.enable"
             target_mode: "$event.mode"
-        - log: "applied: V=$target_voltage, enable=$target_enable, mode=$target_mode"
+            target_comment: "$event.comment"
+        - log: "applied: V=$target_voltage, enable=$target_enable, mode=$target_mode, comment=$target_comment"
       goto: wait_input

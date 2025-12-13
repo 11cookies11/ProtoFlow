@@ -113,6 +113,7 @@ def _parse_controls(ui_data: Dict[str, Any]) -> List[ControlSpec]:
                     step=inp.get("step"),
                     default=inp.get("default"),
                     options=[str(opt) for opt in options] if options else [],
+                    placeholder=inp.get("placeholder"),
                 )
             )
 
