@@ -4,9 +4,9 @@ from collections import deque
 from typing import Deque, Tuple
 
 try:
-    from PySide6.QtWidgets import QVBoxLayout, QWidget, QLabel
+    from PySide6.QtWidgets import QVBoxLayout, QWidget, QLabel, QSizePolicy
 except ImportError:  # pragma: no cover
-    from PyQt6.QtWidgets import QVBoxLayout, QWidget, QLabel  # type: ignore
+    from PyQt6.QtWidgets import QVBoxLayout, QWidget, QLabel, QSizePolicy  # type: ignore
 
 try:
     import pyqtgraph as pg  # noqa: F401
@@ -35,6 +35,8 @@ class Chart3DWidget(QWidget):
             return
 
         self.view = gl.GLViewWidget()
+        self.view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.view.setMinimumHeight(220)
         self.view.opts["distance"] = 20
         self.view.setWindowTitle(title)
         grid = gl.GLGridItem()

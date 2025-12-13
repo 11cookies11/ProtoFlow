@@ -78,7 +78,7 @@ class LayoutManager:
                 widget = ChartWidget(title=spec.title, max_points=spec.max_points)
                 self.chart_widgets[cid] = widget  # type: ignore[assignment]
                 self.bind_map.setdefault(spec.bind, []).append(widget)  # type: ignore[arg-type]
-            layout.addWidget(widget)
+            layout.addWidget(widget, 1)
 
         for ctrl_id in node.controls:
             spec = self.control_specs.get(ctrl_id)
@@ -87,7 +87,7 @@ class LayoutManager:
                 continue
             widget = ControlWidget(spec, self.bus)
             self.control_widgets[ctrl_id] = widget
-            layout.addWidget(widget)
+            layout.addWidget(widget, 0)
 
         if not node.charts and not node.controls:
             layout.addWidget(QLabel("Empty leaf"))

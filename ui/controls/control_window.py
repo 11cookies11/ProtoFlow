@@ -99,12 +99,11 @@ class ControlWidget(QWidget):
             action_row.addWidget(btn)
             self._action_emit_map.append((act.name, act.emit))
 
-        container = QWidget()
-        layout = QVBoxLayout(container)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
         layout.addLayout(form)
         layout.addLayout(action_row)
-        layout.addStretch()
-        self.setLayout(layout)
+        layout.addStretch(1)
 
     def _create_input_widget(self, spec: ControlInputSpec) -> tuple[QWidget, _InputAdapter]:
         itype = spec.itype

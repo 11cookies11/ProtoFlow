@@ -60,14 +60,16 @@ def _parse_ui(ui_data: Dict[str, Any]) -> UIConfig:
         if not isinstance(item, dict):
             raise ValueError(f"ui.charts[{idx}] must be a mapping")
         cid = str(item.get("id") or f"chart_{idx}")
+        chart_type = str(item.get("type", "line")).lower()
         bind = item.get("bind")
+        if chart_type == "scatter3d" and not bind:
+            bind = item.get("bind_z") or item.get("bind_y") or item.get("bind_x") or cid
         if not bind:
             raise ValueError(f"ui.charts[{idx}] missing bind")
         group = item.get("group")
         separate = bool(item.get("separate", False))
         if group and separate:
             raise ValueError(f"ui.charts[{idx}] cannot have both group and separate")
-        chart_type = str(item.get("type", "line")).lower()
         bind_x = item.get("bind_x")
         bind_y = item.get("bind_y")
         bind_z = item.get("bind_z")
