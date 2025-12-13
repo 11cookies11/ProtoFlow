@@ -75,6 +75,8 @@ from ui.script_runner_qt import ScriptRunnerQt
 from actions.chart_bridge import chart_bridge
 from ui.charts.window_manager import WindowManager
 from ui.charts.ui_builder import charts_from_ast
+from ui.controls.window_manager import ControlWindowManager
+from ui.controls.ui_builder import controls_from_ast
 from dsl.parser import parse_script
 from ui.title_bar import TitleBar
 
@@ -92,6 +94,7 @@ class MainWindow(QMainWindow):
         self.script_runner: Optional[ScriptRunnerQt] = None
         self.mode: str = "manual"  # manual | script
         self.chart_manager: Optional[WindowManager] = None
+        self.control_manager: Optional[ControlWindowManager] = None
 
         self.display_mode = "hex"
         self._text_decoder = codecs.getincrementaldecoder("utf-8")()
@@ -1166,6 +1169,7 @@ class MainWindow(QMainWindow):
 
         # 解析 YAML 以构建曲线窗口（如有）
         tmp_path: Optional[str] = None
+        controls = []
         try:
             with tempfile.NamedTemporaryFile("w+", suffix=".yaml", delete=False) as tmp:
                 tmp.write(yaml_text)
@@ -1173,10 +1177,19 @@ class MainWindow(QMainWindow):
                 tmp_path = tmp.name
                 ast = parse_script(tmp_path)
             charts = charts_from_ast(ast)
+            controls = controls_from_ast(ast)
+            if self.chart_manager:
+                self.chart_manager.close_all()
+                self.chart_manager = None
+            if self.control_manager:
+                self.control_manager.close_all()
+                self.control_manager = None
             if charts:
                 self.chart_manager = WindowManager(charts, parent=self)
                 if chart_bridge:
                     chart_bridge.sig_data.connect(self.chart_manager.handle_data)
+            if controls:
+                self.control_manager = ControlWindowManager(controls, bus=self.bus, parent=self)
         except Exception as exc:
             self._log_script(f"[ERROR] 解析脚本失败: {exc}")
             return
@@ -1189,7 +1202,8 @@ class MainWindow(QMainWindow):
 
         self._switch_to_script_mode()
         self.comm.close()
-        self.script_runner = ScriptRunnerQt(yaml_text)
+        control_events = [act.emit for spec in controls for act in spec.actions] if controls else []
+        self.script_runner = ScriptRunnerQt(yaml_text, bus=self.bus, external_events=control_events)
         self.script_runner.sig_log.connect(self._log_script)
         self.script_runner.sig_state.connect(self._update_script_state)
         self.script_runner.sig_progress.connect(self.script_progress.setValue)
@@ -1208,6 +1222,9 @@ class MainWindow(QMainWindow):
         if self.chart_manager:
             self.chart_manager.close_all()
             self.chart_manager = None
+        if self.control_manager:
+            self.control_manager.close_all()
+            self.control_manager = None
 
     def _update_script_state(self, state: str) -> None:
         self.script_state_label.setText(self._t("script_status_template").format(state=state))
@@ -1281,6 +1298,14 @@ class MainWindow(QMainWindow):
 
     def _switch_to_manual_mode(self) -> None:
         self.mode = "manual"
+        self.mode_combo.setEnabled(True)
+        self.refresh_btn.setEnabled(True)
+        self.close_btn.setEnabled(True)
+        self.run_script_btn.setEnabled(True)
+        self.stop_script_btn.setEnabled(False)
+        self.input_edit.setEnabled(True)
+        self.send_btn.setEnabled(True)
+        self._toggle_manual_comm_mode()
 
     # -------------------- 窗口拖拽/缩放（无边框） --------------------
     def _hit_test(self, pos: QPoint) -> str | None:

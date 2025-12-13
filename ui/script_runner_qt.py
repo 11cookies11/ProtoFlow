@@ -102,9 +102,11 @@ class ScriptRunnerQt(QThread):
     sig_state = Signal(str)
     sig_progress = Signal(int)
 
-    def __init__(self, yaml_text: str) -> None:
+    def __init__(self, yaml_text: str, bus=None, external_events: list[str] | None = None) -> None:
         super().__init__()
         self.yaml_text = yaml_text
+        self.bus = bus
+        self.external_events = external_events or []
         self._stop_event = threading.Event()
 
     def stop(self) -> None:
@@ -124,6 +126,7 @@ class ScriptRunnerQt(QThread):
         register_chart_actions()
 
         channels = {}
+        ctx = None
         tmp_path: str | None = None
         try:
             # 将编辑器内容写入临时文件，复用 parser
@@ -136,7 +139,13 @@ class ScriptRunnerQt(QThread):
             if not channels:
                 raise ValueError("未定义 channels")
             default_channel = next(iter(channels.keys()))
-            ctx = RuntimeContext(channels, default_channel, vars_init=ast.vars)
+            ctx = RuntimeContext(
+                channels,
+                default_channel,
+                vars_init=ast.vars,
+                bus=self.bus,
+                external_events=self.external_events,
+            )
 
             executor = _ObservableExecutor(
                 ast,
@@ -153,6 +162,11 @@ class ScriptRunnerQt(QThread):
         except Exception as exc:  # 报错直接显示
             self.sig_log.emit(f"[ERROR] {exc}")
         finally:
+            if ctx is not None:
+                try:
+                    ctx.close()
+                except Exception:
+                    pass
             if tmp_path and os.path.exists(tmp_path):
                 try:
                     os.unlink(tmp_path)

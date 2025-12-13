@@ -175,6 +175,24 @@ stateDiagram-v2
   ```
 - 行为：按 `group/separate` 自动建一个或多个窗口；UI 线程每 30ms 刷新，双缓冲平滑绘制。
 
+### 8.3 非阻塞交互控件（ui.controls）
+- 配置：顶层 `ui.controls` 定义独立窗口。例如：
+  ```yaml
+  ui:
+    controls:
+      - id: param_panel
+        title: "TX Parameters"
+        separate: true
+        inputs:
+          - { name: voltage, label: Voltage, type: float, min: 0, max: 24, step: 0.1, default: 12.0 }
+          - { name: enable, label: Enable, type: bool, default: true }
+          - { name: mode, label: Mode, type: select, options: [A, B, C], default: A }
+        actions:
+          apply: { emit: ui.param.apply }
+  ```
+- 输入类型：`float/int`（滑条 + 数值框）、`bool`（checkbox）、`select`（下拉 options）。
+- 行为：按钮点击时收集输入为 dict 并以 EventBus 发布 `emit` 事件；FSM 直接用既有 `on_event` / `wait_for_event`（`$event` 为 payload，`$event_name` 为事件名）。
+
 ## 9. XMODEM 动作
 - `send_xmodem_block`：发送指定块号（128B，自动 0x1A 填充），参数 `block: "$block"`。
 - `send_eot`：发送 EOT 结束。

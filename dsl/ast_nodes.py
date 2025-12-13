@@ -39,8 +39,37 @@ class ChartSpec:
 
 
 @dataclass
+class ControlInputSpec:
+    name: str
+    label: str
+    itype: str
+    minimum: Optional[float] = None
+    maximum: Optional[float] = None
+    step: Optional[float] = None
+    default: Optional[object] = None
+    options: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ControlActionSpec:
+    name: str
+    emit: str
+    label: str
+
+
+@dataclass
+class ControlSpec:
+    id: str
+    title: str
+    separate: bool = True
+    inputs: List[ControlInputSpec] = field(default_factory=list)
+    actions: List[ControlActionSpec] = field(default_factory=list)
+
+
+@dataclass
 class UIConfig:
     charts: List[ChartSpec] = field(default_factory=list)
+    controls: List[ControlSpec] = field(default_factory=list)
 
 
 @dataclass

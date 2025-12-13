@@ -153,9 +153,26 @@ def build_channels(cfg: Dict[str, Any]) -> Dict[str, BaseChannel]:
             channels[name] = SerialChannel(ch_cfg)
         elif typ == "tcp":
             channels[name] = TcpChannel(ch_cfg)
+        elif typ == "dummy":
+            channels[name] = DummyChannel()
         else:
             raise ValueError(f"未知通道类型: {typ}")
         log_path = ch_cfg.get("log_path")
         if log_path:
             channels[name] = LoggingChannel(channels[name], log_path)
     return channels
+
+
+class DummyChannel(BaseChannel):
+    """No-op channel for UI/demo use; discards writes and yields no events."""
+
+    def write(self, data: bytes | str):
+        return None
+
+    def read(self, size: int = 1, timeout: float = 1.0) -> bytes:
+        time.sleep(min(timeout, 0.01))
+        return b""
+
+    def read_event(self, timeout: float = 0.1):
+        time.sleep(min(timeout, 0.01))
+        return None

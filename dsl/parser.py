@@ -4,7 +4,17 @@ from typing import Any, Dict, List
 
 import yaml
 
-from dsl.ast_nodes import ActionCall, ChartSpec, ScriptAST, State, StateMachine, UIConfig
+from dsl.ast_nodes import (
+    ActionCall,
+    ChartSpec,
+    ControlActionSpec,
+    ControlInputSpec,
+    ControlSpec,
+    ScriptAST,
+    State,
+    StateMachine,
+    UIConfig,
+)
 
 
 def _parse_actions(items: List[Any]) -> List[ActionCall]:
@@ -67,6 +77,66 @@ def _parse_ui(ui_data: Dict[str, Any]) -> UIConfig:
             )
         )
     return UIConfig(charts=charts)
+    # Controls are added later
+
+
+def _parse_controls(ui_data: Dict[str, Any]) -> List[ControlSpec]:
+    controls_cfg = ui_data.get("controls") or []
+    controls: List[ControlSpec] = []
+    for idx, item in enumerate(controls_cfg):
+        if not isinstance(item, dict):
+            raise ValueError(f"ui.controls[{idx}] must be a mapping")
+        cid = str(item.get("id") or f"control_{idx}")
+        title = str(item.get("title") or cid)
+        separate = bool(item.get("separate", True))
+
+        inputs_cfg = item.get("inputs") or []
+        inputs: List[ControlInputSpec] = []
+        for jdx, inp in enumerate(inputs_cfg):
+            if not isinstance(inp, dict):
+                raise ValueError(f"ui.controls[{idx}].inputs[{jdx}] must be a mapping")
+            name = inp.get("name")
+            if not name:
+                raise ValueError(f"ui.controls[{idx}].inputs[{jdx}] missing name")
+            itype = str(inp.get("type", "float")).lower()
+            label = str(inp.get("label", name))
+            options = inp.get("options") or []
+            if itype == "select" and not isinstance(options, list):
+                raise ValueError(f"ui.controls[{idx}].inputs[{jdx}].options must be list")
+            inputs.append(
+                ControlInputSpec(
+                    name=str(name),
+                    label=label,
+                    itype=itype,
+                    minimum=inp.get("min"),
+                    maximum=inp.get("max"),
+                    step=inp.get("step"),
+                    default=inp.get("default"),
+                    options=[str(opt) for opt in options] if options else [],
+                )
+            )
+
+        actions_cfg = item.get("actions") or {}
+        actions: List[ControlActionSpec] = []
+        for act_name, act_def in actions_cfg.items():
+            if not isinstance(act_def, dict):
+                raise ValueError(f"ui.controls[{idx}].actions.{act_name} must be a mapping")
+            emit = act_def.get("emit")
+            if not emit:
+                raise ValueError(f"ui.controls[{idx}].actions.{act_name} missing emit")
+            label = str(act_def.get("label", act_name))
+            actions.append(ControlActionSpec(name=str(act_name), emit=str(emit), label=label))
+
+        controls.append(
+            ControlSpec(
+                id=cid,
+                title=title,
+                separate=separate,
+                inputs=inputs,
+                actions=actions,
+            )
+        )
+    return controls
 
 
 def parse_script(path: str) -> ScriptAST:
@@ -76,7 +146,9 @@ def parse_script(path: str) -> ScriptAST:
     version = int(data.get("version", 1))
     vars_def = data.get("vars", {}) or {}
     channels = data.get("channels", {}) or {}
-    ui_cfg = _parse_ui(data.get("ui") or {})
+    ui_cfg_raw = data.get("ui") or {}
+    ui_cfg = _parse_ui(ui_cfg_raw)
+    ui_cfg.controls = _parse_controls(ui_cfg_raw)
 
     sm_cfg = data.get("state_machine") or {}
     initial = sm_cfg.get("initial")

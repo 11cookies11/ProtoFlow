@@ -19,7 +19,7 @@ def _register_actions() -> None:
     register_chart_actions()
 
 
-def run_dsl(path: str) -> int:
+def run_dsl(path: str, *, bus=None, external_events: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     _register_actions()
 
@@ -28,8 +28,16 @@ def run_dsl(path: str) -> int:
     if not channels:
         raise ValueError("未定义任何 channel")
     default_channel = next(iter(channels.keys()))
-    ctx = RuntimeContext(channels, default_channel, vars_init=ast.vars)
+    ctx = RuntimeContext(
+        channels,
+        default_channel,
+        vars_init=ast.vars,
+        bus=bus,
+        external_events=external_events,
+    )
 
     executor = StateMachineExecutor(ast, ctx)
     executor.run()
+    if hasattr(ctx, "close"):
+        ctx.close()
     return 0
