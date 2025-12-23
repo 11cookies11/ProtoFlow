@@ -15,8 +15,8 @@ from typing import List, Optional
 import yaml
 
 try:
-    from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal
-    from PySide6.QtGui import QTextCursor
+    from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal, QTimer
+    from PySide6.QtGui import QGuiApplication, QTextCursor
     from PySide6.QtWidgets import (
         QApplication,
         QComboBox,
@@ -41,8 +41,8 @@ try:
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    from PyQt6.QtCore import QEvent, QPoint, QRect, Qt, pyqtSignal as Signal  # type: ignore
-    from PyQt6.QtGui import QTextCursor  # type: ignore
+    from PyQt6.QtCore import QEvent, QPoint, QRect, Qt, QTimer, pyqtSignal as Signal  # type: ignore
+    from PyQt6.QtGui import QGuiApplication, QTextCursor  # type: ignore
     from PyQt6.QtWidgets import (  # type: ignore
         QApplication,
         QComboBox,
@@ -578,7 +578,6 @@ class MainWindow(QMainWindow):
             QLabel#sectionTitle { color: #00a6c2; font-weight: 600; font-size: 14px; }
             QLabel#titleText { color: #1b2333; font-weight: 600; letter-spacing: 0.2px; }
             QLabel#titleLogo { background: transparent; }
-
             QPushButton {
                 background: #e7edf7;
                 border: 1px solid #cfd8e8;
@@ -857,12 +856,11 @@ class MainWindow(QMainWindow):
         self.settings_title.setObjectName("sectionTitle")
         outer.addWidget(self.settings_title)
 
-        panel = QFrame()
-        panel.setObjectName("panel")
-        panel_layout = QVBoxLayout(panel)
-
         self.info_group = QGroupBox(self._t("settings_info_title"))
         info_form = QFormLayout(self.info_group)
+        info_form.setContentsMargins(12, 10, 12, 10)
+        info_form.setHorizontalSpacing(10)
+        info_form.setVerticalSpacing(6)
         self.version_label = QLabel(self.app_version)
         self.version_key_label = QLabel(self._t("settings_version_label"))
         info_form.addRow(self.version_key_label, self.version_label)
@@ -872,6 +870,8 @@ class MainWindow(QMainWindow):
 
         self.lang_group = QGroupBox(self._t("settings_language_title"))
         lang_layout = QVBoxLayout(self.lang_group)
+        lang_layout.setContentsMargins(12, 10, 12, 10)
+        lang_layout.setSpacing(6)
         lang_row = QHBoxLayout()
         lang_row.setContentsMargins(0, 0, 0, 0)
         lang_row.setSpacing(10)
@@ -887,14 +887,24 @@ class MainWindow(QMainWindow):
         self.lang_hint.setWordWrap(True)
         lang_layout.addWidget(self.lang_hint)
 
-        panel_layout.addWidget(self.info_group)
-        panel_layout.addWidget(self.version_hint)
-        panel_layout.addWidget(self._create_divider())
+        panel = QFrame()
+        panel.setObjectName("panel")
+        panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        panel_layout = QVBoxLayout(panel)
         panel_layout.addWidget(self.lang_group)
         panel_layout.addStretch()
 
+        info_panel = QFrame()
+        info_panel.setObjectName("panel")
+        info_panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        info_layout = QVBoxLayout(info_panel)
+        info_layout.addWidget(self.info_group)
+        info_layout.addWidget(self.version_hint)
+        info_layout.addStretch()
+
         outer.addWidget(panel)
         outer.addStretch()
+        outer.addWidget(info_panel)
         return tab
 
     def _build_channels_tab(self) -> QWidget:
@@ -1356,27 +1366,12 @@ class MainWindow(QMainWindow):
             )
             if handled:
                 return
-            gp = event.globalPosition().toPoint() if hasattr(event, "globalPosition") else event.globalPos()
-            top_left = self.frameGeometry().topLeft()
-            self._drag_pos = gp - top_left if hasattr(gp, "__sub__") else None
-            event.accept()
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event) -> None:
         gp = event.globalPosition().toPoint() if hasattr(event, "globalPosition") else event.globalPos()
         if getattr(self, "_resizing", False) and event.buttons() & Qt.LeftButton:
             self._perform_resize(gp)
-            event.accept()
-            return
-
-        if event.buttons() & Qt.LeftButton and hasattr(self, "_drag_pos"):
-            try:
-                delta = gp - self._drag_pos  # type: ignore[operator]
-                self.move(self.frameGeometry().topLeft() + delta)
-            except Exception:
-                dx = gp.x() - getattr(self, "_drag_pos", QPoint(0, 0)).x()
-                dy = gp.y() - getattr(self, "_drag_pos", QPoint(0, 0)).y()
-                self.move(self.frameGeometry().x() + dx, self.frameGeometry().y() + dy)
             event.accept()
             return
 
@@ -1391,10 +1386,6 @@ class MainWindow(QMainWindow):
                 self._resize_start_pos = None
                 self._resize_start_geom = None
                 self.unsetCursor()
-                event.accept()
-                return
-            if hasattr(self, "_drag_pos"):
-                self._drag_pos = None
                 event.accept()
                 return
         super().mouseReleaseEvent(event)
@@ -1491,6 +1482,7 @@ class MainWindow(QMainWindow):
             h = new_h
 
         self.setGeometry(x, y, w, h)
+        self._ensure_on_screen()
 
     def _toggle_maximize_restore(self) -> None:
         if self.isMaximized():
@@ -1501,6 +1493,26 @@ class MainWindow(QMainWindow):
             maximized = True
         if hasattr(self, "title_bar"):
             self.title_bar.set_maximized(maximized)
+
+    def showEvent(self, event) -> None:  # type: ignore[override]
+        super().showEvent(event)
+        QTimer.singleShot(0, self._ensure_on_screen)
+
+    def _ensure_on_screen(self) -> None:
+        app = QGuiApplication.instance()
+        if not app:
+            return
+        screen = self.screen() or app.primaryScreen()
+        if not screen:
+            return
+        available = screen.availableGeometry()
+        geom = self.frameGeometry()
+        width = min(max(geom.width(), self.minimumWidth()), available.width())
+        height = min(max(geom.height(), self.minimumHeight()), available.height())
+        x = min(max(geom.x(), available.x()), available.x() + available.width() - width)
+        y = min(max(geom.y(), available.y()), available.y() + available.height() - height)
+        if (geom.x(), geom.y(), geom.width(), geom.height()) != (x, y, width, height):
+            self.setGeometry(x, y, width, height)
 
     # -------------------- 导航与标签同步 --------------------
     def _on_nav_clicked(self, key: str) -> None:
