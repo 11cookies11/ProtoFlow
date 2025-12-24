@@ -163,7 +163,7 @@ body::-webkit-scrollbar,
 }
 
 .resize-handle.top {
-  top: 0;
+  top: var(--titlebar-height);
   cursor: n-resize;
 }
 
@@ -191,13 +191,13 @@ body::-webkit-scrollbar,
 }
 
 .resize-handle.top-left {
-  top: 0;
+  top: var(--titlebar-height);
   left: 0;
   cursor: nw-resize;
 }
 
 .resize-handle.top-right {
-  top: 0;
+  top: var(--titlebar-height);
   right: 0;
   cursor: ne-resize;
 }
