@@ -23,5 +23,8 @@ class WebWindow(QMainWindow):
         view = QWebEngineView(self)
         self.setCentralWidget(view)
 
-        index_path = Path(__file__).resolve().parents[1] / "assets" / "web" / "index.html"
+        repo_root = Path(__file__).resolve().parents[1]
+        dist_index = repo_root / "web-ui" / "dist" / "index.html"
+        fallback_index = repo_root / "assets" / "web" / "index.html"
+        index_path = dist_index if dist_index.exists() else fallback_index
         view.load(QUrl.fromLocalFile(str(index_path)))

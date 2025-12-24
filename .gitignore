@@ -10,3 +10,5 @@ Thumbs.db
 /.vscode/
 /.idea/
 /logs/
+/web-ui/node_modules/
+/web-ui/dist/
