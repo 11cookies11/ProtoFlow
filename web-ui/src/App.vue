@@ -33,6 +33,7 @@ const scriptVarRefreshKey = ref(0)
 const yamlFileInputRef = ref(null)
 const scriptLogRef = ref(null)
 const scriptAutoScroll = ref(true)
+const yamlCollapsed = ref(true)
 const yamlEditorRef = ref(null)
 const currentView = ref('manual')
 const logKeyword = ref('')
@@ -262,6 +263,9 @@ function parseScriptVariables(text) {
 
 function initYamlEditor() {
   if (!yamlEditorRef.value || yamlEditor) return
+  if (yamlEditorRef.value) {
+    yamlEditorRef.value.style.height = yamlCollapsed.value ? '360px' : '640px'
+  }
   const theme = EditorView.theme(
     {
       '&': {
@@ -360,6 +364,10 @@ function destroyYamlEditor() {
   if (!yamlEditor) return
   yamlEditor.destroy()
   yamlEditor = null
+}
+
+function toggleYamlCollapsed() {
+  yamlCollapsed.value = !yamlCollapsed.value
 }
 
 function formatPayload(item) {
@@ -705,6 +713,15 @@ watch(
       nextTick(() => initYamlEditor())
     } else {
       destroyYamlEditor()
+    }
+  }
+)
+
+watch(
+  () => yamlCollapsed.value,
+  (collapsed) => {
+    if (yamlEditorRef.value) {
+      yamlEditorRef.value.style.height = collapsed ? '360px' : '640px'
     }
   }
 )
@@ -1142,7 +1159,6 @@ function clearDragState() {
                   <button :class="{ active: logTab === 'all' }" @click="logTab = 'all'">全部日志</button>
                   <button :class="{ active: logTab === 'uart' }" @click="logTab = 'uart'">串口 (UART)</button>
                   <button :class="{ active: logTab === 'tcp' }" @click="logTab = 'tcp'">网络 (TCP)</button>
-                  <button :class="{ active: logTab === 'script' }" @click="logTab = 'script'">脚本引擎</button>
                   <div class="search">
                     <span class="material-symbols-outlined">search</span>
                     <input v-model="logKeyword" type="text" placeholder="过滤日志..." />
@@ -1150,7 +1166,7 @@ function clearDragState() {
                 </div>
                 <div class="log-stream compact">
                   <div
-                    v-for="(line, index) in (logTab === 'uart' ? uartLogs : logTab === 'tcp' ? tcpLogs : logTab === 'script' ? scriptViewLogs : consoleLogs)"
+                    v-for="(line, index) in (logTab === 'uart' ? uartLogs : logTab === 'tcp' ? tcpLogs : consoleLogs)"
                     :key="`console-${index}`"
                     class="log-line"
                   >
@@ -1207,6 +1223,11 @@ function clearDragState() {
                 <span class="material-symbols-outlined">code</span>
                 DSL Editor
                 <div class="panel-actions">
+                  <button class="icon-btn" :title="yamlCollapsed ? '展开' : '收起'" @click="toggleYamlCollapsed">
+                    <span class="material-symbols-outlined">
+                      {{ yamlCollapsed ? 'unfold_more' : 'unfold_less' }}
+                    </span>
+                  </button>
                   <button class="icon-btn" title="Copy" @click="copyYaml">
                     <span class="material-symbols-outlined">content_copy</span>
                   </button>
@@ -1215,7 +1236,7 @@ function clearDragState() {
                   </button>
                 </div>
               </div>
-              <div ref="yamlEditorRef" class="code-area"></div>
+              <div ref="yamlEditorRef" class="code-area" :class="{ collapsed: yamlCollapsed }"></div>
             </div>
 
             <div class="scripts-side">

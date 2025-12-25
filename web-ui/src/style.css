@@ -1043,6 +1043,16 @@ textarea {
   overflow: hidden;
 }
 
+.code-area.collapsed {
+  max-height: 360px;
+  height: 360px;
+}
+
+.code-area:not(.collapsed) {
+  max-height: 640px;
+  height: 640px;
+}
+
 .code-area .cm-editor {
   height: 100%;
 }
