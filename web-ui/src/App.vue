@@ -1,5 +1,11 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { basicSetup } from 'codemirror'
+import { EditorState, RangeSetBuilder } from '@codemirror/state'
+import { Decoration, EditorView, ViewPlugin } from '@codemirror/view'
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { tags } from '@lezer/highlight'
+import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
 
 const bridge = ref(null)
 const connectionInfo = ref({ state: 'disconnected', detail: '' })
@@ -18,6 +24,16 @@ const scriptLogs = ref([])
 const scriptState = ref('idle')
 const scriptProgress = ref(0)
 const yamlText = ref('# paste DSL YAML here')
+const scriptFileName = ref('production_test_suite_v2.yaml')
+const scriptFilePath = ref('/usr/local/scripts/auto/prod/...')
+const scriptRunning = ref(false)
+const scriptStartMs = ref(0)
+const scriptElapsedMs = ref(0)
+const scriptVarRefreshKey = ref(0)
+const yamlFileInputRef = ref(null)
+const scriptLogRef = ref(null)
+const scriptAutoScroll = ref(true)
+const yamlEditorRef = ref(null)
 const currentView = ref('manual')
 const logKeyword = ref('')
 const logTab = ref('all')
@@ -33,6 +49,12 @@ const enableSnapPreview = ref(false)
 const portDropdownOpen = ref(false)
 const portDropdownRef = ref(null)
 const portPlaceholder = 'COM3 - USB Serial (115200)'
+const channelTab = ref('all')
+const protocolTab = ref('all')
+const settingsTab = ref('general')
+const settingsGeneralRef = ref(null)
+const settingsNetworkRef = ref(null)
+const settingsPluginsRef = ref(null)
 
 const portOptions = computed(() => (ports.value.length ? ports.value : [portPlaceholder]))
 const noPorts = computed(() => ports.value.length === 0)
@@ -50,6 +72,7 @@ const channelCards = ref([
     id: 'serial-main',
     name: '主控板通信链路',
     type: 'Serial',
+    category: 'serial',
     status: 'connected',
     statusText: '已连接',
     statusClass: 'status-ok',
@@ -60,6 +83,7 @@ const channelCards = ref([
     id: 'tcp-client',
     name: '远程遥测服务',
     type: 'TCP Client',
+    category: 'tcp-client',
     status: 'connecting',
     statusText: '连接中...',
     statusClass: 'status-warn',
@@ -70,6 +94,7 @@ const channelCards = ref([
     id: 'tcp-server',
     name: '本地调试接口',
     type: 'TCP Server',
+    category: 'tcp-server',
     status: 'idle',
     statusText: '已停止',
     statusClass: 'status-idle',
@@ -80,6 +105,7 @@ const channelCards = ref([
     id: 'serial-error',
     name: '遗留设备端口',
     type: 'Serial',
+    category: 'serial',
     status: 'error',
     statusText: '无法打开',
     statusClass: 'status-error',
@@ -92,6 +118,7 @@ const protocolCards = ref([
   {
     id: 'modbus-rtu',
     name: 'Modbus_RTU_Core',
+    category: 'modbus',
     desc: '主生产线传感器',
     statusText: '运行中',
     statusClass: 'badge-green',
@@ -104,6 +131,7 @@ const protocolCards = ref([
   {
     id: 'tcp-client',
     name: 'Lab_TCP_Client',
+    category: 'tcp',
     desc: '实验室数据采集',
     statusText: '离线',
     statusClass: 'badge-gray',
@@ -116,6 +144,7 @@ const protocolCards = ref([
   {
     id: 'custom-binary',
     name: 'Custom_Binary_V2',
+    category: 'custom',
     desc: '私有二进制协议',
     statusText: '草稿',
     statusClass: 'badge-yellow',
@@ -133,6 +162,44 @@ const consoleLogs = computed(() => filterLogs(commLogs.value))
 const uartLogs = computed(() => filterLogs(commLogs.value))
 const tcpLogs = computed(() => filterLogs([]))
 const scriptViewLogs = computed(() => filterLogs(scriptLogs.value))
+const scriptVariables = computed(() => {
+  scriptVarRefreshKey.value
+  return parseScriptVariables(yamlText.value)
+})
+const scriptErrorCount = computed(
+  () => scriptLogs.value.filter((line) => String(line || '').toLowerCase().includes('[error]')).length
+)
+const scriptStepTotal = computed(() => countScriptSteps(yamlText.value))
+const scriptStepIndex = computed(() => {
+  if (!scriptStepTotal.value) return 0
+  return Math.max(
+    0,
+    Math.min(scriptStepTotal.value, Math.round((scriptProgress.value / 100) * scriptStepTotal.value))
+  )
+})
+const scriptElapsedLabel = computed(() => formatElapsed(scriptElapsedMs.value))
+const scriptCanRun = computed(() => !scriptRunning.value && yamlText.value.trim().length > 0)
+const scriptCanStop = computed(() => scriptRunning.value)
+const scriptStatusLabel = computed(() => {
+  if (scriptRunning.value) {
+    return scriptState.value ? `运行中 · ${scriptState.value}` : '运行中'
+  }
+  return '空闲'
+})
+const scriptStatusClass = computed(() => (scriptRunning.value ? 'running' : 'idle'))
+
+const filteredChannelCards = computed(() => {
+  if (channelTab.value === 'all') return channelCards.value
+  return channelCards.value.filter((card) => card.category === channelTab.value)
+})
+const filteredProtocolCards = computed(() => {
+  if (protocolTab.value === 'all') return protocolCards.value
+  return protocolCards.value.filter((card) => card.category === protocolTab.value)
+})
+
+let scriptTimer = null
+let yamlEditor = null
+let yamlEditorUpdating = false
 
 function filterLogs(lines) {
   const keyword = logKeyword.value.trim().toLowerCase()
@@ -156,6 +223,145 @@ function formatTime(ts) {
   )}`
 }
 
+function formatElapsed(ms) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  const tenths = Math.floor((ms % 1000) / 100)
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${tenths}`
+}
+
+function countScriptSteps(text) {
+  if (!text) return 0
+  const matches = text.match(/^\s*-\s*step\s*:/gm)
+  return matches ? matches.length : 0
+}
+
+function parseScriptVariables(text) {
+  if (!text) return []
+  const lines = text.split(/\r?\n/)
+  const vars = []
+  let inVars = false
+  for (const line of lines) {
+    if (!inVars) {
+      if (/^\s*variables\s*:\s*$/.test(line)) {
+        inVars = true
+      }
+      continue
+    }
+    if (!line.trim()) continue
+    if (!/^\s+/.test(line)) break
+    const match = line.match(/^\s+([A-Za-z0-9_-]+)\s*:\s*(.*)$/)
+    if (!match) continue
+    let value = match[2].trim()
+    value = value.replace(/^['"]|['"]$/g, '')
+    vars.push({ name: match[1], value })
+  }
+  return vars
+}
+
+function initYamlEditor() {
+  if (!yamlEditorRef.value || yamlEditor) return
+  const theme = EditorView.theme(
+    {
+      '&': {
+        height: '100%',
+        backgroundColor: '#fafafa',
+        fontFamily:
+          'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+        fontSize: '13px',
+      },
+      '.cm-scroller': {
+        overflow: 'auto',
+      },
+      '.cm-content': {
+        padding: '16px',
+      },
+      '.cm-gutters': {
+        backgroundColor: '#f8fafc',
+        borderRight: '1px solid #e2e8f0',
+      },
+      '.cm-lineNumbers': {
+        color: '#94a3b8',
+      },
+      '.cm-activeLine': {
+        backgroundColor: '#eef2ff',
+      },
+      '.cm-activeLineGutter': {
+        backgroundColor: '#e0e7ff',
+      },
+    },
+    { dark: false }
+  )
+  const indentPlugin = ViewPlugin.fromClass(
+    class {
+      constructor(view) {
+        this.decorations = this.build(view)
+      }
+      update(update) {
+        if (update.docChanged || update.viewportChanged) {
+          this.decorations = this.build(update.view)
+        }
+      }
+      build(view) {
+        const builder = new RangeSetBuilder()
+        for (const { from, to } of view.visibleRanges) {
+          let pos = from
+          while (pos <= to) {
+            const line = view.state.doc.lineAt(pos)
+            const indentMatch = line.text.match(/^\s+/)
+            const indent = indentMatch ? indentMatch[0].length : 0
+            const level = Math.min(5, Math.floor(indent / 2) + 1)
+            builder.add(line.from, line.from, Decoration.line({ class: `yaml-indent-${level}` }))
+            pos = line.to + 1
+          }
+        }
+        return builder.finish()
+      }
+    },
+    {
+      decorations: (value) => value.decorations,
+    }
+  )
+  const state = EditorState.create({
+    doc: yamlText.value,
+    extensions: [
+      basicSetup,
+      yamlLanguage(),
+      syntaxHighlighting(
+        HighlightStyle.define([
+          { tag: tags.keyword, color: '#1d4ed8' },
+          { tag: tags.atom, color: '#1d4ed8' },
+          { tag: tags.string, color: '#16a34a' },
+          { tag: tags.number, color: '#f97316' },
+          { tag: tags.bool, color: '#1d4ed8' },
+          { tag: tags.comment, color: '#94a3b8', fontStyle: 'italic' },
+          { tag: tags.punctuation, color: '#64748b' },
+        ])
+      ),
+      theme,
+      EditorView.lineWrapping,
+      indentPlugin,
+      EditorView.updateListener.of((update) => {
+        if (!update.docChanged) return
+        yamlEditorUpdating = true
+        yamlText.value = update.state.doc.toString()
+        yamlEditorUpdating = false
+      }),
+    ],
+  })
+  yamlEditor = new EditorView({
+    state,
+    parent: yamlEditorRef.value,
+  })
+}
+
+function destroyYamlEditor() {
+  if (!yamlEditor) return
+  yamlEditor.destroy()
+  yamlEditor = null
+}
+
 function formatPayload(item) {
   if (!item) return ''
   if (displayMode.value === 'hex' && item.hex) return item.hex
@@ -173,8 +379,17 @@ function addCommLog(kind, payload) {
 }
 
 function addScriptLog(line) {
-  scriptLogs.value.unshift(line)
-  if (scriptLogs.value.length > 200) scriptLogs.value.pop()
+  const text = String(line || '')
+  scriptLogs.value.push(text)
+  if (scriptLogs.value.length > 200) scriptLogs.value.shift()
+  if (
+    text.includes('Script finished') ||
+    text.includes('Script stopped') ||
+    text.toLowerCase().includes('[error]')
+  ) {
+    scriptRunning.value = false
+    scriptState.value = 'idle'
+  }
 }
 
 function addCommBatch(batch) {
@@ -273,21 +488,145 @@ function sendQuickCommand(cmd) {
 }
 
 function runScript() {
-  if (!bridge.value || !yamlText.value) return
-  bridge.value.run_script(yamlText.value)
+  if (!bridge.value) return
+  const payload = yamlText.value.trim()
+  if (!payload) {
+    addScriptLog('[WARN] YAML is empty, abort run.')
+    return
+  }
+  scriptRunning.value = true
+  scriptState.value = 'starting'
+  scriptStartMs.value = Date.now()
+  scriptElapsedMs.value = 0
+  scriptProgress.value = 0
+  bridge.value.run_script(payload)
 }
 
 function stopScript() {
   if (!bridge.value) return
+  scriptState.value = 'stopping'
   bridge.value.stop_script()
+  addScriptLog('[INFO] Stop requested.')
 }
 
 function loadYaml() {
-  addScriptLog('[INFO] Load YAML not wired yet')
+  if (bridge.value && bridge.value.load_yaml) {
+    withResult(bridge.value.load_yaml(), (payload) => {
+      if (!payload || !payload.text) return
+      yamlText.value = payload.text
+      scriptFileName.value = payload.name || scriptFileName.value
+      scriptFilePath.value = payload.path || scriptFilePath.value
+      refreshScriptVariables()
+      addScriptLog(`[INFO] Loaded: ${scriptFileName.value}`)
+    })
+    return
+  }
+  if (!yamlFileInputRef.value) return
+  yamlFileInputRef.value.value = ''
+  yamlFileInputRef.value.click()
 }
 
 function saveYaml() {
-  addScriptLog('[INFO] Save YAML not wired yet')
+  const payload = yamlText.value.trim()
+  if (!payload) {
+    addScriptLog('[WARN] YAML is empty, not saved.')
+    return
+  }
+  if (bridge.value && bridge.value.save_yaml) {
+    withResult(bridge.value.save_yaml(payload, scriptFileName.value || 'workflow.yaml'), (info) => {
+      if (!info) return
+      if (info.name) scriptFileName.value = info.name
+      if (info.path) scriptFilePath.value = info.path
+      addScriptLog(`[INFO] Saved: ${scriptFileName.value}`)
+    })
+    return
+  }
+  const name = scriptFileName.value || 'script.yaml'
+  const blob = new Blob([payload], { type: 'text/yaml' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = name
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+  addScriptLog(`[INFO] Saved: ${name}`)
+}
+
+function handleYamlFile(event) {
+  const file = event && event.target && event.target.files ? event.target.files[0] : null
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const text = typeof reader.result === 'string' ? reader.result : ''
+    yamlText.value = text
+    scriptFileName.value = file.name
+    scriptFilePath.value = file.name
+    refreshScriptVariables()
+    addScriptLog(`[INFO] Loaded: ${file.name}`)
+  }
+  reader.readAsText(file)
+}
+
+async function copyYaml() {
+  const payload = yamlText.value.trim()
+  if (!payload) {
+    addScriptLog('[WARN] YAML is empty, nothing to copy.')
+    return
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(payload)
+      addScriptLog('[INFO] YAML copied to clipboard.')
+      return
+    } catch (err) {
+      addScriptLog('[WARN] Clipboard API failed, falling back.')
+    }
+  }
+  const temp = document.createElement('textarea')
+  temp.value = payload
+  document.body.appendChild(temp)
+  temp.select()
+  document.execCommand('copy')
+  temp.remove()
+  addScriptLog('[INFO] YAML copied to clipboard.')
+}
+
+function searchYaml() {
+  const keyword = window.prompt('Search keyword')
+  if (!keyword) return
+  if (yamlEditor) {
+    const doc = yamlEditor.state.doc.toString()
+    const lower = doc.toLowerCase()
+    const idx = lower.indexOf(keyword.toLowerCase())
+    if (idx === -1) {
+      addScriptLog(`[INFO] Not found: ${keyword}`)
+      return
+    }
+    yamlEditor.dispatch({
+      selection: { anchor: idx, head: idx + keyword.length },
+      scrollIntoView: true,
+    })
+    return
+  }
+  const found = window.find(keyword)
+  if (!found) {
+    addScriptLog(`[INFO] Not found: ${keyword}`)
+  }
+}
+
+function clearScriptLogs() {
+  scriptLogs.value = []
+}
+
+function scrollScriptLogsToBottom() {
+  if (!scriptLogRef.value) return
+  scriptLogRef.value.scrollTop = scriptLogRef.value.scrollHeight
+}
+
+function refreshScriptVariables() {
+  scriptVarRefreshKey.value += 1
 }
 
 function attachBridge(obj) {
@@ -311,6 +650,9 @@ function attachBridge(obj) {
   obj.script_log.connect((line) => addScriptLog(line))
   obj.script_state.connect((state) => {
     scriptState.value = state
+    if (state) {
+      scriptRunning.value = true
+    }
   })
   obj.script_progress.connect((value) => {
     scriptProgress.value = value
@@ -325,14 +667,59 @@ onMounted(() => {
       clearInterval(timer)
     }
   }, 200)
+  scriptTimer = window.setInterval(() => {
+    if (scriptRunning.value && scriptStartMs.value) {
+      scriptElapsedMs.value = Date.now() - scriptStartMs.value
+    }
+  }, 200)
+  if (currentView.value === 'scripts') {
+    nextTick(() => initYamlEditor())
+  }
   window.addEventListener('click', handlePortDropdownClick)
   window.addEventListener('keydown', handlePortDropdownKeydown)
 })
 
 onBeforeUnmount(() => {
+  if (scriptTimer) {
+    window.clearInterval(scriptTimer)
+    scriptTimer = null
+  }
+  destroyYamlEditor()
   window.removeEventListener('click', handlePortDropdownClick)
   window.removeEventListener('keydown', handlePortDropdownKeydown)
 })
+
+watch(
+  () => scriptLogs.value.length,
+  async () => {
+    if (!scriptAutoScroll.value) return
+    await nextTick()
+    scrollScriptLogsToBottom()
+  }
+)
+
+watch(
+  () => currentView.value,
+  (value) => {
+    if (value === 'scripts') {
+      nextTick(() => initYamlEditor())
+    } else {
+      destroyYamlEditor()
+    }
+  }
+)
+
+watch(
+  () => yamlText.value,
+  (value) => {
+    if (!yamlEditor || yamlEditorUpdating) return
+    const current = yamlEditor.state.doc.toString()
+    if (value === current) return
+    yamlEditor.dispatch({
+      changes: { from: 0, to: current.length, insert: value },
+    })
+  }
+)
 
 function armWindowMove(event) {
   if (!event) return
@@ -423,6 +810,27 @@ function handlePortDropdownKeydown(event) {
   if (!event) return
   if (event.key === 'Escape') {
     closePortDropdown()
+  }
+}
+
+function setChannelTab(tab) {
+  channelTab.value = tab
+}
+
+function setProtocolTab(tab) {
+  protocolTab.value = tab
+}
+
+function setSettingsTab(tab) {
+  settingsTab.value = tab
+  const targets = {
+    general: settingsGeneralRef,
+    network: settingsNetworkRef,
+    plugins: settingsPluginsRef,
+  }
+  const target = targets[tab]
+  if (target && target.value && typeof target.value.scrollIntoView === 'function') {
+    target.value.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 }
 
@@ -769,10 +1177,10 @@ function clearDragState() {
           <header class="page-header compact">
             <div class="file-info">
               <div class="file-title">
-                production_test_suite_v2.yaml
+                {{ scriptFileName }}
                 <span class="badge">READ-ONLY</span>
               </div>
-              <div class="file-path">/usr/local/scripts/auto/prod/...</div>
+              <div class="file-path">{{ scriptFilePath }}</div>
             </div>
             <div class="header-actions">
               <button class="btn btn-outline" @click="loadYaml">
@@ -784,6 +1192,13 @@ function clearDragState() {
                 保存
               </button>
             </div>
+            <input
+              ref="yamlFileInputRef"
+              type="file"
+              accept=".yaml,.yml,text/yaml"
+              style="display: none"
+              @change="handleYamlFile"
+            />
           </header>
 
           <div class="scripts-grid">
@@ -792,26 +1207,40 @@ function clearDragState() {
                 <span class="material-symbols-outlined">code</span>
                 DSL Editor
                 <div class="panel-actions">
-                  <button class="icon-btn"><span class="material-symbols-outlined">content_copy</span></button>
-                  <button class="icon-btn"><span class="material-symbols-outlined">search</span></button>
+                  <button class="icon-btn" title="Copy" @click="copyYaml">
+                    <span class="material-symbols-outlined">content_copy</span>
+                  </button>
+                  <button class="icon-btn" title="Search" @click="searchYaml">
+                    <span class="material-symbols-outlined">search</span>
+                  </button>
                 </div>
               </div>
-              <textarea v-model="yamlText" class="code-area"></textarea>
+              <div ref="yamlEditorRef" class="code-area"></div>
             </div>
 
             <div class="scripts-side">
               <div class="panel stack">
                 <div class="panel-title simple">执行控制</div>
-                <div class="status-pill">
-                  <span class="pulse"></span>
-                  运行中
+                <div class="status-pill" :class="scriptStatusClass">
+                  <span v-if="scriptRunning" class="pulse"></span>
+                  {{ scriptStatusLabel }}
                 </div>
                 <div class="button-grid">
-                  <button class="btn btn-primary" @click="runScript">
+                  <button
+                    class="btn btn-primary"
+                    :class="{ 'btn-muted': !scriptCanRun }"
+                    :disabled="!scriptCanRun"
+                    @click="runScript"
+                  >
                     <span class="material-symbols-outlined">play_arrow</span>
                     运行
                   </button>
-                  <button class="btn btn-danger" @click="stopScript">
+                  <button
+                    class="btn btn-danger"
+                    :class="{ 'btn-muted': !scriptCanStop }"
+                    :disabled="!scriptCanStop"
+                    @click="stopScript"
+                  >
                     <span class="material-symbols-outlined">stop</span>
                     停止
                   </button>
@@ -819,7 +1248,7 @@ function clearDragState() {
                 <div class="progress-block">
                   <div class="progress-row">
                     <span>当前步骤: <strong>{{ scriptState }}</strong></span>
-                    <span class="mono">{{ Math.round(scriptProgress / 25) }}/4</span>
+                    <span class="mono">{{ scriptStepIndex }}/{{ scriptStepTotal }}</span>
                   </div>
                   <div class="progress-bar">
                     <div class="progress" :style="{ width: `${Math.min(100, scriptProgress)}%` }"></div>
@@ -827,11 +1256,11 @@ function clearDragState() {
                   <div class="progress-stats">
                     <div>
                       <span>已用时间</span>
-                      <strong class="mono">00:04.2</strong>
+                      <strong class="mono">{{ scriptElapsedLabel }}</strong>
                     </div>
                     <div>
                       <span>错误数</span>
-                      <strong class="mono">0</strong>
+                      <strong class="mono">{{ scriptErrorCount }}</strong>
                     </div>
                   </div>
                 </div>
@@ -840,7 +1269,7 @@ function clearDragState() {
               <div class="panel stack">
                 <div class="panel-title simple">
                   变量监控
-                  <button class="link-btn" type="button">刷新</button>
+                  <button class="link-btn" type="button" @click="refreshScriptVariables">刷新</button>
                 </div>
                 <table class="mini-table">
                   <thead>
@@ -849,22 +1278,15 @@ function clearDragState() {
                       <th class="right">当前值</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    <tr>
-                      <td>target_host</td>
-                      <td class="right primary">192.168.1.50</td>
+                  <tbody v-if="scriptVariables.length">
+                    <tr v-for="item in scriptVariables" :key="item.name">
+                      <td>{{ item.name }}</td>
+                      <td class="right">{{ item.value || '--' }}</td>
                     </tr>
+                  </tbody>
+                  <tbody v-else>
                     <tr>
-                      <td>port</td>
-                      <td class="right">5020</td>
-                    </tr>
-                    <tr>
-                      <td>_last_recv</td>
-                      <td class="right green">"ACK_0x01"</td>
-                    </tr>
-                    <tr>
-                      <td>status</td>
-                      <td class="right">"WAITING"</td>
+                      <td colspan="2" class="right">--</td>
                     </tr>
                   </tbody>
                 </table>
@@ -877,15 +1299,15 @@ function clearDragState() {
               <span class="material-symbols-outlined">terminal</span>
               运行日志
               <div class="panel-actions">
-                <button class="icon-btn" title="Clear Logs">
+                <button class="icon-btn" title="Clear Logs" @click="clearScriptLogs">
                   <span class="material-symbols-outlined">block</span>
                 </button>
-                <button class="icon-btn" title="Scroll to Bottom">
+                <button class="icon-btn" title="Scroll to Bottom" @click="scrollScriptLogsToBottom">
                   <span class="material-symbols-outlined">vertical_align_bottom</span>
                 </button>
               </div>
             </div>
-            <div class="log-stream compact">
+            <div class="log-stream compact" ref="scriptLogRef">
               <div class="log-line" v-for="(line, index) in scriptLogs" :key="`${line}-${index}`">
                 {{ line }}
               </div>
@@ -911,13 +1333,13 @@ function clearDragState() {
             </div>
           </header>
           <div class="tab-strip secondary">
-            <button class="active">全部通道</button>
-            <button>串口 (Serial)</button>
-            <button>TCP 客户端</button>
-            <button>TCP 服务端</button>
+            <button :class="{ active: channelTab === 'all' }" @click="setChannelTab('all')">全部通道</button>
+            <button :class="{ active: channelTab === 'serial' }" @click="setChannelTab('serial')">串口 (Serial)</button>
+            <button :class="{ active: channelTab === 'tcp-client' }" @click="setChannelTab('tcp-client')">TCP 客户端</button>
+            <button :class="{ active: channelTab === 'tcp-server' }" @click="setChannelTab('tcp-server')">TCP 服务端</button>
           </div>
           <div class="card-list">
-            <div v-for="card in channelCards" :key="card.id" class="card">
+            <div v-for="card in filteredChannelCards" :key="card.id" class="card">
               <div class="card-main">
                 <div class="card-icon">
                   <span class="material-symbols-outlined">settings_input_hdmi</span>
@@ -965,13 +1387,13 @@ function clearDragState() {
             </div>
           </header>
           <div class="tab-strip secondary">
-            <button class="active">全部协议</button>
-            <button>Modbus</button>
-            <button>TCP/IP</button>
-            <button>自定义</button>
+            <button :class="{ active: protocolTab === 'all' }" @click="setProtocolTab('all')">全部协议</button>
+            <button :class="{ active: protocolTab === 'modbus' }" @click="setProtocolTab('modbus')">Modbus</button>
+            <button :class="{ active: protocolTab === 'tcp' }" @click="setProtocolTab('tcp')">TCP/IP</button>
+            <button :class="{ active: protocolTab === 'custom' }" @click="setProtocolTab('custom')">自定义</button>
           </div>
           <div class="protocol-grid">
-            <div v-for="card in protocolCards" :key="card.id" class="protocol-card">
+            <div v-for="card in filteredProtocolCards" :key="card.id" class="protocol-card">
               <div class="protocol-header">
                 <div>
                   <div class="protocol-title">{{ card.name }}</div>
@@ -1018,15 +1440,15 @@ function clearDragState() {
             </div>
           </header>
           <div class="tab-strip secondary">
-            <button class="active">通用</button>
-            <button>网络与端口</button>
-            <button>插件</button>
-            <button>运行时</button>
-            <button>日志</button>
+            <button :class="{ active: settingsTab === 'general' }" @click="setSettingsTab('general')">通用</button>
+            <button :class="{ active: settingsTab === 'network' }" @click="setSettingsTab('network')">网络与端口</button>
+            <button :class="{ active: settingsTab === 'plugins' }" @click="setSettingsTab('plugins')">插件</button>
+            <button :class="{ active: settingsTab === 'runtime' }" @click="setSettingsTab('runtime')">运行时</button>
+            <button :class="{ active: settingsTab === 'logs' }" @click="setSettingsTab('logs')">日志</button>
           </div>
 
           <div class="settings-stack">
-            <div class="panel">
+            <div class="panel" ref="settingsGeneralRef">
               <div class="panel-title simple">
                 <span class="material-symbols-outlined">tune</span>
                 通用偏好
@@ -1062,7 +1484,7 @@ function clearDragState() {
               </div>
             </div>
 
-            <div class="panel">
+            <div class="panel" ref="settingsNetworkRef">
               <div class="panel-title simple">
                 <span class="material-symbols-outlined">router</span>
                 通信默认设置
@@ -1116,7 +1538,7 @@ function clearDragState() {
               </div>
             </div>
 
-            <div class="panel">
+            <div class="panel" ref="settingsPluginsRef">
               <div class="panel-title simple">
                 <span class="material-symbols-outlined">extension</span>
                 DSL 与插件

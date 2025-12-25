@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 try:
     from PySide6.QtCore import QObject, QTimer, Signal, Slot
+    from PySide6.QtWidgets import QFileDialog
 except ImportError:  # pragma: no cover
     from PyQt6.QtCore import QObject, QTimer, pyqtSignal as Signal, pyqtSlot as Slot  # type: ignore
+    from PyQt6.QtWidgets import QFileDialog  # type: ignore
 
 from ui.script_runner_qt import ScriptRunnerQt
 
@@ -105,6 +108,44 @@ class WebBridge(QObject):
     def stop_script(self) -> None:
         if self._script_runner and self._script_runner.isRunning():
             self._script_runner.stop()
+
+    @Slot(result="QVariant")
+    def load_yaml(self) -> Dict[str, str]:
+        path, _ = QFileDialog.getOpenFileName(
+            None,
+            "选择 YAML 脚本",
+            str(Path.cwd()),
+            "YAML Files (*.yaml *.yml)",
+        )
+        if not path:
+            return {}
+        try:
+            text = Path(path).read_text(encoding="utf-8")
+        except Exception as exc:  # pragma: no cover - UI dialog failure
+            self.script_log.emit(f"[ERROR] Load YAML failed: {exc}")
+            return {}
+        return {"path": path, "name": Path(path).name, "text": text}
+
+    @Slot(str, str, result="QVariant")
+    def save_yaml(self, yaml_text: str, suggested_name: str = "workflow.yaml") -> Dict[str, str]:
+        if not yaml_text.strip():
+            self.script_log.emit("[WARN] YAML is empty, not saved.")
+            return {}
+        default_path = Path.cwd() / (suggested_name or "workflow.yaml")
+        path, _ = QFileDialog.getSaveFileName(
+            None,
+            "保存 YAML 脚本",
+            str(default_path),
+            "YAML Files (*.yaml *.yml)",
+        )
+        if not path:
+            return {}
+        try:
+            Path(path).write_text(yaml_text, encoding="utf-8")
+        except Exception as exc:  # pragma: no cover - UI dialog failure
+            self.script_log.emit(f"[ERROR] Save YAML failed: {exc}")
+            return {}
+        return {"path": path, "name": Path(path).name}
 
     @Slot()
     def window_minimize(self) -> None:

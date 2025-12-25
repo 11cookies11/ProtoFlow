@@ -9,7 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@codemirror/lang-yaml": "^6.1.2",
+    "@codemirror/state": "^6.5.3",
+    "@codemirror/view": "^6.39.7",
     "@element-plus/icons-vue": "^2.3.2",
+    "codemirror": "^6.0.2",
     "element-plus": "^2.13.0",
     "vue": "^3.5.24"
   },
