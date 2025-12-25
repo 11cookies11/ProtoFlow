@@ -5,6 +5,7 @@ import { EditorState, RangeSetBuilder } from '@codemirror/state'
 import { Decoration, EditorView, ViewPlugin } from '@codemirror/view'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
+import DropdownSelect from './components/DropdownSelect.vue'
 import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
 
 const bridge = ref(null)
@@ -47,9 +48,23 @@ const dragStarted = ref(false)
 const dragStart = ref({ x: 0, y: 0 })
 const snapPreview = ref('')
 const enableSnapPreview = ref(false)
-const portDropdownOpen = ref(false)
-const portDropdownRef = ref(null)
 const portPlaceholder = 'COM3 - USB Serial (115200)'
+const channelDialogOpen = ref(false)
+const channelType = ref('serial')
+const channelName = ref('')
+const channelPort = ref('')
+const channelBaud = ref(115200)
+const channelDataBits = ref('8')
+const channelParity = ref('none')
+const channelStopBits = ref('1')
+const channelHost = ref('127.0.0.1')
+const channelTcpPort = ref(502)
+const channelAutoConnect = ref(true)
+const uiLanguage = ref('简体中文')
+const uiTheme = ref('浅色')
+const defaultBaud = ref(115200)
+const defaultParity = ref('无')
+const defaultStopBits = ref('1')
 const channelTab = ref('all')
 const protocolTab = ref('all')
 const settingsTab = ref('general')
@@ -57,9 +72,8 @@ const settingsGeneralRef = ref(null)
 const settingsNetworkRef = ref(null)
 const settingsPluginsRef = ref(null)
 
-const portOptions = computed(() => (ports.value.length ? ports.value : [portPlaceholder]))
 const noPorts = computed(() => ports.value.length === 0)
-const selectedPortLabel = computed(() => selectedPort.value || portOptions.value[0] || '')
+const portOptionsList = computed(() => ports.value.map((item) => ({ label: item, value: item, icon: 'usb' })))
 
 const quickCommands = ref([
   'AT+GMR',
@@ -68,52 +82,43 @@ const quickCommands = ref([
   'PING_SERVER',
 ])
 
-const channelCards = ref([
-  {
-    id: 'serial-main',
-    name: '主控板通信链路',
-    type: 'Serial',
-    category: 'serial',
-    status: 'connected',
-    statusText: '已连接',
-    statusClass: 'status-ok',
-    details: ['COM3', '115200, 8, N, 1'],
-    traffic: 'TX: 12.5 MB / RX: 48.2 MB',
-  },
-  {
-    id: 'tcp-client',
-    name: '远程遥测服务',
-    type: 'TCP Client',
-    category: 'tcp-client',
-    status: 'connecting',
-    statusText: '连接中...',
-    statusClass: 'status-warn',
-    details: ['192.168.1.200', 'Port: 502 (Modbus)'],
-    traffic: 'TX: 0 B / RX: 0 B',
-  },
-  {
-    id: 'tcp-server',
-    name: '本地调试接口',
-    type: 'TCP Server',
-    category: 'tcp-server',
-    status: 'idle',
-    statusText: '已停止',
-    statusClass: 'status-idle',
-    details: ['0.0.0.0', 'Port: 8080'],
-    traffic: '--',
-  },
-  {
-    id: 'serial-error',
-    name: '遗留设备端口',
-    type: 'Serial',
-    category: 'serial',
-    status: 'error',
-    statusText: '无法打开',
-    statusClass: 'status-error',
-    details: ['COM1', '9600, 8, N, 1'],
-    traffic: '--',
-  },
-])
+const channels = ref([])
+const channelCards = computed(() => {
+  return channels.value.map((channel) => {
+    const type = channel.type || 'unknown'
+    const status = channel.status || 'disconnected'
+    const statusMap = {
+      connected: { text: '???', className: 'status-ok' },
+      connecting: { text: '???', className: 'status-warn' },
+      error: { text: '??', className: 'status-error' },
+      disconnected: { text: '???', className: 'status-idle' },
+      idle: { text: '??', className: 'status-idle' },
+    }
+    const statusInfo = statusMap[status] || statusMap.disconnected
+    const isSerial = type === 'serial'
+    const isTcpClient = type === 'tcp-client'
+    const name = isSerial
+      ? '????'
+      : isTcpClient
+        ? 'TCP ???'
+        : 'TCP ???'
+    const details = isSerial
+      ? [channel.port || '--', channel.baud ? `${channel.baud} bps` : '--']
+      : [channel.host || channel.address || '--', channel.port ? `??: ${channel.port}` : '--']
+    const traffic = `TX: ${formatBytes(channel.tx_bytes || 0)} / RX: ${formatBytes(channel.rx_bytes || 0)}`
+    return {
+      id: channel.id || `${type}:${details[0]}`,
+      name,
+      type: isSerial ? 'Serial' : isTcpClient ? 'TCP Client' : 'TCP Server',
+      category: type,
+      statusText: statusInfo.text,
+      statusClass: statusInfo.className,
+      details,
+      traffic,
+      error: channel.error || '',
+    }
+  })
+})
 
 const protocolCards = ref([
   {
@@ -230,6 +235,17 @@ function formatElapsed(ms) {
   const seconds = totalSeconds % 60
   const tenths = Math.floor((ms % 1000) / 100)
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${tenths}`
+}
+
+function formatBytes(value) {
+  const bytes = Number(value) || 0
+  if (bytes < 1024) return `${bytes} B`
+  const kb = bytes / 1024
+  if (kb < 1024) return `${kb.toFixed(1)} KB`
+  const mb = kb / 1024
+  if (mb < 1024) return `${mb.toFixed(1)} MB`
+  const gb = mb / 1024
+  return `${gb.toFixed(1)} GB`
 }
 
 function countScriptSteps(text) {
@@ -429,6 +445,54 @@ function refreshPorts() {
       selectedPort.value = ports.value[0]
     }
   })
+}
+
+function setChannels(items) {
+  channels.value = Array.isArray(items) ? items : []
+}
+
+function refreshChannels() {
+  if (!bridge.value || !bridge.value.list_channels) return
+  withResult(bridge.value.list_channels(), (items) => {
+    setChannels(items)
+  })
+}
+
+function handleChannelRefresh() {
+  refreshChannels()
+  refreshPorts()
+}
+
+function handleNewChannel() {
+  channelType.value = 'serial'
+  channelName.value = ''
+  channelPort.value = selectedPort.value || ports.value[0] || ''
+  channelBaud.value = Number(baud.value || 115200)
+  channelDataBits.value = '8'
+  channelParity.value = 'none'
+  channelStopBits.value = '1'
+  channelHost.value = tcpHost.value || '127.0.0.1'
+  channelTcpPort.value = Number(tcpPort.value || 502)
+  channelAutoConnect.value = true
+  channelDialogOpen.value = true
+}
+
+function closeChannelDialog() {
+  channelDialogOpen.value = false
+}
+
+function submitChannelDialog() {
+  if (!bridge.value) return
+  if (channelType.value === 'serial') {
+    if (channelAutoConnect.value) {
+      bridge.value.connect_serial(channelPort.value, Number(channelBaud.value || 115200))
+    }
+  } else if (channelType.value === 'tcp') {
+    if (channelAutoConnect.value) {
+      bridge.value.connect_tcp(channelHost.value, Number(channelTcpPort.value || 502))
+    }
+  }
+  channelDialogOpen.value = false
 }
 
 function connectSerial() {
@@ -644,16 +708,19 @@ function attachBridge(obj) {
     const detail = payload && payload.payload !== undefined ? payload.payload : payload
     if (!detail) {
       connectionInfo.value = { state: 'disconnected', detail: '' }
+      refreshChannels()
       return
     }
     if (typeof detail === 'string') {
       connectionInfo.value = { state: 'error', detail }
+      refreshChannels()
       return
     }
     connectionInfo.value = {
       state: 'connected',
       detail: detail.address || detail.port || detail.type || '',
     }
+    refreshChannels()
   })
   obj.script_log.connect((line) => addScriptLog(line))
   obj.script_state.connect((state) => {
@@ -665,7 +732,11 @@ function attachBridge(obj) {
   obj.script_progress.connect((value) => {
     scriptProgress.value = value
   })
+  if (obj.channel_update) {
+    obj.channel_update.connect((items) => setChannels(items))
+  }
   refreshPorts()
+  refreshChannels()
 }
 
 onMounted(() => {
@@ -683,8 +754,7 @@ onMounted(() => {
   if (currentView.value === 'scripts') {
     nextTick(() => initYamlEditor())
   }
-  window.addEventListener('click', handlePortDropdownClick)
-  window.addEventListener('keydown', handlePortDropdownKeydown)
+  window.addEventListener('keydown', handleGlobalKeydown)
 })
 
 onBeforeUnmount(() => {
@@ -693,8 +763,7 @@ onBeforeUnmount(() => {
     scriptTimer = null
   }
   destroyYamlEditor()
-  window.removeEventListener('click', handlePortDropdownClick)
-  window.removeEventListener('keydown', handlePortDropdownKeydown)
+  window.removeEventListener('keydown', handleGlobalKeydown)
 })
 
 watch(
@@ -723,6 +792,13 @@ watch(
     if (yamlEditorRef.value) {
       yamlEditorRef.value.style.height = collapsed ? '360px' : '640px'
     }
+  }
+)
+
+watch(
+  () => channelDialogOpen.value,
+  (open) => {
+    document.body.classList.toggle('modal-open', open)
   }
 )
 
@@ -801,32 +877,17 @@ function startResize(edge, event) {
   bridge.value.window_start_resize(edge)
 }
 
-function togglePortDropdown() {
-  portDropdownOpen.value = !portDropdownOpen.value
-}
-
-function closePortDropdown() {
-  portDropdownOpen.value = false
-}
-
 function selectPort(item) {
   if (!item || noPorts.value) return
   selectedPort.value = item
   channelMode.value = 'serial'
-  closePortDropdown()
 }
-
-function handlePortDropdownClick(event) {
-  if (!portDropdownRef.value || !event) return
-  if (!portDropdownRef.value.contains(event.target)) {
-    closePortDropdown()
-  }
-}
-
-function handlePortDropdownKeydown(event) {
+function handleGlobalKeydown(event) {
   if (!event) return
   if (event.key === 'Escape') {
-    closePortDropdown()
+    if (channelDialogOpen.value) {
+      closeChannelDialog()
+    }
   }
 }
 
@@ -1025,27 +1086,14 @@ function clearDragState() {
                 <span class="dot"></span>
                 {{ isConnected ? '已连接' : connectionInfo.state === 'error' ? '错误' : '未连接' }}
               </div>
-              <div class="select-wrap" ref="portDropdownRef">
-                <button class="select-trigger" type="button" @click.stop="togglePortDropdown">
-                  <span class="material-symbols-outlined">usb</span>
-                  <span class="select-value">{{ selectedPortLabel }}</span>
-                  <span class="material-symbols-outlined expand">expand_more</span>
-                </button>
-                <div v-if="portDropdownOpen" class="select-menu" @click.stop>
-                  <button
-                    v-for="item in portOptions"
-                    :key="item"
-                    class="select-option"
-                    :class="{ selected: item === selectedPort }"
-                    type="button"
-                    :disabled="noPorts"
-                    @click="selectPort(item)"
-                  >
-                    <span class="material-symbols-outlined">usb</span>
-                    <span>{{ item }}</span>
-                  </button>
-                </div>
-              </div>
+              <DropdownSelect
+                v-model="selectedPort"
+                :options="portOptionsList"
+                :placeholder="portPlaceholder"
+                :disabled="noPorts"
+                leading-icon="usb"
+                @change="selectPort"
+              />
               <button class="icon-btn" type="button" title="刷新串口" @click="refreshPorts">
                 <span class="material-symbols-outlined">refresh</span>
               </button>
@@ -1343,11 +1391,11 @@ function clearDragState() {
               <p>管理通信连接通道，监控实时状态及配置参数。</p>
             </div>
             <div class="header-actions">
-              <button class="btn btn-outline">
+              <button class="btn btn-outline" @click="handleChannelRefresh">
                 <span class="material-symbols-outlined">refresh</span>
                 刷新状态
               </button>
-              <button class="btn btn-primary">
+              <button class="btn btn-primary" @click="handleNewChannel">
                 <span class="material-symbols-outlined">add</span>
                 新建通道
               </button>
@@ -1389,6 +1437,125 @@ function clearDragState() {
                 <button class="icon-btn">
                   <span class="material-symbols-outlined">more_vert</span>
                 </button>
+              </div>
+            </div>
+            <div v-if="filteredChannelCards.length === 0" class="card empty-card">
+              <div class="card-main">
+                <div class="card-icon">
+                  <span class="material-symbols-outlined">link_off</span>
+                </div>
+                <div>
+                  <div class="card-title">暂无通道</div>
+                  <div class="card-meta">
+                    <span>未检测到活动连接</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-if="channelDialogOpen" class="modal-backdrop">
+            <div class="channel-modal">
+              <div class="modal-header">
+                <div>
+                  <h3>新建通道</h3>
+                  <p>配置新的通信连接参数</p>
+                </div>
+                <button class="icon-btn" type="button" @click="closeChannelDialog">
+                  <span class="material-symbols-outlined">close</span>
+                </button>
+              </div>
+              <div class="modal-body">
+                <div class="channel-type-grid">
+                  <button
+                    class="channel-type-card"
+                    :class="{ active: channelType === 'serial' }"
+                    type="button"
+                    @click="channelType = 'serial'"
+                  >
+                    <span class="material-symbols-outlined">settings_input_hdmi</span>
+                    <span>串口 (Serial)</span>
+                  </button>
+                  <button
+                    class="channel-type-card"
+                    :class="{ active: channelType === 'tcp' }"
+                    type="button"
+                    @click="channelType = 'tcp'"
+                  >
+                    <span class="material-symbols-outlined">lan</span>
+                    <span>TCP / Network</span>
+                  </button>
+                </div>
+
+                <div class="modal-section">
+                  <div class="form-grid">
+                    <label>
+                      通道名称
+                      <input v-model="channelName" type="text" placeholder="例如: 传感器A接口" />
+                    </label>
+                    <label v-if="channelType === 'serial'">
+                      串口端口
+                      <DropdownSelect
+                        v-model="channelPort"
+                        :options="portOptionsList"
+                        :placeholder="ports.length ? '选择串口' : '无可用串口'"
+                        :disabled="noPorts"
+                        leading-icon="usb"
+                      />
+                    </label>
+                    <label v-else>
+                      目标地址
+                      <input v-model="channelHost" type="text" placeholder="例如: 192.168.1.10" />
+                    </label>
+                  </div>
+                </div>
+
+                <div class="modal-section" v-if="channelType === 'serial'">
+                  <div class="form-grid triple">
+                    <label>
+                      波特率
+                      <DropdownSelect v-model="channelBaud" :options="[9600, 19200, 38400, 57600, 115200]" />
+                    </label>
+                    <label>
+                      数据位
+                      <DropdownSelect v-model="channelDataBits" :options="['7', '8']" />
+                    </label>
+                    <label>
+                      停止位
+                      <DropdownSelect v-model="channelStopBits" :options="['1', '1.5', '2']" />
+                    </label>
+                  </div>
+                  <div class="form-grid triple">
+                    <label>
+                      校验位
+                      <DropdownSelect
+                        v-model="channelParity"
+                        :options="[
+                          { label: 'None', value: 'none' },
+                          { label: 'Odd', value: 'odd' },
+                          { label: 'Even', value: 'even' },
+                        ]"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div class="modal-section" v-else>
+                  <div class="form-grid">
+                    <label>
+                      TCP 端口
+                      <input v-model.number="channelTcpPort" type="number" />
+                    </label>
+                  </div>
+                </div>
+
+                <label class="channel-toggle">
+                  <input v-model="channelAutoConnect" type="checkbox" />
+                  <span>创建后立即启动连接</span>
+                </label>
+              </div>
+              <div class="modal-footer">
+                <button class="btn btn-outline" type="button" @click="closeChannelDialog">取消</button>
+                <button class="btn btn-primary" type="button" @click="submitChannelDialog">创建通道</button>
               </div>
             </div>
           </div>
@@ -1477,20 +1644,17 @@ function clearDragState() {
               <div class="form-grid">
                 <label>
                   界面语言
-                  <select>
-                    <option>英语 (美国)</option>
-                    <option>德语</option>
-                    <option>日语</option>
-                    <option selected>简体中文</option>
-                  </select>
+                  <DropdownSelect
+                    v-model="uiLanguage"
+                    :options="['英语 (美国)', '德语', '日语', '简体中文']"
+                  />
                 </label>
                 <label>
                   主题偏好
-                  <select>
-                    <option>系统默认</option>
-                    <option>深色 (工程模式)</option>
-                    <option selected>浅色</option>
-                  </select>
+                  <DropdownSelect
+                    v-model="uiTheme"
+                    :options="['系统默认', '深色 (工程模式)', '浅色']"
+                  />
                 </label>
               </div>
               <div class="toggle-row spaced">
@@ -1530,31 +1694,18 @@ function clearDragState() {
               <div class="form-grid triple">
                 <label>
                   默认波特率
-                  <select>
-                    <option>9600</option>
-                    <option>19200</option>
-                    <option>38400</option>
-                    <option>57600</option>
-                    <option selected>115200</option>
-                  </select>
+                  <DropdownSelect v-model="defaultBaud" :options="[9600, 19200, 38400, 57600, 115200]" />
                 </label>
                 <label>
                   校验位
-                  <select>
-                    <option selected>无</option>
-                    <option>偶校验</option>
-                    <option>奇校验</option>
-                    <option>标记校验</option>
-                    <option>空格校验</option>
-                  </select>
+                  <DropdownSelect
+                    v-model="defaultParity"
+                    :options="['无', '偶校验', '奇校验', '标记校验', '空格校验']"
+                  />
                 </label>
                 <label>
                   停止位
-                  <select>
-                    <option selected>1</option>
-                    <option>1.5</option>
-                    <option>2</option>
-                  </select>
+                  <DropdownSelect v-model="defaultStopBits" :options="['1', '1.5', '2']" />
                 </label>
               </div>
             </div>

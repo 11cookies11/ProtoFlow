@@ -27,6 +27,7 @@ class WebBridge(QObject):
     script_log = Signal(str)
     script_state = Signal(str)
     script_progress = Signal(int)
+    channel_update = Signal(object)
 
     def __init__(self, bus=None, comm=None, window=None) -> None:
         super().__init__()
@@ -35,6 +36,17 @@ class WebBridge(QObject):
         self._window = window
         self._script_runner: Optional[ScriptRunnerQt] = None
         self._buffer: List[Dict[str, Any]] = []
+        self._channel_state: Dict[str, Any] = {
+            "type": None,
+            "status": "disconnected",
+            "port": None,
+            "baud": None,
+            "host": None,
+            "address": None,
+            "error": None,
+        }
+        self._traffic: Dict[str, int] = {"tx": 0, "rx": 0}
+        self._last_channel_emit = 0.0
         self._flush_timer = QTimer(self)
         self._flush_timer.setInterval(50)
         self._flush_timer.timeout.connect(self._flush_buffers)
@@ -60,6 +72,10 @@ class WebBridge(QObject):
         if not self._comm:
             return []
         return self._comm.list_serial_ports()
+
+    @Slot(result="QVariant")
+    def list_channels(self) -> List[Dict[str, Any]]:
+        return self._build_channel_list()
 
     @Slot(str, int)
     def connect_serial(self, port: str, baud: int = 115200) -> None:
@@ -231,14 +247,63 @@ class WebBridge(QObject):
             hex_text = text.encode().hex().upper()
         return {"text": text, "hex": hex_text, "ts": time.time()}
 
+    def _build_channel_list(self) -> List[Dict[str, Any]]:
+        if not self._channel_state.get("type"):
+            return []
+        info = dict(self._channel_state)
+        channel_type = "serial" if info["type"] == "serial" else "tcp-client"
+        channel_id = info.get("address") or info.get("port") or channel_type
+        return [
+            {
+                "id": f"{channel_type}:{channel_id}",
+                "type": channel_type,
+                "status": info.get("status") or "disconnected",
+                "port": info.get("port"),
+                "baud": info.get("baud"),
+                "host": info.get("host"),
+                "address": info.get("address"),
+                "error": info.get("error") or "",
+                "tx_bytes": self._traffic.get("tx", 0),
+                "rx_bytes": self._traffic.get("rx", 0),
+            }
+        ]
+
+    def _emit_channel_update(self, force: bool = False) -> None:
+        now = time.time()
+        if not force and now - self._last_channel_emit < 0.5:
+            return
+        self._last_channel_emit = now
+        self.channel_update.emit(self._build_channel_list())
+
     def _on_comm_rx(self, payload: Any) -> None:
+        if isinstance(payload, (bytes, bytearray)):
+            self._traffic["rx"] += len(payload)
         self._append_buffer({"kind": "RX", "payload": self._emit_bytes(payload)})
+        self._emit_channel_update()
 
     def _on_comm_tx(self, payload: Any) -> None:
+        if isinstance(payload, (bytes, bytearray)):
+            self._traffic["tx"] += len(payload)
         self._append_buffer({"kind": "TX", "payload": self._emit_bytes(payload)})
+        self._emit_channel_update()
 
     def _on_comm_status(self, payload: Any) -> None:
+        if payload is None:
+            self._channel_state["status"] = "disconnected"
+        elif isinstance(payload, str):
+            self._channel_state["status"] = "error"
+            self._channel_state["error"] = payload
+        elif isinstance(payload, dict):
+            self._channel_state["type"] = payload.get("type")
+            self._channel_state["port"] = payload.get("port")
+            self._channel_state["baud"] = payload.get("baud")
+            self._channel_state["host"] = payload.get("host")
+            self._channel_state["address"] = payload.get("address")
+            self._channel_state["status"] = "connected"
+            self._channel_state["error"] = None
+            self._traffic = {"tx": 0, "rx": 0}
         self.comm_status.emit({"payload": payload, "ts": time.time()})
+        self._emit_channel_update(force=True)
 
     def _on_protocol_frame(self, payload: Any) -> None:
         self._append_buffer({"kind": "FRAME", "payload": payload, "ts": time.time()})
