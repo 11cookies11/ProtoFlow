@@ -36,7 +36,7 @@ class CommunicationManager:
         session = SerialManager(self._bus)
         session.open(port=port, baudrate=baud)
         self._current_session = session
-        self._bus.publish("comm.connected", {"type": "serial", "port": port})
+        self._bus.publish("comm.connected", {"type": "serial", "port": port, "baud": baud})
 
     def select_tcp(self, ip: str, port: int) -> None:
         """选择 TCP 通道并连接。"""
@@ -44,7 +44,10 @@ class CommunicationManager:
         session = TcpSession(self._bus)
         session.connect(ip, port)
         self._current_session = session
-        self._bus.publish("comm.connected", {"type": "tcp", "address": f"{ip}:{port}"})
+        self._bus.publish(
+            "comm.connected",
+            {"type": "tcp", "host": ip, "port": port, "address": f"{ip}:{port}"},
+        )
 
     def close(self) -> None:
         """关闭当前会话。"""
