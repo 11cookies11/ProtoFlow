@@ -80,6 +80,7 @@ from ui.controls.ui_builder import controls_from_ast
 from ui.layout.layout_manager import LayoutManager
 from dsl.parser import parse_script
 from ui.title_bar import TitleBar
+from ui.win_snap import apply_snap_styles
 
 
 
@@ -241,6 +242,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(960, 600)
         # 无边框窗口，自定义标题栏（按钮在内容区）
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowSystemMenuHint)
+        self._win_style_applied = False
 
         self._load_protocols()
         self._build_ui()
@@ -1496,6 +1498,9 @@ class MainWindow(QMainWindow):
 
     def showEvent(self, event) -> None:  # type: ignore[override]
         super().showEvent(event)
+        if sys.platform == "win32" and not self._win_style_applied:
+            apply_snap_styles(int(self.winId()))
+            self._win_style_applied = True
         QTimer.singleShot(0, self._ensure_on_screen)
 
     def _ensure_on_screen(self) -> None:

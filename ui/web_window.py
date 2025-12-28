@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 try:
     from PySide6.QtCore import QPoint, Qt, QUrl
@@ -16,6 +17,7 @@ except ImportError:  # pragma: no cover
     from PyQt6.QtWebEngineWidgets import QWebEngineView  # type: ignore
 
 from ui.web_bridge import WebBridge
+from ui.win_snap import apply_snap_styles
 
 class WebWindow(QMainWindow):
     """Minimal WebEngine host window for the new web UI."""
@@ -26,6 +28,7 @@ class WebWindow(QMainWindow):
         self.resize(1200, 800)
         self._normal_geometry = self.geometry()
         self._titlebar_height = 30
+        self._win_style_applied = False
 
         self.setMinimumSize(960, 600)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowSystemMenuHint)
@@ -46,6 +49,8 @@ class WebWindow(QMainWindow):
         view.load(QUrl.fromLocalFile(str(index_path)))
 
     def _apply_snap(self, screen_x: int, screen_y: int) -> bool:
+        if sys.platform == "win32":
+            return False
         screen = QGuiApplication.screenAt(QPoint(screen_x, screen_y))
         if not screen:
             screen = self.screen() if hasattr(self, "screen") else None
@@ -177,3 +182,9 @@ class WebWindow(QMainWindow):
     def moveEvent(self, event) -> None:  # type: ignore[override]
         super().moveEvent(event)
         self._update_normal_geometry()
+
+    def showEvent(self, event) -> None:  # type: ignore[override]
+        super().showEvent(event)
+        if sys.platform == "win32" and not self._win_style_applied:
+            apply_snap_styles(int(self.winId()))
+            self._win_style_applied = True
