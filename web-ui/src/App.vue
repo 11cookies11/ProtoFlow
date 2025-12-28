@@ -22,6 +22,13 @@ const sendText = ref('')
 const sendHex = ref('')
 const commLogs = ref([])
 const scriptLogs = ref([])
+const commLogBuffer = []
+const scriptLogBuffer = []
+const MAX_COMM_LOGS = 200
+const MAX_SCRIPT_LOGS = 200
+let logFlushHandle = 0
+let commLogSeq = 0
+let scriptLogSeq = 0
 const scriptState = ref('idle')
 const scriptProgress = ref(0)
 const yamlText = ref('# paste DSL YAML here')
@@ -30,7 +37,7 @@ const scriptFilePath = ref('/usr/local/scripts/auto/prod/...')
 const scriptRunning = ref(false)
 const scriptStartMs = ref(0)
 const scriptElapsedMs = ref(0)
-const scriptVarRefreshKey = ref(0)
+const scriptVariablesList = ref([])
 const yamlFileInputRef = ref(null)
 const scriptLogRef = ref(null)
 const scriptAutoScroll = ref(true)
@@ -129,16 +136,10 @@ const protocolCards = ref([])
 
 const isConnected = computed(() => connectionInfo.value.state === 'connected')
 
-const consoleLogs = computed(() => filterLogs(commLogs.value))
-const uartLogs = computed(() => filterLogs(commLogs.value))
-const tcpLogs = computed(() => filterLogs([]))
-const scriptViewLogs = computed(() => filterLogs(scriptLogs.value))
-const scriptVariables = computed(() => {
-  scriptVarRefreshKey.value
-  return parseScriptVariables(yamlText.value)
-})
+const visibleCommLogs = computed(() => filterCommLogs(commLogs.value, logTab.value, logKeyword.value))
+const scriptVariables = computed(() => scriptVariablesList.value)
 const scriptErrorCount = computed(
-  () => scriptLogs.value.filter((line) => String(line || '').toLowerCase().includes('[error]')).length
+  () => scriptLogs.value.filter((line) => String(line.text || '').toLowerCase().includes('[error]')).length
 )
 const scriptStepTotal = computed(() => countScriptSteps(yamlText.value))
 const scriptStepIndex = computed(() => {
@@ -171,17 +172,17 @@ const filteredProtocolCards = computed(() => {
 let scriptTimer = null
 let yamlEditor = null
 let yamlEditorUpdating = false
+let scriptVarTimer = null
+let channelRefreshTimer = null
 
-function filterLogs(lines) {
-  const keyword = logKeyword.value.trim().toLowerCase()
-  if (!keyword) return lines
+function filterCommLogs(lines, tab, keyword) {
+  if (tab === 'tcp') return []
+  const needle = String(keyword || '').trim().toLowerCase()
+  if (!needle) return lines
   return lines.filter((line) => {
-    if (typeof line === 'string') {
-      return line.toLowerCase().includes(keyword)
-    }
     const text = String(line.text || '').toLowerCase()
     const hex = String(line.hex || '').toLowerCase()
-    return text.includes(keyword) || hex.includes(keyword)
+    return text.includes(needle) || hex.includes(needle)
   })
 }
 
@@ -357,20 +358,45 @@ function formatPayload(item) {
   return item.text || ''
 }
 
+function scheduleLogFlush() {
+  if (logFlushHandle) return
+  logFlushHandle = window.requestAnimationFrame(() => {
+    logFlushHandle = 0
+    flushLogs()
+  })
+}
+
+function flushLogs() {
+  if (commLogBuffer.length) {
+    const batch = commLogBuffer.splice(0, commLogBuffer.length)
+    commLogs.value.unshift(...batch.reverse())
+    if (commLogs.value.length > MAX_COMM_LOGS) {
+      commLogs.value.splice(MAX_COMM_LOGS)
+    }
+  }
+  if (scriptLogBuffer.length) {
+    scriptLogs.value.push(...scriptLogBuffer.splice(0, scriptLogBuffer.length))
+    if (scriptLogs.value.length > MAX_SCRIPT_LOGS) {
+      scriptLogs.value.splice(0, scriptLogs.value.length - MAX_SCRIPT_LOGS)
+    }
+  }
+}
+
 function addCommLog(kind, payload) {
-  commLogs.value.unshift({
+  commLogBuffer.push({
+    id: `c${commLogSeq++}`,
     kind,
     text: payload.text || '',
     hex: payload.hex || '',
     ts: payload.ts || Date.now() / 1000,
   })
-  if (commLogs.value.length > 200) commLogs.value.pop()
+  scheduleLogFlush()
 }
 
 function addScriptLog(line) {
   const text = String(line || '')
-  scriptLogs.value.push(text)
-  if (scriptLogs.value.length > 200) scriptLogs.value.shift()
+  scriptLogBuffer.push({ id: `s${scriptLogSeq++}`, text })
+  scheduleLogFlush()
   if (
     text.includes('Script finished') ||
     text.includes('Script stopped') ||
@@ -421,6 +447,14 @@ function refreshChannels() {
   withResult(bridge.value.list_channels(), (items) => {
     setChannels(items)
   })
+}
+
+function scheduleChannelRefresh() {
+  if (channelRefreshTimer) return
+  channelRefreshTimer = window.setTimeout(() => {
+    channelRefreshTimer = null
+    refreshChannels()
+  }, 150)
 }
 
 function protocolCategory(key) {
@@ -706,6 +740,7 @@ function searchYaml() {
 
 function clearScriptLogs() {
   scriptLogs.value = []
+  scriptLogBuffer.length = 0
 }
 
 function scrollScriptLogsToBottom() {
@@ -714,7 +749,11 @@ function scrollScriptLogsToBottom() {
 }
 
 function refreshScriptVariables() {
-  scriptVarRefreshKey.value += 1
+  if (scriptVarTimer) {
+    window.clearTimeout(scriptVarTimer)
+    scriptVarTimer = null
+  }
+  scriptVariablesList.value = parseScriptVariables(yamlText.value)
 }
 
 function attachBridge(obj) {
@@ -724,19 +763,19 @@ function attachBridge(obj) {
     const detail = payload && payload.payload !== undefined ? payload.payload : payload
     if (!detail) {
       connectionInfo.value = { state: 'disconnected', detail: '' }
-      refreshChannels()
+      scheduleChannelRefresh()
       return
     }
     if (typeof detail === 'string') {
       connectionInfo.value = { state: 'error', detail }
-      refreshChannels()
+      scheduleChannelRefresh()
       return
     }
     connectionInfo.value = {
       state: 'connected',
       detail: detail.address || detail.port || detail.type || '',
     }
-    refreshChannels()
+    scheduleChannelRefresh()
   })
   obj.script_log.connect((line) => addScriptLog(line))
   obj.script_state.connect((state) => {
@@ -780,6 +819,18 @@ onBeforeUnmount(() => {
   if (scriptTimer) {
     window.clearInterval(scriptTimer)
     scriptTimer = null
+  }
+  if (scriptVarTimer) {
+    window.clearTimeout(scriptVarTimer)
+    scriptVarTimer = null
+  }
+  if (logFlushHandle) {
+    window.cancelAnimationFrame(logFlushHandle)
+    logFlushHandle = 0
+  }
+  if (channelRefreshTimer) {
+    window.clearTimeout(channelRefreshTimer)
+    channelRefreshTimer = null
   }
   destroyYamlEditor()
   window.removeEventListener('keydown', handleGlobalKeydown)
@@ -833,6 +884,18 @@ watch(
     yamlEditor.dispatch({
       changes: { from: 0, to: current.length, insert: value },
     })
+  }
+)
+
+watch(
+  () => yamlText.value,
+  (value) => {
+    if (scriptVarTimer) {
+      window.clearTimeout(scriptVarTimer)
+    }
+    scriptVarTimer = window.setTimeout(() => {
+      scriptVariablesList.value = parseScriptVariables(value)
+    }, 200)
   }
 )
 
@@ -1335,7 +1398,7 @@ function clearDragState() {
                   </div>
                 </div>
                 <div class="log-stream">
-                  <div class="log-line" v-for="(item, index) in commLogs" :key="`io-${index}`">
+                  <div class="log-line" v-for="item in commLogs" :key="item.id">
                     <span class="log-time">{{ formatTime(item.ts) }}</span>
                     <span class="log-kind" :class="`kind-${item.kind?.toLowerCase()}`">{{ item.kind }}</span>
                     <span class="log-text">{{ formatPayload(item) }}</span>
@@ -1354,23 +1417,14 @@ function clearDragState() {
                   </div>
                 </div>
                 <div class="log-stream compact">
-                  <div
-                    v-for="(line, index) in (logTab === 'uart' ? uartLogs : logTab === 'tcp' ? tcpLogs : consoleLogs)"
-                    :key="`console-${index}`"
-                    class="log-line"
-                  >
-                    <template v-if="typeof line === 'string'">
-                      {{ line }}
-                    </template>
-                    <template v-else>
-                      <span class="log-time">{{ formatTime(line.ts) }}</span>
-                      <span class="log-kind" :class="`kind-${line.kind?.toLowerCase()}`">{{ line.kind }}</span>
-                      <span class="log-text">{{ formatPayload(line) }}</span>
-                    </template>
+                  <div v-for="line in visibleCommLogs" :key="line.id" class="log-line">
+                    <span class="log-time">{{ formatTime(line.ts) }}</span>
+                    <span class="log-kind" :class="`kind-${line.kind?.toLowerCase()}`">{{ line.kind }}</span>
+                    <span class="log-text">{{ formatPayload(line) }}</span>
                   </div>
                 </div>
                 <div class="panel-footer">
-                  <span>{{ consoleLogs.length }} 条日志记录</span>
+                  <span>{{ visibleCommLogs.length }} 条日志记录</span>
                   <button class="link-btn">清除日志</button>
                 </div>
               </div>
@@ -1518,8 +1572,8 @@ function clearDragState() {
               </div>
             </div>
             <div class="log-stream compact" ref="scriptLogRef">
-              <div class="log-line" v-for="(line, index) in scriptLogs" :key="`${line}-${index}`">
-                {{ line }}
+              <div class="log-line" v-for="line in scriptLogs" :key="line.id">
+                {{ line.text }}
               </div>
             </div>
           </div>
