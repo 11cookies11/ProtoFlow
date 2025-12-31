@@ -12,17 +12,17 @@ ProtoFlow 是一个通信运行时引擎，让 UART / TCP / Modbus / XMODEM 的�
 
 ---
 
-[EN](./README_EN.md)
+<p align="center">
+  <a href="./README.md">简体中文</a> · <a href="./README_EN.md">English</a>
+</p>
 
 <p align="center">
-  <a href="https://github.com/11cookies11/ToolOfCom/actions/workflows/ci.yml"><img alt="build" src="https://img.shields.io/github/actions/workflow/status/11cookies11/ToolOfCom/ci.yml?branch=main&label=build&style=for-the-badge"/></a>
-  <a href="https://github.com/11cookies11/ToolOfCom/releases"><img alt="release" src="https://img.shields.io/github/v/release/11cookies11/ToolOfCom?label=release&style=for-the-badge"/></a>
-  <a href="./LICENSE"><img alt="license" src="https://img.shields.io/github/license/11cookies11/ToolOfCom?style=for-the-badge"/></a>
-</p>
-<p align="center">
-  <a href="https://github.com/11cookies11/ToolOfCom/releases"><img alt="downloads" src="https://img.shields.io/github/downloads/11cookies11/ToolOfCom/total?label=downloads&style=for-the-badge"/></a>
-  <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-orange?style=for-the-badge"/>
-  <img alt="language" src="https://img.shields.io/badge/language-Python%203.11%2B%20%2B%20Qt-7F3FBF?style=for-the-badge"/>
+  <a href="https://github.com/11cookies11/ToolOfCom/actions/workflows/ci.yml"><img alt="ci" src="https://img.shields.io/github/actions/workflow/status/11cookies11/ToolOfCom/ci.yml?branch=main&label=CI&style=for-the-badge"/></a>
+  <a href="https://github.com/11cookies11/ToolOfCom/releases"><img alt="release" src="https://img.shields.io/github/v/release/11cookies11/ToolOfCom?label=Release&style=for-the-badge"/></a>
+  <a href="./LICENSE"><img alt="license" src="https://img.shields.io/github/license/11cookies11/ToolOfCom?label=License&style=for-the-badge"/></a>
+  <a href="https://github.com/11cookies11/ToolOfCom/releases"><img alt="downloads" src="https://img.shields.io/github/downloads/11cookies11/ToolOfCom/total?label=Downloads&style=for-the-badge"/></a>
+  <img alt="platform" src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-orange?style=for-the-badge"/>
+  <img alt="language" src="https://img.shields.io/badge/Language-Python%203.11%2B%20%2B%20Qt-7F3FBF?style=for-the-badge"/>
 </p>
 
 ## 🌐 项目简介（Overview）
