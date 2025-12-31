@@ -1,11 +1,12 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { basicSetup } from 'codemirror'
 import { EditorState, RangeSetBuilder } from '@codemirror/state'
 import { Decoration, EditorView, ViewPlugin } from '@codemirror/view'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
-import DropdownSelect from './components/DropdownSelect.vue'
+import ManualView from './components/ManualView.vue'
+import ScriptsView from './components/ScriptsView.vue'
 import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
 
 const bridge = ref(null)
@@ -26,6 +27,7 @@ const commLogBuffer = []
 const scriptLogBuffer = []
 const MAX_COMM_LOGS = 200
 const MAX_SCRIPT_LOGS = 200
+const MAX_RENDER_LOGS = 120
 let logFlushHandle = 0
 let commLogSeq = 0
 let scriptLogSeq = 0
@@ -136,7 +138,16 @@ const protocolCards = ref([])
 
 const isConnected = computed(() => connectionInfo.value.state === 'connected')
 
+const sliceTail = (items, limit) => {
+  if (!Array.isArray(items)) return []
+  if (!limit || items.length <= limit) return items
+  return items.slice(items.length - limit)
+}
+
 const visibleCommLogs = computed(() => filterCommLogs(commLogs.value, logTab.value, logKeyword.value))
+const renderedCommLogs = computed(() => sliceTail(commLogs.value, MAX_RENDER_LOGS))
+const renderedVisibleCommLogs = computed(() => sliceTail(visibleCommLogs.value, MAX_RENDER_LOGS))
+const renderedScriptLogs = computed(() => sliceTail(scriptLogs.value, MAX_RENDER_LOGS))
 const scriptVariables = computed(() => scriptVariablesList.value)
 const scriptErrorCount = computed(
   () => scriptLogs.value.filter((line) => String(line.text || '').toLowerCase().includes('[error]')).length
@@ -169,11 +180,79 @@ const filteredProtocolCards = computed(() => {
   return protocolCards.value.filter((card) => card.category === protocolTab.value)
 })
 
+const manualViewBindings = {
+  connectionInfo,
+  isConnected,
+  selectedPort,
+  portOptionsList,
+  portPlaceholder,
+  noPorts,
+  sendMode,
+  sendText,
+  sendHex,
+  appendCR,
+  appendLF,
+  loopSend,
+  displayMode,
+  quickCommands,
+  logTab,
+  logKeyword,
+  visibleCommLogs,
+  renderedCommLogs,
+  renderedVisibleCommLogs,
+  formatTime,
+  formatPayload,
+  selectPort,
+  refreshPorts,
+  disconnect,
+  connectSerial,
+  sendPayload,
+  sendQuickCommand,
+}
+
+const scriptsViewBindings = {
+  scriptFileName,
+  scriptFilePath,
+  loadYaml,
+  saveYaml,
+  yamlFileInputRef,
+  handleYamlFile,
+  yamlCollapsed,
+  toggleYamlCollapsed,
+  copyYaml,
+  searchYaml,
+  yamlEditorRef,
+  scriptStatusClass,
+  scriptRunning,
+  scriptStatusLabel,
+  scriptCanRun,
+  scriptCanStop,
+  runScript,
+  stopScript,
+  scriptState,
+  scriptStepIndex,
+  scriptStepTotal,
+  scriptProgress,
+  scriptElapsedLabel,
+  scriptErrorCount,
+  scriptVariables,
+  refreshScriptVariables,
+  clearScriptLogs,
+  scrollScriptLogsToBottom,
+  renderedScriptLogs,
+  scriptLogRef,
+}
+
+provide('manualView', manualViewBindings)
+provide('scriptsView', scriptsViewBindings)
+
 let scriptTimer = null
 let yamlEditor = null
 let yamlEditorUpdating = false
 let scriptVarTimer = null
 let channelRefreshTimer = null
+let snapPreviewRaf = 0
+let pendingSnapPreview = null
 
 function filterCommLogs(lines, tab, keyword) {
   if (tab === 'tcp') return []
@@ -745,7 +824,10 @@ function clearScriptLogs() {
 
 function scrollScriptLogsToBottom() {
   if (!scriptLogRef.value) return
-  scriptLogRef.value.scrollTop = scriptLogRef.value.scrollHeight
+  const root = scriptLogRef.value.rootEl
+  const el = root && root.value ? root.value : root
+  if (!el) return
+  el.scrollTop = el.scrollHeight
 }
 
 function refreshScriptVariables() {
@@ -1116,9 +1198,26 @@ function chooseDslWorkspace() {
   )
 }
 
-function updateSnapPreview(event) {
-  if (!draggingWindow.value || !event) return
-  if (event.buttons !== 1) {
+function scheduleSnapPreview(event) {
+  if (!event) return
+  pendingSnapPreview = {
+    x: event.clientX,
+    y: event.clientY,
+    buttons: event.buttons,
+  }
+  if (snapPreviewRaf) return
+  snapPreviewRaf = window.requestAnimationFrame(() => {
+    snapPreviewRaf = 0
+    if (!pendingSnapPreview) return
+    const payload = pendingSnapPreview
+    pendingSnapPreview = null
+    updateSnapPreview(payload)
+  })
+}
+
+function updateSnapPreview(payload) {
+  if (!draggingWindow.value || !payload) return
+  if (payload.buttons !== 1) {
     snapPreview.value = ''
     return
   }
@@ -1127,8 +1226,8 @@ function updateSnapPreview(event) {
     return
   }
   const margin = 24
-  const x = event.clientX
-  const y = event.clientY
+  const x = payload.x
+  const y = payload.y
   const width = window.innerWidth
   if (y <= margin) {
     snapPreview.value = 'max'
@@ -1147,14 +1246,14 @@ function handleDragEnd(event) {
 }
 
 function attachDragListeners() {
-  window.addEventListener('mousemove', updateSnapPreview)
+  window.addEventListener('mousemove', scheduleSnapPreview)
   window.addEventListener('mouseup', handleDragEnd)
   window.addEventListener('blur', handleDragCancel)
   document.addEventListener('visibilitychange', handleDragCancel)
 }
 
 function detachDragListeners() {
-  window.removeEventListener('mousemove', updateSnapPreview)
+  window.removeEventListener('mousemove', scheduleSnapPreview)
   window.removeEventListener('mouseup', handleDragEnd)
   window.removeEventListener('blur', handleDragCancel)
   document.removeEventListener('visibilitychange', handleDragCancel)
@@ -1169,6 +1268,11 @@ function clearDragState() {
   dragArmed.value = false
   dragStarted.value = false
   snapPreview.value = ''
+  pendingSnapPreview = null
+  if (snapPreviewRaf) {
+    window.cancelAnimationFrame(snapPreviewRaf)
+    snapPreviewRaf = 0
+  }
   document.body.classList.remove('resizing')
   detachDragListeners()
 }
@@ -1279,307 +1383,10 @@ function clearDragState() {
       </aside>
 
       <main class="main">
-        <section v-if="currentView === 'manual'" class="page">
-          <header class="page-header">
-            <div>
-              <h2>手动脚本</h2>
-              <p>单步调试指令发送与 I/O 数据流实时监控。</p>
-            </div>
-            <div class="header-actions">
-              <div class="status-indicator" :class="connectionInfo.state">
-                <span class="dot"></span>
-                {{ isConnected ? '已连接' : connectionInfo.state === 'error' ? '错误' : '未连接' }}
-              </div>
-              <DropdownSelect
-                v-model="selectedPort"
-                :options="portOptionsList"
-                :placeholder="portPlaceholder"
-                :disabled="noPorts"
-                leading-icon="usb"
-                @change="selectPort"
-              />
-              <button class="icon-btn" type="button" title="刷新串口" @click="refreshPorts">
-                <span class="material-symbols-outlined">refresh</span>
-              </button>
-              <button class="btn btn-success" @click="isConnected ? disconnect() : connectSerial()">
-                <span class="material-symbols-outlined">link</span>
-                {{ isConnected ? '断开' : '连接' }}
-              </button>
-            </div>
-          </header>
+        <ManualView v-if="currentView === 'manual'" />
+        <ScriptsView v-else-if="currentView === 'scripts'" />
 
-          <div class="manual-grid">
-            <div class="manual-left">
-              <div class="panel stack manual-send">
-                <div class="panel-title">
-                  <span class="material-symbols-outlined">send</span>
-                  发送数据
-                  <div class="segmented">
-                    <button :class="{ active: sendMode === 'text' }" @click="sendMode = 'text'">文本</button>
-                    <button :class="{ active: sendMode === 'hex' }" @click="sendMode = 'hex'">HEX</button>
-                  </div>
-                </div>
-                <textarea
-                  v-if="sendMode === 'text'"
-                  v-model="sendText"
-                  class="text-area"
-                  placeholder="输入要发送的数据..."
-                ></textarea>
-                <textarea
-                  v-else
-                  v-model="sendHex"
-                  class="text-area"
-                  placeholder="55 AA 01"
-                ></textarea>
-                <div class="toggle-row">
-                  <label class="check">
-                    <input v-model="appendCR" type="checkbox" />
-                    <span>+CR</span>
-                  </label>
-                  <label class="check">
-                    <input v-model="appendLF" type="checkbox" />
-                    <span>+LF</span>
-                  </label>
-                  <label class="check">
-                    <input v-model="loopSend" type="checkbox" />
-                    <span>循环发送</span>
-                  </label>
-                </div>
-                <button class="btn btn-primary" @click="sendPayload">
-                  <span class="material-symbols-outlined">send</span>
-                  发送数据
-                </button>
-              </div>
-
-              <div class="panel stack manual-quick">
-                <div class="panel-title simple">
-                  发送
-                  <button class="icon-btn">
-                    <span class="material-symbols-outlined">add</span>
-                  </button>
-                </div>
-                <div class="quick-list">
-                  <button
-                    快捷指令
-                    :key="cmd"
-                    class="quick-item"
-                    @click="sendQuickCommand(cmd)"
-                  >
-                    <span>{{ cmd }}</span>
-                    <span class="material-symbols-outlined">play_arrow</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div class="manual-right">
-              <div class="panel monitor manual-monitor">
-                <div class="panel-title bar">
-                  <div class="panel-title-left">
-                    <span class="material-symbols-outlined">swap_horiz</span>
-                    IO 监控
-                    <span class="pill live">LIVE</span>
-                  </div>
-                  <div class="panel-actions">
-                    <div class="segmented small">
-                      <button :class="{ active: displayMode === 'ascii' }" @click="displayMode = 'ascii'">ASCII</button>
-                      <button :class="{ active: displayMode === 'hex' }" @click="displayMode = 'hex'">HEX</button>
-                    </div>
-                    <span class="divider"></span>
-                    <button class="icon-btn" title="娓呴櫎">
-                      <span class="material-symbols-outlined">delete</span>
-                    </button>
-                    <button class="icon-btn" title="鏆傚仠">
-                      <span class="material-symbols-outlined">pause_circle</span>
-                    </button>
-                    <button class="icon-btn" title="瀵煎嚭">
-                      <span class="material-symbols-outlined">download</span>
-                    </button>
-                  </div>
-                </div>
-                <div class="log-stream">
-                  <div class="log-line" v-for="item in commLogs" :key="item.id">
-                    <span class="log-time">{{ formatTime(item.ts) }}</span>
-                    <span class="log-kind" :class="`kind-${item.kind?.toLowerCase()}`">{{ item.kind }}</span>
-                    <span class="log-text">{{ formatPayload(item) }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="panel console manual-console">
-                <div class="tab-strip">
-                  <button :class="{ active: logTab === 'all' }" @click="logTab = 'all'">全部日志</button>
-                  <button :class="{ active: logTab === 'uart' }" @click="logTab = 'uart'">串口 (UART)</button>
-                  <button :class="{ active: logTab === 'tcp' }" @click="logTab = 'tcp'">网络 (TCP)</button>
-                  <div class="search">
-                    <span class="material-symbols-outlined">search</span>
-                    <input v-model="logKeyword" type="text" placeholder="过滤日志..." />
-                  </div>
-                </div>
-                <div class="log-stream compact">
-                  <div v-for="line in visibleCommLogs" :key="line.id" class="log-line">
-                    <span class="log-time">{{ formatTime(line.ts) }}</span>
-                    <span class="log-kind" :class="`kind-${line.kind?.toLowerCase()}`">{{ line.kind }}</span>
-                    <span class="log-text">{{ formatPayload(line) }}</span>
-                  </div>
-                </div>
-                <div class="panel-footer">
-                  <span>{{ visibleCommLogs.length }} 条日志记录</span>
-                  <button class="link-btn">清除日志</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-<section v-else-if="currentView === 'scripts'" class="page">
-          <header class="page-header compact">
-            <div class="file-info">
-              <div class="file-title">
-                {{ scriptFileName }}
-                <span class="badge">只读</span>
-              </div>
-              <div class="file-path">{{ scriptFilePath }}</div>
-            </div>
-            <div class="header-actions">
-              <button class="btn btn-outline" @click="loadYaml">
-                <span class="material-symbols-outlined">folder_open</span>
-                加载脚本
-              </button>
-              <button class="btn btn-outline" @click="saveYaml">
-                <span class="material-symbols-outlined">save</span>
-                保存
-              </button>
-            </div>
-            <input
-              ref="yamlFileInputRef"
-              type="file"
-              accept=".yaml,.yml,text/yaml"
-              style="display: none"
-              @change="handleYamlFile"
-            />
-          </header>
-
-          <div class="scripts-grid">
-            <div class="panel editor">
-              <div class="panel-title bar">
-                <span class="material-symbols-outlined">code</span>
-                DSL 编辑器
-                <div class="panel-actions">
-                  <button class="icon-btn" :title="yamlCollapsed ? '灞曞紑' : '鏀惰捣'" @click="toggleYamlCollapsed">
-                    <span class="material-symbols-outlined">
-                      {{ yamlCollapsed ? 'unfold_more' : 'unfold_less' }}
-                    </span>
-                  </button>
-                  <button class="icon-btn" title="复制" @click="copyYaml">
-                    <span class="material-symbols-outlined">content_copy</span>
-                  </button>
-                  <button class="icon-btn" title="搜索" @click="searchYaml">
-                    <span class="material-symbols-outlined">search</span>
-                  </button>
-                </div>
-              </div>
-              <div ref="yamlEditorRef" class="code-area" :class="{ collapsed: yamlCollapsed }"></div>
-            </div>
-
-            <div class="scripts-side">
-              <div class="panel stack">
-                <div class="panel-title simple">执行控制</div>
-                <div class="status-pill" :class="scriptStatusClass">
-                  <span v-if="scriptRunning" class="pulse"></span>
-                  {{ scriptStatusLabel }}
-                </div>
-                <div class="button-grid">
-                  <button
-                    class="btn btn-primary"
-                    :class="{ 'btn-muted': !scriptCanRun }"
-                    :disabled="!scriptCanRun"
-                    @click="runScript"
-                  >
-                    <span class="material-symbols-outlined">play_arrow</span>
-                    运行
-                  </button>
-                  <button
-                    class="btn btn-danger"
-                    :class="{ 'btn-muted': !scriptCanStop }"
-                    :disabled="!scriptCanStop"
-                    @click="stopScript"
-                  >
-                    <span class="material-symbols-outlined">stop</span>
-                    停止
-                  </button>
-                </div>
-                <div class="progress-block">
-                  <div class="progress-row">
-                    <span>当前步骤: <strong>{{ scriptState }}</strong></span>
-                    <span class="mono">{{ scriptStepIndex }}/{{ scriptStepTotal }}</span>
-                  </div>
-                  <div class="progress-bar">
-                    <div class="progress" :style="{ width: `${Math.min(100, scriptProgress)}%` }"></div>
-                  </div>
-                  <div class="progress-stats">
-                    <div>
-                      <span>已用时间</span>
-                      <strong class="mono">{{ scriptElapsedLabel }}</strong>
-                    </div>
-                    <div>
-                      <span>错误数</span>
-                      <strong class="mono">{{ scriptErrorCount }}</strong>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="panel stack">
-                <div class="panel-title simple">
-                  变量监控
-                  <button class="link-btn" type="button" @click="refreshScriptVariables">刷新</button>
-                </div>
-                <table class="mini-table">
-                  <thead>
-                    <tr>
-                      <th>变量名</th>
-                      <th class="right">当前值</th>
-                    </tr>
-                  </thead>
-                  <tbody v-if="scriptVariables.length">
-                    <tr v-for="item in scriptVariables" :key="item.name">
-                      <td>{{ item.name }}</td>
-                      <td class="right">{{ item.value || '--' }}</td>
-                    </tr>
-                  </tbody>
-                  <tbody v-else>
-                    <tr>
-                      <td colspan="2" class="right">--</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <div class="panel log-panel">
-            <div class="panel-title bar">
-              <span class="material-symbols-outlined">terminal</span>
-              运行日志
-              <div class="panel-actions">
-                <button class="icon-btn" title="清空日志" @click="clearScriptLogs">
-                  <span class="material-symbols-outlined">block</span>
-                </button>
-                <button class="icon-btn" title="滚动到底部" @click="scrollScriptLogsToBottom">
-                  <span class="material-symbols-outlined">vertical_align_bottom</span>
-                </button>
-              </div>
-            </div>
-            <div class="log-stream compact" ref="scriptLogRef">
-              <div class="log-line" v-for="line in scriptLogs" :key="line.id">
-                {{ line.text }}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section v-else-if="currentView === 'channels'" class="page">
+<section v-else-if="currentView === 'channels'" class="page">
   <header class="page-header spaced">
     <div>
       <h2>通道管理</h2>

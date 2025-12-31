@@ -207,6 +207,13 @@ textarea {
 .resize-handle.bottom {
   left: 6px;
   right: 6px;
+}
+
+.resize-handle.top {
+  height: 1px;
+}
+
+.resize-handle.bottom {
   height: 6px;
 }
 
@@ -710,6 +717,12 @@ textarea {
   padding: 16px;
 }
 
+.panel.manual-monitor,
+.panel.manual-console,
+.panel.log-panel {
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
+}
+
 .panel.stack {
   display: flex;
   flex-direction: column;
@@ -912,6 +925,8 @@ textarea {
   gap: 6px;
   padding: 12px 6px 6px;
   overflow-y: auto;
+  contain: paint;
+  overscroll-behavior: contain;
   max-height: 320px;
   min-height: 180px;
 }
@@ -927,6 +942,8 @@ textarea {
   display: flex;
   align-items: flex-start;
   gap: 8px;
+  content-visibility: auto;
+  contain-intrinsic-size: 0 22px;
 }
 
 .log-time {
