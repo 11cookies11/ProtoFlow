@@ -31,16 +31,43 @@
   box-sizing: border-box;
 }
 
-body.resizing {
+body.resizing,
+body.dragging-window {
   user-select: none;
   cursor: default;
 }
 
 body.resizing *,
 body.resizing *::before,
-body.resizing *::after {
+body.resizing *::after,
+body.dragging-window *,
+body.dragging-window *::before,
+body.dragging-window *::after {
   transition: none !important;
   animation: none !important;
+}
+
+body.resizing .panel,
+body.resizing .card,
+body.resizing .modal,
+body.resizing .sidebar,
+body.resizing .app-titlebar,
+body.dragging-window .panel,
+body.dragging-window .card,
+body.dragging-window .modal,
+body.dragging-window .sidebar,
+body.dragging-window .app-titlebar {
+  box-shadow: none !important;
+}
+
+body.resizing .log-line {
+  content-visibility: visible !important;
+}
+
+body.resizing .log-stream,
+body.resizing .card-list,
+body.resizing .page {
+  contain: layout paint;
 }
 
 body.modal-open *,

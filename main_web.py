@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 
 try:
@@ -17,6 +18,11 @@ from ui.web_window import WebWindow
 
 
 def main() -> None:
+    if sys.platform == "win32":
+        os.environ.setdefault(
+            "QTWEBENGINE_CHROMIUM_FLAGS",
+            "--disable-features=DirectComposition",
+        )
     bus = EventBus()
     comm = CommunicationManager(bus)
     protocol = ProtocolLoader(bus)
