@@ -25,7 +25,7 @@
   --muted: #64748b;
   --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
   --radius: 12px;
-  --sidebar-width: minmax(180px, 16vw);
+  --sidebar-width: 240px;
 }
 
 * {
@@ -1804,10 +1804,6 @@ textarea {
 }
 
 @media (max-width: 1200px) {
-  .app-shell {
-    grid-template-columns: minmax(170px, 18vw) 1fr;
-  }
-
   .manual-grid,
   .monitor-stack,
   .scripts-grid {
@@ -1877,28 +1873,8 @@ textarea {
 }
 
 @media (max-width: 1100px) {
-  .app-shell {
-    grid-template-columns: minmax(60px, 8vw) 1fr;
-  }
-
-  .sidebar {
-    padding: 16px 10px;
-  }
-
-  .sidebar-header {
-    justify-content: center;
-  }
-
-  .brand-name,
-  .brand-meta,
-  .user-name,
-  .user-meta,
-  .nav-item span:last-child {
-    display: none;
-  }
-
-  .nav-item {
-    justify-content: center;
+  .header-actions {
+    gap: 8px;
   }
 }
 
