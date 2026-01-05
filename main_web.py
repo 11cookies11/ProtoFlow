@@ -19,9 +19,10 @@ from ui.web_window import WebWindow
 
 def main() -> None:
     if sys.platform == "win32":
+        override = os.environ.get("PROTOFLOW_WEBENGINE_FLAGS")
         os.environ.setdefault(
             "QTWEBENGINE_CHROMIUM_FLAGS",
-            "--disable-features=DirectComposition",
+            override or "--disable-features=DirectComposition",
         )
     bus = EventBus()
     comm = CommunicationManager(bus)

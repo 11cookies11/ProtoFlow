@@ -10,6 +10,7 @@ import ScriptsView from './components/ScriptsView.vue'
 import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
 
 const bridge = ref(null)
+const sidebarRef = ref(null)
 const connectionInfo = ref({ state: 'disconnected', detail: '' })
 const ports = ref([])
 const selectedPort = ref('')
@@ -55,7 +56,6 @@ const draggingWindow = ref(false)
 const dragArmed = ref(false)
 const dragStarted = ref(false)
 const dragStart = ref({ x: 0, y: 0 })
-const uiFrozen = ref(false)
 const snapPreview = ref('')
 const enableSnapPreview = ref(false)
 const portPlaceholder = 'COM3 - USB Serial (115200)'
@@ -254,11 +254,6 @@ let scriptVarTimer = null
 let channelRefreshTimer = null
 let snapPreviewRaf = 0
 let pendingSnapPreview = null
-let pendingConnectionInfo = undefined
-let pendingScriptState = undefined
-let pendingScriptProgress = undefined
-let pendingScriptRunning = undefined
-let pendingChannels = undefined
 
 function filterCommLogs(lines, tab, keyword) {
   if (tab === 'tcp') return []
@@ -444,7 +439,6 @@ function formatPayload(item) {
 }
 
 function scheduleLogFlush() {
-  if (uiFrozen.value) return
   if (logFlushHandle) return
   logFlushHandle = window.requestAnimationFrame(() => {
     logFlushHandle = 0
@@ -453,7 +447,6 @@ function scheduleLogFlush() {
 }
 
 function flushLogs() {
-  if (uiFrozen.value) return
   if (commLogBuffer.length) {
     const batch = commLogBuffer.splice(0, commLogBuffer.length)
     commLogs.value.unshift(...batch.reverse())
@@ -467,30 +460,6 @@ function flushLogs() {
       scriptLogs.value.splice(0, scriptLogs.value.length - MAX_SCRIPT_LOGS)
     }
   }
-}
-
-function applyPendingUiState() {
-  if (pendingConnectionInfo !== undefined) {
-    connectionInfo.value = pendingConnectionInfo
-    pendingConnectionInfo = undefined
-  }
-  if (pendingScriptState !== undefined) {
-    scriptState.value = pendingScriptState
-    pendingScriptState = undefined
-  }
-  if (pendingScriptRunning !== undefined) {
-    scriptRunning.value = pendingScriptRunning
-    pendingScriptRunning = undefined
-  }
-  if (pendingScriptProgress !== undefined) {
-    scriptProgress.value = pendingScriptProgress
-    pendingScriptProgress = undefined
-  }
-  if (pendingChannels !== undefined) {
-    setChannels(pendingChannels)
-    pendingChannels = undefined
-  }
-  flushLogs()
 }
 
 function addCommLog(kind, payload) {
@@ -877,20 +846,12 @@ function attachBridge(obj) {
     const detail = payload && payload.payload !== undefined ? payload.payload : payload
     if (!detail) {
       const nextInfo = { state: 'disconnected', detail: '' }
-      if (uiFrozen.value) {
-        pendingConnectionInfo = nextInfo
-        return
-      }
       connectionInfo.value = nextInfo
       scheduleChannelRefresh()
       return
     }
     if (typeof detail === 'string') {
       const nextInfo = { state: 'error', detail }
-      if (uiFrozen.value) {
-        pendingConnectionInfo = nextInfo
-        return
-      }
       connectionInfo.value = nextInfo
       scheduleChannelRefresh()
       return
@@ -899,38 +860,21 @@ function attachBridge(obj) {
       state: 'connected',
       detail: detail.address || detail.port || detail.type || '',
     }
-    if (uiFrozen.value) {
-      pendingConnectionInfo = nextInfo
-      return
-    }
     connectionInfo.value = nextInfo
     scheduleChannelRefresh()
   })
   obj.script_log.connect((line) => addScriptLog(line))
   obj.script_state.connect((state) => {
-    if (uiFrozen.value) {
-      pendingScriptState = state
-      pendingScriptRunning = state ? true : scriptRunning.value
-      return
-    }
     scriptState.value = state
     if (state) {
       scriptRunning.value = true
     }
   })
   obj.script_progress.connect((value) => {
-    if (uiFrozen.value) {
-      pendingScriptProgress = value
-      return
-    }
     scriptProgress.value = value
   })
   if (obj.channel_update) {
     obj.channel_update.connect((items) => {
-      if (uiFrozen.value) {
-        pendingChannels = Array.isArray(items) ? items : []
-        return
-      }
       setChannels(items)
     })
   }
@@ -948,7 +892,6 @@ onMounted(() => {
     }
   }, 200)
   scriptTimer = window.setInterval(() => {
-    if (uiFrozen.value) return
     if (scriptRunning.value && scriptStartMs.value) {
       scriptElapsedMs.value = Date.now() - scriptStartMs.value
     }
@@ -1056,6 +999,7 @@ function maybeStartWindowMove(event) {
   const dx = Math.abs(event.screenX - dragStart.value.x)
   const dy = Math.abs(event.screenY - dragStart.value.y)
   if (dx < 10 && dy < 10) return
+  lockSidebarWidth()
   if (bridge.value) {
     if (bridge.value.window_start_move_at) {
       bridge.value.window_start_move_at(Math.round(event.screenX), Math.round(event.screenY))
@@ -1065,7 +1009,6 @@ function maybeStartWindowMove(event) {
   }
   dragStarted.value = true
   draggingWindow.value = true
-  uiFrozen.value = true
   document.body.classList.add('dragging-window')
   snapPreview.value = ''
   attachDragListeners()
@@ -1334,8 +1277,8 @@ function clearDragState() {
   dragArmed.value = false
   dragStarted.value = false
   snapPreview.value = ''
-  uiFrozen.value = false
   pendingSnapPreview = null
+  unlockSidebarWidth()
   if (snapPreviewRaf) {
     window.cancelAnimationFrame(snapPreviewRaf)
     snapPreviewRaf = 0
@@ -1343,7 +1286,17 @@ function clearDragState() {
   document.body.classList.remove('dragging-window')
   document.body.classList.remove('resizing')
   detachDragListeners()
-  applyPendingUiState()
+}
+
+function lockSidebarWidth() {
+  const sidebar = sidebarRef.value
+  if (!sidebar || !sidebar.getBoundingClientRect) return
+  const width = Math.round(sidebar.getBoundingClientRect().width)
+  document.documentElement.style.setProperty('--sidebar-width', `${width}px`)
+}
+
+function unlockSidebarWidth() {
+  document.documentElement.style.removeProperty('--sidebar-width')
 }
 
 </script>
@@ -1409,7 +1362,7 @@ function clearDragState() {
     </header>
 
     <div class="app-shell">
-      <aside class="sidebar">
+      <aside ref="sidebarRef" class="sidebar">
         <div class="sidebar-header">
           <div class="brand-mark">
             <span class="material-symbols-outlined">hub</span>

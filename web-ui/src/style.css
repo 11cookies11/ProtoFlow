@@ -25,6 +25,7 @@
   --muted: #64748b;
   --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
   --radius: 12px;
+  --sidebar-width: minmax(180px, 16vw);
 }
 
 * {
@@ -218,7 +219,7 @@ textarea {
 
 .app-shell {
   display: grid;
-  grid-template-columns: minmax(180px, 16vw) 1fr;
+  grid-template-columns: var(--sidebar-width) 1fr;
   flex: 1;
   min-height: 0;
   height: calc(100vh - var(--titlebar-height));
