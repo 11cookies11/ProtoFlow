@@ -872,6 +872,18 @@ textarea {
   max-height: 200px;
 }
 
+.manual-quick,
+.manual-console {
+  display: flex;
+  flex-direction: column;
+}
+
+.manual-quick .quick-list,
+.manual-console .log-stream {
+  flex: 1;
+  min-height: 0;
+}
+
 .text-area {
   width: 100%;
   min-height: 160px;
@@ -924,7 +936,8 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 156px;
+  max-height: 208px;
+  min-height: 208px;
   overflow-y: auto;
   padding-right: 4px;
 }
