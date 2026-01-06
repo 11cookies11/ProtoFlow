@@ -443,6 +443,15 @@ function formatPayload(item) {
   return item.text || item.hex || ''
 }
 
+function parseBridgePayload(payload) {
+  if (typeof payload !== 'string') return payload
+  try {
+    return JSON.parse(payload)
+  } catch (err) {
+    return { text: String(payload) }
+  }
+}
+
 function scheduleLogFlush() {
   if (logFlushHandle) return
   logFlushHandle = window.requestAnimationFrame(() => {
@@ -469,7 +478,9 @@ function flushLogs() {
 
 function addCommLog(kind, payload) {
   if (!payload || typeof payload !== 'object') {
-    payload = { text: '', hex: '', ts: Date.now() / 1000 }
+    payload = { text: String(payload || ''), hex: '', ts: Date.now() / 1000 }
+  } else if (!payload.text && !payload.hex) {
+    payload = { text: JSON.stringify(payload), hex: '', ts: payload.ts || Date.now() / 1000 }
   }
   commLogBuffer.push({
     id: `c${commLogSeq++}`,
@@ -504,6 +515,7 @@ function addScriptLog(line) {
 }
 
 function addCommBatch(batch) {
+  batch = parseBridgePayload(batch)
   if (!Array.isArray(batch)) return
   for (const item of batch) {
     if (!item) continue
@@ -897,8 +909,14 @@ function attachBridge(obj) {
   attachedBridge = obj
   bridge.value = obj
   if (obj.comm_rx && obj.comm_tx) {
-    obj.comm_rx.connect((payload) => addCommLog('RX', payload))
-    obj.comm_tx.connect((payload) => addCommLog('TX', payload))
+    obj.comm_rx.connect((payload) => {
+      const parsed = parseBridgePayload(payload)
+      addCommLog('RX', parsed)
+    })
+    obj.comm_tx.connect((payload) => {
+      const parsed = parseBridgePayload(payload)
+      addCommLog('TX', parsed)
+    })
   }
   if (obj.comm_batch) {
     obj.comm_batch.connect((batch) => addCommBatch(batch))

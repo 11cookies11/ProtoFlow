@@ -48,7 +48,8 @@ class _TeeStream:
 
 
 def _setup_run_logging() -> Path:
-    log_dir = Path.cwd() / "logs"
+    base_dir = Path(__file__).resolve().parent
+    log_dir = base_dir / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     log_path = log_dir / f"web_ui_{timestamp}.log"

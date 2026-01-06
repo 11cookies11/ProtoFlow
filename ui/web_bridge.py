@@ -6,13 +6,14 @@ import pkgutil
 import threading
 import time
 from pathlib import Path
+import logging
 from typing import Any, Dict, List, Optional
 
 try:
-    from PySide6.QtCore import QObject, QTimer, Signal, Slot
+    from PySide6.QtCore import QObject, Q_ARG, QMetaObject, QTimer, Qt, Signal, Slot
     from PySide6.QtWidgets import QFileDialog
 except ImportError:  # pragma: no cover
-    from PyQt6.QtCore import QObject, QTimer, pyqtSignal as Signal, pyqtSlot as Slot  # type: ignore
+    from PyQt6.QtCore import QObject, Q_ARG, QMetaObject, QTimer, Qt, pyqtSignal as Signal, pyqtSlot as Slot  # type: ignore
     from PyQt6.QtWidgets import QFileDialog  # type: ignore
 
 from protocols.registry import ProtocolRegistry
@@ -25,11 +26,11 @@ class WebBridge(QObject):
 
     log = Signal(str)
     ui_ready = Signal()
-    comm_rx = Signal(object)
-    comm_tx = Signal(object)
+    comm_rx = Signal(str)
+    comm_tx = Signal(str)
     comm_status = Signal(object)
     protocol_frame = Signal(object)
-    comm_batch = Signal(object)
+    comm_batch = Signal(str)
     script_log = Signal(str)
     script_state = Signal(str)
     script_progress = Signal(int)
@@ -37,6 +38,7 @@ class WebBridge(QObject):
 
     def __init__(self, bus=None, comm=None, window=None) -> None:
         super().__init__()
+        self._logger = logging.getLogger("web_bridge")
         self._bus = bus
         self._comm = comm
         self._window = window
@@ -355,8 +357,13 @@ class WebBridge(QObject):
         self._last_channel_emit = now
         self.channel_update.emit(self._build_channel_list())
 
-    def _emit_signal(self, signal: Signal, payload: Any) -> None:
-        QTimer.singleShot(0, lambda payload=payload: signal.emit(payload))
+    @Slot(str)
+    def _emit_comm_rx_signal(self, payload: str) -> None:
+        self.comm_rx.emit(payload)
+
+    @Slot(str)
+    def _emit_comm_tx_signal(self, payload: str) -> None:
+        self.comm_tx.emit(payload)
 
     def _on_comm_rx(self, payload: Any) -> None:
         if isinstance(payload, (bytes, bytearray)):
@@ -371,7 +378,13 @@ class WebBridge(QObject):
                 "ts": payload_dict.get("ts"),
             }
         )
-        self._emit_signal(self.comm_rx, payload_dict)
+        payload_json = json.dumps(payload_dict, ensure_ascii=False)
+        QMetaObject.invokeMethod(
+            self,
+            "_emit_comm_rx_signal",
+            Qt.QueuedConnection,
+            Q_ARG(str, payload_json),
+        )
         self._emit_channel_update()
 
     def _on_comm_tx(self, payload: Any) -> None:
@@ -387,7 +400,13 @@ class WebBridge(QObject):
                 "ts": payload_dict.get("ts"),
             }
         )
-        self._emit_signal(self.comm_tx, payload_dict)
+        payload_json = json.dumps(payload_dict, ensure_ascii=False)
+        QMetaObject.invokeMethod(
+            self,
+            "_emit_comm_tx_signal",
+            Qt.QueuedConnection,
+            Q_ARG(str, payload_json),
+        )
         self._emit_channel_update()
 
     def _on_comm_status(self, payload: Any) -> None:
@@ -507,4 +526,5 @@ class WebBridge(QObject):
             return
         batch = self._buffer[:]
         self._buffer.clear()
-        self.comm_batch.emit(batch)
+        payload_json = json.dumps(batch, ensure_ascii=False, default=str)
+        self.comm_batch.emit(payload_json)
