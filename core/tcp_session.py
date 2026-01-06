@@ -19,6 +19,15 @@ class TcpSession:
         self._lock = threading.RLock()
         self._endpoint: Optional[tuple[str, int]] = None
 
+    @property
+    def endpoint(self) -> Optional[tuple[str, int]]:
+        with self._lock:
+            return self._endpoint
+
+    def is_connected(self) -> bool:
+        with self._lock:
+            return bool(self._sock) and self._running
+
     def connect(self, ip: str, port: int) -> None:
         """建立 TCP 连接并启动接收线程。"""
         with self._lock:

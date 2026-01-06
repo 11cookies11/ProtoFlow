@@ -23,12 +23,24 @@ class SerialManager:
         self._port: Optional[str] = None
         self._baudrate: Optional[int] = None
 
+    @property
+    def port(self) -> Optional[str]:
+        return self._port
+
+    @property
+    def baudrate(self) -> Optional[int]:
+        return self._baudrate
+
+    def is_open(self) -> bool:
+        with self._lock:
+            return bool(self._ser and self._ser.is_open)
+
     @staticmethod
     def list_ports() -> List[str]:
         """返回系统可用串口列表。"""
         return [port.device for port in list_ports.comports()]
 
-    def open(self, port: str, baudrate: int) -> None:
+    def open(self, port: str, baudrate: int) -> bool:
         """打开串口并启动接收线程。"""
         with self._lock:
             self._port, self._baudrate = port, baudrate
@@ -41,9 +53,11 @@ class SerialManager:
                 self._rx_thread.start()
                 self._log(f"串口打开: {port} @ {baudrate}")
                 self.bus.publish("serial.opened", port)
+                return True
             except SerialException as exc:
                 self._log(f"[ERROR] 打开串口失败: {exc}")
                 self.bus.publish("serial.error", str(exc))
+                return False
 
     def close(self) -> None:
         """关闭串口并停止接收线程。"""

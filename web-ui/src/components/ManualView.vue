@@ -11,6 +11,7 @@ if (!bindings) {
 const {
   connectionInfo,
   isConnected,
+  isConnecting,
   selectedPort,
   portOptionsList,
   portPlaceholder,
@@ -55,16 +56,27 @@ const {
                 v-model="selectedPort"
                 :options="portOptionsList"
                 :placeholder="portPlaceholder"
-                :disabled="noPorts"
+                :disabled="noPorts || isConnected || isConnecting"
                 leading-icon="usb"
                 @change="selectPort"
               />
-              <button class="icon-btn" type="button" title="刷新串口" @click="refreshPorts">
+              <button
+                class="icon-btn"
+                type="button"
+                title="刷新串口"
+                :disabled="isConnected || isConnecting"
+                @click="refreshPorts"
+              >
                 <span class="material-symbols-outlined">refresh</span>
               </button>
-              <button class="btn btn-success" @click="isConnected ? disconnect() : connectSerial()">
+              <button
+                class="btn"
+                :class="isConnected ? 'btn-danger' : 'btn-success'"
+                :disabled="isConnecting && !isConnected"
+                @click="isConnected ? disconnect() : connectSerial()"
+              >
                 <span class="material-symbols-outlined">link</span>
-                {{ isConnected ? '断开' : '连接' }}
+                {{ isConnected ? '断开' : isConnecting ? '连接中' : '连接' }}
               </button>
             </div>
           </header>

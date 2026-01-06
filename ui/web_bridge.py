@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import json
 import pkgutil
+import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -54,6 +55,12 @@ class WebBridge(QObject):
         }
         self._traffic: Dict[str, int] = {"tx": 0, "rx": 0}
         self._last_channel_emit = 0.0
+        self._connect_lock = threading.Lock()
+        self._connect_inflight = False
+        self._last_status_ts = 0.0
+        self._last_error: Optional[str] = None
+        self._last_error_ts = 0.0
+        self._manual_disconnect = False
         self._flush_timer = QTimer(self)
         self._flush_timer.setInterval(50)
         self._flush_timer.timeout.connect(self._flush_buffers)
@@ -119,17 +126,44 @@ class WebBridge(QObject):
 
     @Slot(str, int)
     def connect_serial(self, port: str, baud: int = 115200) -> None:
-        if self._comm:
-            self._comm.select_serial(port, baud)
+        if not self._comm:
+            return
+        if self._connect_inflight:
+            return
+        if not self._connect_lock.acquire(blocking=False):
+            return
+        self._connect_inflight = True
+
+        def _run() -> None:
+            try:
+                self._comm.select_serial(port, baud)
+            finally:
+                self._connect_lock.release()
+
+        threading.Thread(target=_run, daemon=True).start()
 
     @Slot(str, int)
     def connect_tcp(self, host: str, port: int) -> None:
-        if self._comm:
-            self._comm.select_tcp(host, port)
+        if not self._comm:
+            return
+        if self._connect_inflight:
+            return
+        if not self._connect_lock.acquire(blocking=False):
+            return
+        self._connect_inflight = True
+
+        def _run() -> None:
+            try:
+                self._comm.select_tcp(host, port)
+            finally:
+                self._connect_lock.release()
+
+        threading.Thread(target=_run, daemon=True).start()
 
     @Slot()
     def disconnect(self) -> None:
         if self._comm:
+            self._manual_disconnect = True
             self._comm.close()
 
     @Slot(str)
@@ -288,9 +322,15 @@ class WebBridge(QObject):
         return {"text": text, "hex": hex_text, "ts": time.time()}
 
     def _build_channel_list(self) -> List[Dict[str, Any]]:
-        if not self._channel_state.get("type"):
-            return []
         info = dict(self._channel_state)
+        if self._comm and hasattr(self._comm, "get_status"):
+            status = self._comm.get_status()
+            if status:
+                info.update(status)
+                info["status"] = "connected"
+                info["error"] = None
+        if not info.get("type"):
+            return []
         channel_type = "serial" if info["type"] == "serial" else "tcp-client"
         channel_id = info.get("address") or info.get("port") or channel_type
         return [
@@ -315,24 +355,60 @@ class WebBridge(QObject):
         self._last_channel_emit = now
         self.channel_update.emit(self._build_channel_list())
 
+    def _emit_signal(self, signal: Signal, payload: Any) -> None:
+        QTimer.singleShot(0, lambda payload=payload: signal.emit(payload))
+
     def _on_comm_rx(self, payload: Any) -> None:
         if isinstance(payload, (bytes, bytearray)):
             self._traffic["rx"] += len(payload)
-        self._append_buffer({"kind": "RX", "payload": self._emit_bytes(payload)})
+        payload_dict = self._emit_bytes(payload)
+        self._append_buffer(
+            {
+                "kind": "RX",
+                "payload": payload_dict,
+                "text": payload_dict.get("text"),
+                "hex": payload_dict.get("hex"),
+                "ts": payload_dict.get("ts"),
+            }
+        )
+        self._emit_signal(self.comm_rx, payload_dict)
         self._emit_channel_update()
 
     def _on_comm_tx(self, payload: Any) -> None:
         if isinstance(payload, (bytes, bytearray)):
             self._traffic["tx"] += len(payload)
-        self._append_buffer({"kind": "TX", "payload": self._emit_bytes(payload)})
+        payload_dict = self._emit_bytes(payload)
+        self._append_buffer(
+            {
+                "kind": "TX",
+                "payload": payload_dict,
+                "text": payload_dict.get("text"),
+                "hex": payload_dict.get("hex"),
+                "ts": payload_dict.get("ts"),
+            }
+        )
+        self._emit_signal(self.comm_tx, payload_dict)
         self._emit_channel_update()
 
     def _on_comm_status(self, payload: Any) -> None:
+        now = time.time()
+        if now < self._last_status_ts:
+            return
+        self._last_status_ts = now
+        self._connect_inflight = False
         if payload is None:
+            reason = None
+            if self._manual_disconnect:
+                reason = "manual"
+            elif self._last_error and (now - self._last_error_ts) < 2.0:
+                reason = self._last_error
             self._channel_state["status"] = "disconnected"
+            self._manual_disconnect = False
         elif isinstance(payload, str):
             self._channel_state["status"] = "error"
             self._channel_state["error"] = payload
+            self._last_error = payload
+            self._last_error_ts = now
         elif isinstance(payload, dict):
             self._channel_state["type"] = payload.get("type")
             self._channel_state["port"] = payload.get("port")
@@ -342,7 +418,11 @@ class WebBridge(QObject):
             self._channel_state["status"] = "connected"
             self._channel_state["error"] = None
             self._traffic = {"tx": 0, "rx": 0}
-        self.comm_status.emit({"payload": payload, "ts": time.time()})
+            self._manual_disconnect = False
+        event_payload = {"payload": payload, "ts": now}
+        if payload is None:
+            event_payload["reason"] = reason
+        self.comm_status.emit(event_payload)
         self._emit_channel_update(force=True)
 
     def _on_protocol_frame(self, payload: Any) -> None:

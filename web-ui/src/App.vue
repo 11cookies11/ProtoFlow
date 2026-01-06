@@ -32,6 +32,8 @@ const MAX_RENDER_LOGS = 120
 let logFlushHandle = 0
 let commLogSeq = 0
 let scriptLogSeq = 0
+let lastStatusText = ''
+let hasStatusActivity = false
 const scriptState = ref('idle')
 const scriptProgress = ref(0)
 const yamlText = ref('# paste DSL YAML here')
@@ -52,6 +54,7 @@ const logTab = ref('all')
 const appendCR = ref(true)
 const appendLF = ref(true)
 const loopSend = ref(false)
+const isConnecting = ref(false)
 const draggingWindow = ref(false)
 const dragArmed = ref(false)
 const dragStarted = ref(false)
@@ -184,6 +187,7 @@ const filteredProtocolCards = computed(() => {
 const manualViewBindings = {
   connectionInfo,
   isConnected,
+  isConnecting,
   selectedPort,
   portOptionsList,
   portPlaceholder,
@@ -254,6 +258,7 @@ let scriptVarTimer = null
 let channelRefreshTimer = null
 let snapPreviewRaf = 0
 let pendingSnapPreview = null
+let attachedBridge = null
 
 function filterCommLogs(lines, tab, keyword) {
   if (tab === 'tcp') return []
@@ -435,7 +440,7 @@ function toggleYamlCollapsed() {
 function formatPayload(item) {
   if (!item) return ''
   if (displayMode.value === 'hex' && item.hex) return item.hex
-  return item.text || ''
+  return item.text || item.hex || ''
 }
 
 function scheduleLogFlush() {
@@ -449,9 +454,9 @@ function scheduleLogFlush() {
 function flushLogs() {
   if (commLogBuffer.length) {
     const batch = commLogBuffer.splice(0, commLogBuffer.length)
-    commLogs.value.unshift(...batch.reverse())
+    commLogs.value.push(...batch)
     if (commLogs.value.length > MAX_COMM_LOGS) {
-      commLogs.value.splice(MAX_COMM_LOGS)
+      commLogs.value.splice(0, commLogs.value.length - MAX_COMM_LOGS)
     }
   }
   if (scriptLogBuffer.length) {
@@ -463,6 +468,9 @@ function flushLogs() {
 }
 
 function addCommLog(kind, payload) {
+  if (!payload || typeof payload !== 'object') {
+    payload = { text: '', hex: '', ts: Date.now() / 1000 }
+  }
   commLogBuffer.push({
     id: `c${commLogSeq++}`,
     kind,
@@ -471,6 +479,14 @@ function addCommLog(kind, payload) {
     ts: payload.ts || Date.now() / 1000,
   })
   scheduleLogFlush()
+}
+
+function emitStatus(text, ts) {
+  const message = String(text || '')
+  if (!message || message === lastStatusText) return
+  lastStatusText = message
+  hasStatusActivity = true
+  addCommLog('STATUS', { text: message, ts })
 }
 
 function addScriptLog(line) {
@@ -495,7 +511,17 @@ function addCommBatch(batch) {
     if (kind === 'FRAME') {
       addCommLog('FRAME', { text: JSON.stringify(item.payload), ts: item.ts })
     } else {
-      addCommLog(kind, item.payload || {})
+      let payload = item.payload || {}
+      if (
+        payload &&
+        typeof payload === 'object' &&
+        !payload.text &&
+        !payload.hex &&
+        (item.text || item.hex)
+      ) {
+        payload = { text: item.text || '', hex: item.hex || '', ts: item.ts || payload.ts }
+      }
+      addCommLog(kind, payload)
     }
   }
 }
@@ -520,6 +546,25 @@ function refreshPorts() {
 
 function setChannels(items) {
   channels.value = Array.isArray(items) ? items : []
+  const primary = channels.value[0]
+  if (!primary) return
+  if (primary.status === 'connected') {
+    const target = primary.address || primary.port || primary.type || ''
+    emitStatus(`Connected: ${target}`, Date.now() / 1000)
+    connectionInfo.value = {
+      state: 'connected',
+      detail: primary.address || primary.port || primary.type || '',
+    }
+    hasStatusActivity = true
+    isConnecting.value = false
+    return
+  }
+  if (primary.status === 'error') {
+    emitStatus(`Error: ${primary.error || ''}`, Date.now() / 1000)
+    connectionInfo.value = { state: 'error', detail: primary.error || '' }
+    isConnecting.value = false
+    return
+  }
 }
 
 function refreshChannels() {
@@ -528,6 +573,7 @@ function refreshChannels() {
     setChannels(items)
   })
 }
+
 
 function scheduleChannelRefresh() {
   if (channelRefreshTimer) return
@@ -627,11 +673,15 @@ function submitChannelDialog() {
 
 function connectSerial() {
   if (!bridge.value) return
+  if (isConnecting.value || isConnected.value) return
+  isConnecting.value = true
   bridge.value.connect_serial(selectedPort.value, Number(baud.value))
 }
 
 function connectTcp() {
   if (!bridge.value) return
+  if (isConnecting.value || isConnected.value) return
+  isConnecting.value = true
   bridge.value.connect_tcp(tcpHost.value, Number(tcpPort.value))
 }
 
@@ -840,21 +890,46 @@ function refreshScriptVariables() {
 }
 
 function attachBridge(obj) {
+  if (!obj || attachedBridge === obj) return
+  attachedBridge = obj
   bridge.value = obj
-  obj.comm_batch.connect((batch) => addCommBatch(batch))
+  if (obj.comm_batch) {
+    obj.comm_batch.connect((batch) => addCommBatch(batch))
+  } else if (obj.comm_rx && obj.comm_tx) {
+    obj.comm_rx.connect((payload) => addCommLog('RX', payload))
+    obj.comm_tx.connect((payload) => addCommLog('TX', payload))
+  }
+  if (obj.protocol_frame) {
+    obj.protocol_frame.connect((payload) => {
+      const ts = payload && payload.ts ? payload.ts : Date.now() / 1000
+      addCommLog('FRAME', { text: JSON.stringify(payload), ts })
+    })
+  }
   obj.comm_status.connect((payload) => {
     const detail = payload && payload.payload !== undefined ? payload.payload : payload
+    const ts = payload && payload.ts ? payload.ts : Date.now() / 1000
+    isConnecting.value = false
     if (!detail) {
+      const reason = payload && payload.reason ? String(payload.reason) : ''
+      const message = reason ? `Disconnected: ${reason}` : 'Disconnected'
+      if (hasStatusActivity || reason) {
+        emitStatus(message, ts)
+      }
       const nextInfo = { state: 'disconnected', detail: '' }
       connectionInfo.value = nextInfo
       scheduleChannelRefresh()
       return
     }
     if (typeof detail === 'string') {
+      emitStatus(`Error: ${detail}`, ts)
       const nextInfo = { state: 'error', detail }
       connectionInfo.value = nextInfo
       scheduleChannelRefresh()
       return
+    }
+    if (detail && typeof detail === 'object') {
+      const target = detail.address || detail.port || detail.type || ''
+      emitStatus(`Connected: ${target}`, ts)
     }
     const nextInfo = {
       state: 'connected',

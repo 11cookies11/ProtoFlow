@@ -32,15 +32,22 @@ class CommunicationManager:
 
     def select_serial(self, port: str, baud: int) -> None:
         """选择串口通道并连接。"""
-        self.close()
+        if isinstance(self._current_session, SerialManager):
+            if (
+                self._current_session.is_open()
+                and self._current_session.port == port
+                and self._current_session.baudrate == baud
+            ):
+                return
+        self.close(notify=False)
         session = SerialManager(self._bus)
-        session.open(port=port, baudrate=baud)
-        self._current_session = session
-        self._bus.publish("comm.connected", {"type": "serial", "port": port, "baud": baud})
+        if session.open(port=port, baudrate=baud):
+            self._current_session = session
+            self._bus.publish("comm.connected", {"type": "serial", "port": port, "baud": baud})
 
     def select_tcp(self, ip: str, port: int) -> None:
         """选择 TCP 通道并连接。"""
-        self.close()
+        self.close(notify=False)
         session = TcpSession(self._bus)
         session.connect(ip, port)
         self._current_session = session
@@ -49,7 +56,7 @@ class CommunicationManager:
             {"type": "tcp", "host": ip, "port": port, "address": f"{ip}:{port}"},
         )
 
-    def close(self) -> None:
+    def close(self, notify: bool = True) -> None:
         """关闭当前会话。"""
         if self._current_session:
             try:
@@ -57,7 +64,8 @@ class CommunicationManager:
             except Exception:
                 pass
             self._current_session = None
-            self._bus.publish("comm.disconnected")
+            if notify:
+                self._bus.publish("comm.disconnected")
 
     def send(self, data: bytes) -> None:
         """通过当前会话发送数据。"""
@@ -72,6 +80,23 @@ class CommunicationManager:
     def list_serial_ports(self) -> list[str]:
         """返回可用串口列表，供 UI 使用。"""
         return SerialManager.list_ports()
+
+    def get_status(self) -> Optional[dict]:
+        """返回当前会话状态，供 UI 轮询。"""
+        session = self._current_session
+        if isinstance(session, SerialManager):
+            if not session.is_open():
+                return None
+            return {"type": "serial", "port": session.port, "baud": session.baudrate}
+        if isinstance(session, TcpSession):
+            if not session.is_connected():
+                return None
+            endpoint = session.endpoint
+            if not endpoint:
+                return None
+            host, port = endpoint
+            return {"type": "tcp", "host": host, "port": port, "address": f"{host}:{port}"}
+        return None
 
     def _handle_protocol_tx(self, data: bytes) -> None:
         """处理协议层构造好的帧并发送。"""
