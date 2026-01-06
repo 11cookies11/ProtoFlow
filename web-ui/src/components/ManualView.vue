@@ -31,6 +31,10 @@ const {
   renderedVisibleCommLogs,
   formatTime,
   formatPayload,
+  commPaused,
+  clearCommLogs,
+  toggleCommPaused,
+  exportCommLogs,
   selectPort,
   refreshPorts,
   disconnect,
@@ -126,14 +130,13 @@ const {
 
               <div class="panel stack manual-quick">
                 <div class="panel-title simple">
-                  发送
+                  快捷指令
                   <button class="icon-btn">
                     <span class="material-symbols-outlined">add</span>
                   </button>
                 </div>
                 <div class="quick-list">
                   <button
-                    快捷指令
                     :key="cmd"
                     class="quick-item"
                     @click="sendQuickCommand(cmd)"
@@ -159,13 +162,19 @@ const {
                       <button :class="{ active: displayMode === 'hex' }" @click="displayMode = 'hex'">HEX</button>
                     </div>
                     <span class="divider"></span>
-                    <button class="icon-btn" title="娓呴櫎">
+                    <button class="icon-btn" type="button" title="??" @click="clearCommLogs">
                       <span class="material-symbols-outlined">delete</span>
                     </button>
-                    <button class="icon-btn" title="鏆傚仠">
+                    <button
+                      class="icon-btn"
+                      type="button"
+                      title="??"
+                      :class="{ active: commPaused }"
+                      @click="toggleCommPaused"
+                    >
                       <span class="material-symbols-outlined">pause_circle</span>
                     </button>
-                    <button class="icon-btn" title="瀵煎嚭">
+                    <button class="icon-btn" type="button" title="??" @click="exportCommLogs">
                       <span class="material-symbols-outlined">download</span>
                     </button>
                   </div>
@@ -195,7 +204,7 @@ const {
                 />
                 <div class="panel-footer">
                   <span>{{ visibleCommLogs.length }} 条日志记录</span>
-                  <button class="link-btn">清除日志</button>
+                  <button class="link-btn" type="button" @click="clearCommLogs">清除日志</button>
                 </div>
               </div>
             </div>

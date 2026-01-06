@@ -1,19 +1,20 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import sys
 
 try:
     from PySide6.QtCore import QPoint, Qt, QUrl
     from PySide6.QtGui import QAction, QGuiApplication
     from PySide6.QtWebChannel import QWebChannel
-    from PySide6.QtWidgets import QMainWindow, QMenu
+    from PySide6.QtWidgets import QFileDialog, QMainWindow, QMenu
     from PySide6.QtWebEngineWidgets import QWebEngineView
 except ImportError:  # pragma: no cover
     from PyQt6.QtCore import QPoint, Qt, QUrl  # type: ignore
     from PyQt6.QtGui import QAction, QGuiApplication  # type: ignore
     from PyQt6.QtWebChannel import QWebChannel  # type: ignore
-    from PyQt6.QtWidgets import QMainWindow, QMenu  # type: ignore
+    from PyQt6.QtWidgets import QFileDialog, QMainWindow, QMenu  # type: ignore
     from PyQt6.QtWebEngineWidgets import QWebEngineView  # type: ignore
 
 from ui.web_bridge import WebBridge
@@ -47,6 +48,28 @@ class WebWindow(QMainWindow):
         fallback_index = repo_root / "assets" / "web" / "index.html"
         index_path = dist_index if dist_index.exists() else fallback_index
         view.load(QUrl.fromLocalFile(str(index_path)))
+        view.page().profile().downloadRequested.connect(self._handle_download)
+
+    def _handle_download(self, item) -> None:
+        suggested = item.downloadFileName()
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "保存日志",
+            suggested or "io_logs.log",
+            "Log Files (*.log);;All Files (*.*)",
+        )
+        if not path:
+            item.cancel()
+            return
+        directory = os.path.dirname(path)
+        filename = os.path.basename(path)
+        if hasattr(item, "setDownloadDirectory"):
+            item.setDownloadDirectory(directory)
+        if hasattr(item, "setDownloadFileName"):
+            item.setDownloadFileName(filename)
+        elif hasattr(item, "setPath"):
+            item.setPath(path)
+        item.accept()
 
     def _apply_snap(self, screen_x: int, screen_y: int) -> bool:
         if sys.platform == "win32":

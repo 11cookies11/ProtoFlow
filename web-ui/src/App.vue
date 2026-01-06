@@ -24,6 +24,7 @@ const sendText = ref('')
 const sendHex = ref('')
 const commLogs = ref([])
 const scriptLogs = ref([])
+const commPaused = ref(false)
 const commLogBuffer = []
 const scriptLogBuffer = []
 const MAX_COMM_LOGS = 200
@@ -207,6 +208,10 @@ const manualViewBindings = {
   renderedVisibleCommLogs,
   formatTime,
   formatPayload,
+  commPaused,
+  clearCommLogs,
+  toggleCommPaused,
+  exportCommLogs,
   selectPort,
   refreshPorts,
   disconnect,
@@ -477,6 +482,7 @@ function flushLogs() {
 }
 
 function addCommLog(kind, payload) {
+  if (commPaused.value) return
   if (!payload || typeof payload !== 'object') {
     payload = { text: String(payload || ''), hex: '', ts: Date.now() / 1000 }
   } else if (!payload.text && !payload.hex) {
@@ -514,7 +520,40 @@ function addScriptLog(line) {
   }
 }
 
+function clearCommLogs() {
+  commLogs.value = []
+  commLogBuffer.length = 0
+}
+
+function toggleCommPaused() {
+  commPaused.value = !commPaused.value
+}
+
+function formatCommLine(item) {
+  if (!item) return ''
+  const ts = item.ts ? formatTime(item.ts) : ''
+  const kind = item.kind || ''
+  const payload = formatPayload(item).replace(/\r?\n/g, '\\n')
+  return `${ts}\t${kind}\t${payload}`
+}
+
+function exportCommLogs() {
+  const lines = commLogs.value.map((item) => formatCommLine(item)).filter(Boolean)
+  const payload = lines.join('\n')
+  const name = `io_logs_${new Date().toISOString().replace(/[:.]/g, '-')}.log`
+  const blob = new Blob([payload], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = name
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 function addCommBatch(batch) {
+  if (commPaused.value) return
   batch = parseBridgePayload(batch)
   if (!Array.isArray(batch)) return
   for (const item of batch) {

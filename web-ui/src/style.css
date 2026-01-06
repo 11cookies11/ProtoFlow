@@ -625,6 +625,11 @@ textarea {
   color: var(--primary);
 }
 
+.icon-btn.active {
+  background: #e0f2fe;
+  color: #0ea5e9;
+}
+
 .link-btn {
   border: none;
   background: transparent;
