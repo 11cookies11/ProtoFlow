@@ -856,6 +856,22 @@ textarea {
   min-height: 220px;
 }
 
+.manual-send,
+.manual-quick,
+.manual-monitor,
+.manual-console {
+  height: 300px;
+}
+
+.manual-send .text-area {
+  min-height: 140px;
+}
+
+.manual-monitor .log-stream,
+.manual-console .log-stream {
+  max-height: 200px;
+}
+
 .text-area {
   width: 100%;
   min-height: 160px;
