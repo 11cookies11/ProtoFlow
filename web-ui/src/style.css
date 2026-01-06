@@ -1005,6 +1005,18 @@ textarea {
   word-break: break-word;
 }
 
+.log-text.text-status {
+  color: #0f172a;
+}
+
+.log-text.text-tx {
+  color: #2563eb;
+}
+
+.log-text.text-rx {
+  color: #16a34a;
+}
+
 .tab-strip {
   display: flex;
   align-items: center;

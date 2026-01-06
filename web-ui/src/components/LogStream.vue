@@ -25,7 +25,9 @@ defineExpose({ rootEl })
       <div class="log-line" v-for="item in items" :key="item.id">
         <span class="log-time">{{ formatTime ? formatTime(item.ts) : '' }}</span>
         <span class="log-kind" :class="`kind-${item.kind?.toLowerCase()}`">{{ item.kind }}</span>
-        <span class="log-text">{{ formatPayload ? formatPayload(item) : item.text }}</span>
+        <span class="log-text" :class="`text-${item.kind?.toLowerCase()}`">
+          {{ formatPayload ? formatPayload(item) : item.text }}
+        </span>
       </div>
     </template>
   </div>

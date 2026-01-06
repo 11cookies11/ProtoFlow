@@ -917,8 +917,7 @@ function attachBridge(obj) {
       const parsed = parseBridgePayload(payload)
       addCommLog('TX', parsed)
     })
-  }
-  if (obj.comm_batch) {
+  } else if (obj.comm_batch) {
     obj.comm_batch.connect((batch) => addCommBatch(batch))
   }
   if (obj.protocol_frame) {
