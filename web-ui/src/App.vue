@@ -99,11 +99,24 @@ const noPorts = computed(() => ports.value.length === 0)
 const portOptionsList = computed(() => ports.value.map((item) => ({ label: item, value: item, icon: 'usb' })))
 
 const quickCommands = ref([
-  'AT+GMR',
-  'RESET_DEVICE_01',
-  'GET_WIFI_STATUS',
-  'PING_SERVER',
+  { id: 'qc_at_gmr', name: 'AT+GMR', payload: 'AT+GMR', mode: 'text', appendCR: true, appendLF: true },
+  { id: 'qc_reset', name: 'RESET_DEVICE_01', payload: 'RESET_DEVICE_01', mode: 'text', appendCR: true, appendLF: true },
+  { id: 'qc_wifi', name: 'GET_WIFI_STATUS', payload: 'GET_WIFI_STATUS', mode: 'text', appendCR: true, appendLF: true },
+  { id: 'qc_ping', name: 'PING_SERVER', payload: 'PING_SERVER', mode: 'text', appendCR: true, appendLF: true },
 ])
+const QUICK_PAYLOAD_LIMIT = 256
+const quickDialogOpen = ref(false)
+const quickDialogMode = ref('create')
+const quickEditingId = ref('')
+const quickDeleteOpen = ref(false)
+const quickDeleting = ref(null)
+const quickDraft = ref({
+  name: '',
+  payload: '',
+  mode: 'text',
+  appendCR: true,
+  appendLF: true,
+})
 
 const channels = ref([])
 const channelCards = computed(() => {
@@ -175,6 +188,7 @@ const scriptStatusLabel = computed(() => {
   return '空闲'
 })
 const scriptStatusClass = computed(() => (scriptRunning.value ? 'running' : 'idle'))
+const quickPayloadCount = computed(() => countQuickPayload(quickDraft.value.payload, quickDraft.value.mode))
 
 const filteredChannelCards = computed(() => {
   if (channelTab.value === 'all') return channelCards.value
@@ -212,6 +226,22 @@ const manualViewBindings = {
   clearCommLogs,
   toggleCommPaused,
   exportCommLogs,
+  quickDialogOpen,
+  quickDialogMode,
+  quickDraft,
+  quickPayloadCount,
+  quickPayloadLimit: QUICK_PAYLOAD_LIMIT,
+  openQuickCommandDialog,
+  closeQuickCommandDialog,
+  saveQuickCommand,
+  quickDeleteOpen,
+  quickDeleting,
+  openQuickDeleteDialog,
+  closeQuickDeleteDialog,
+  confirmQuickDelete,
+  addQuickCommand,
+  editQuickCommand,
+  removeQuickCommand,
   selectPort,
   refreshPorts,
   disconnect,
@@ -552,6 +582,137 @@ function exportCommLogs() {
   URL.revokeObjectURL(url)
 }
 
+function normalizeQuickCommands(list) {
+  if (!Array.isArray(list)) return quickCommands.value
+  const normalized = []
+  list.forEach((item, index) => {
+    if (!item) return
+    if (typeof item === 'string') {
+      normalized.push({
+        id: `qc_${index}`,
+        name: item,
+        payload: item,
+        mode: 'text',
+        appendCR: true,
+        appendLF: true,
+      })
+      return
+    }
+    const name = String(item.name || item.payload || '').trim()
+    const payload = String(item.payload || item.name || '').trim()
+    if (!name || !payload) return
+    normalized.push({
+      id: item.id || `qc_${index}`,
+      name,
+      payload,
+      mode: item.mode === 'hex' ? 'hex' : 'text',
+      appendCR: item.appendCR ?? true,
+      appendLF: item.appendLF ?? true,
+    })
+  })
+  return normalized.length ? normalized : quickCommands.value
+}
+
+function addQuickCommand() {
+  openQuickCommandDialog()
+}
+
+function editQuickCommand(cmd) {
+  openQuickCommandDialog(cmd)
+}
+
+function removeQuickCommand(cmd) {
+  openQuickDeleteDialog(cmd)
+}
+
+function openQuickDeleteDialog(cmd) {
+  if (!cmd) return
+  quickDeleting.value = cmd
+  quickDeleteOpen.value = true
+}
+
+function closeQuickDeleteDialog() {
+  quickDeleteOpen.value = false
+  quickDeleting.value = null
+}
+
+function confirmQuickDelete() {
+  if (!quickDeleting.value) return
+  quickCommands.value = quickCommands.value.filter((item) => item.id !== quickDeleting.value.id)
+  closeQuickDeleteDialog()
+}
+
+function openQuickCommandDialog(cmd) {
+  if (cmd) {
+    quickDialogMode.value = 'edit'
+    quickEditingId.value = cmd.id
+    quickDraft.value = {
+      name: cmd.name || '',
+      payload: cmd.payload || cmd.name || '',
+      mode: cmd.mode === 'hex' ? 'hex' : 'text',
+      appendCR: cmd.appendCR ?? true,
+      appendLF: cmd.appendLF ?? true,
+    }
+  } else {
+    quickDialogMode.value = 'create'
+    quickEditingId.value = ''
+    quickDraft.value = {
+      name: '',
+      payload: '',
+      mode: sendMode.value === 'hex' ? 'hex' : 'text',
+      appendCR: appendCR.value,
+      appendLF: appendLF.value,
+    }
+  }
+  quickDialogOpen.value = true
+}
+
+function closeQuickCommandDialog() {
+  quickDialogOpen.value = false
+}
+
+function saveQuickCommand() {
+  const name = String(quickDraft.value.name || '').trim()
+  const payload = String(quickDraft.value.payload || '').trim()
+  if (!name || !payload) {
+    window.alert('请输入指令名称和内容')
+    return
+  }
+  const record = {
+    name,
+    payload: quickDraft.value.payload,
+    mode: quickDraft.value.mode === 'hex' ? 'hex' : 'text',
+    appendCR: quickDraft.value.appendCR ?? true,
+    appendLF: quickDraft.value.appendLF ?? true,
+  }
+  if (quickDialogMode.value === 'edit' && quickEditingId.value) {
+    const target = quickCommands.value.find((item) => item.id === quickEditingId.value)
+    if (target) {
+      Object.assign(target, record)
+    } else {
+      quickCommands.value.push({
+        id: quickEditingId.value,
+        ...record,
+      })
+    }
+  } else {
+    quickCommands.value.push({
+      id: `qc_${Date.now()}_${Math.random().toString(16).slice(2, 6)}`,
+      ...record,
+    })
+  }
+  closeQuickCommandDialog()
+}
+
+function countQuickPayload(payload, mode) {
+  const value = String(payload || '')
+  if (mode === 'hex') {
+    const cleaned = value.replace(/[^0-9a-fA-F]/g, '')
+    return Math.floor(cleaned.length / 2)
+  }
+  return value.length
+}
+
 function addCommBatch(batch) {
   if (commPaused.value) return
   batch = parseBridgePayload(batch)
@@ -752,17 +913,17 @@ function disconnect() {
   bridge.value.disconnect()
 }
 
-function applyLineEndings(text) {
+function applyLineEndings(text, cr = appendCR.value, lf = appendLF.value) {
   let payload = text
-  if (appendCR.value) payload += '\r'
-  if (appendLF.value) payload += '\n'
+  if (cr) payload += '\r'
+  if (lf) payload += '\n'
   return payload
 }
 
-function applyHexLineEndings(text) {
+function applyHexLineEndings(text, cr = appendCR.value, lf = appendLF.value) {
   const parts = text.trim().split(/\\s+/).filter(Boolean)
-  if (appendCR.value) parts.push('0D')
-  if (appendLF.value) parts.push('0A')
+  if (cr) parts.push('0D')
+  if (lf) parts.push('0A')
   return parts.join(' ')
 }
 
@@ -788,9 +949,24 @@ function sendPayload() {
 
 function sendQuickCommand(cmd) {
   if (!cmd) return
-  sendText.value = cmd
+  const payload = typeof cmd === 'string' ? cmd : cmd.payload || cmd.name || ''
+  if (!payload) return
+  const mode = typeof cmd === 'string' ? 'text' : cmd.mode || 'text'
+  const cr = typeof cmd === 'string' ? appendCR.value : cmd.appendCR ?? appendCR.value
+  const lf = typeof cmd === 'string' ? appendLF.value : cmd.appendLF ?? appendLF.value
+  if (mode === 'hex') {
+    sendMode.value = 'hex'
+    sendHex.value = payload
+    if (!bridge.value) return
+    const data = applyHexLineEndings(payload, cr, lf)
+    bridge.value.send_hex(data)
+    return
+  }
   sendMode.value = 'text'
-  sendAscii()
+  sendText.value = payload
+  if (!bridge.value) return
+  const data = applyLineEndings(payload, cr, lf)
+  bridge.value.send_text(data)
 }
 
 function runScript() {
@@ -1092,7 +1268,7 @@ watch(
 )
 
 watch(
-  () => channelDialogOpen.value,
+  () => channelDialogOpen.value || quickDialogOpen.value || quickDeleteOpen.value,
   (open) => {
     document.body.classList.toggle('modal-open', open)
   }
@@ -1235,6 +1411,7 @@ function buildSettingsPayload() {
     uiTheme: uiTheme.value,
     autoConnectOnStart: !!autoConnectOnStart.value,
     dslWorkspacePath: dslWorkspacePath.value,
+    quickCommands: quickCommands.value,
     serial: {
       defaultBaud: Number(defaultBaud.value || 115200),
       defaultParity: defaultParity.value,
@@ -1254,6 +1431,7 @@ function normalizeSettings(payload) {
     uiTheme: '????',
     autoConnectOnStart: true,
     dslWorkspacePath: '/usr/local/protoflow/workflows',
+    quickCommands: quickCommands.value,
     serial: {
       defaultBaud: 115200,
       defaultParity: 'none',
@@ -1286,6 +1464,7 @@ function applySettings(payload) {
   uiTheme.value = normalized.uiTheme
   autoConnectOnStart.value = !!normalized.autoConnectOnStart
   dslWorkspacePath.value = normalized.dslWorkspacePath
+  quickCommands.value = normalizeQuickCommands(normalized.quickCommands)
   defaultBaud.value = Number(normalized.serial.defaultBaud || 115200)
   defaultParity.value = normalized.serial.defaultParity || 'none'
   defaultStopBits.value = normalized.serial.defaultStopBits || '1'

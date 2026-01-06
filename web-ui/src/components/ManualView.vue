@@ -35,6 +35,22 @@ const {
   clearCommLogs,
   toggleCommPaused,
   exportCommLogs,
+  quickDialogOpen,
+  quickDialogMode,
+  quickDraft,
+  quickPayloadCount,
+  quickPayloadLimit,
+  openQuickCommandDialog,
+  closeQuickCommandDialog,
+  saveQuickCommand,
+  quickDeleteOpen,
+  quickDeleting,
+  openQuickDeleteDialog,
+  closeQuickDeleteDialog,
+  confirmQuickDelete,
+  addQuickCommand,
+  editQuickCommand,
+  removeQuickCommand,
   selectPort,
   refreshPorts,
   disconnect,
@@ -131,18 +147,30 @@ const {
               <div class="panel stack manual-quick">
                 <div class="panel-title simple">
                   快捷指令
-                  <button class="icon-btn">
+                  <button class="icon-btn" type="button" title="新增快捷指令" @click="addQuickCommand">
                     <span class="material-symbols-outlined">add</span>
                   </button>
                 </div>
                 <div class="quick-list">
                   <button
-                    :key="cmd"
+                    v-for="cmd in quickCommands"
+                    :key="cmd.id"
                     class="quick-item"
                     @click="sendQuickCommand(cmd)"
                   >
-                    <span>{{ cmd }}</span>
-                    <span class="material-symbols-outlined">play_arrow</span>
+                    <div class="quick-info">
+                      <span class="quick-title">{{ cmd.name }}</span>
+                      <span class="quick-meta">{{ cmd.mode === 'hex' ? 'HEX' : '文本' }}</span>
+                    </div>
+                    <div class="quick-item-actions">
+                      <button class="icon-btn small" type="button" title="编辑" @click.stop="editQuickCommand(cmd)">
+                        <span class="material-symbols-outlined">edit</span>
+                      </button>
+                      <button class="icon-btn small" type="button" title="删除" @click.stop="openQuickDeleteDialog(cmd)">
+                        <span class="material-symbols-outlined">delete</span>
+                      </button>
+                      <span class="material-symbols-outlined">play_arrow</span>
+                    </div>
                   </button>
                 </div>
               </div>
@@ -162,19 +190,19 @@ const {
                       <button :class="{ active: displayMode === 'hex' }" @click="displayMode = 'hex'">HEX</button>
                     </div>
                     <span class="divider"></span>
-                    <button class="icon-btn" type="button" title="??" @click="clearCommLogs">
+                    <button class="icon-btn" type="button" title="清除" @click="clearCommLogs">
                       <span class="material-symbols-outlined">delete</span>
                     </button>
                     <button
                       class="icon-btn"
                       type="button"
-                      title="??"
+                      title="暂停"
                       :class="{ active: commPaused }"
                       @click="toggleCommPaused"
                     >
                       <span class="material-symbols-outlined">pause_circle</span>
                     </button>
-                    <button class="icon-btn" type="button" title="??" @click="exportCommLogs">
+                    <button class="icon-btn" type="button" title="导出" @click="exportCommLogs">
                       <span class="material-symbols-outlined">download</span>
                     </button>
                   </div>
@@ -206,6 +234,97 @@ const {
                   <span>{{ visibleCommLogs.length }} 条日志记录</span>
                   <button class="link-btn" type="button" @click="clearCommLogs">清除日志</button>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="quickDialogOpen" class="modal-backdrop">
+            <div class="quick-modal">
+              <div class="modal-header">
+                <div>
+                  <h3>{{ quickDialogMode === 'edit' ? '快捷指令编辑' : '新增快捷指令' }}</h3>
+                  <p>{{ quickDialogMode === 'edit' ? '编辑或更新现有的快捷调试指令' : '创建新的快捷调试指令' }}</p>
+                </div>
+                <button class="icon-btn" type="button" @click="closeQuickCommandDialog">
+                  <span class="material-symbols-outlined">close</span>
+                </button>
+              </div>
+              <div class="modal-body">
+                <div class="quick-field">
+                  <label>指令名称</label>
+                  <input v-model="quickDraft.name" type="text" placeholder="例如：CMD PING" />
+                </div>
+
+                <div class="quick-field">
+                  <div class="quick-field-header">
+                    <label>指令内容</label>
+                    <div class="quick-mode">
+                      <span class="quick-mode-label">格式:</span>
+                      <div class="segmented small">
+                        <button :class="{ active: quickDraft.mode === 'text' }" @click="quickDraft.mode = 'text'">
+                          文本
+                        </button>
+                        <button :class="{ active: quickDraft.mode === 'hex' }" @click="quickDraft.mode = 'hex'">
+                          HEX
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <textarea
+                    v-model="quickDraft.payload"
+                    class="quick-textarea"
+                    rows="4"
+                    placeholder="输入要发送的指令内容"
+                  ></textarea>
+                  <p class="quick-counter">{{ quickPayloadCount }} / {{ quickPayloadLimit }}</p>
+                </div>
+
+                <div class="modal-section quick-options">
+                  <div class="section-title">发送选项</div>
+                  <div class="toggle-row">
+                    <label class="check">
+                      <input v-model="quickDraft.appendCR" type="checkbox" />
+                      <span>添加 CR (\r)</span>
+                    </label>
+                    <label class="check">
+                      <input v-model="quickDraft.appendLF" type="checkbox" />
+                      <span>添加 LF (\n)</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button class="btn btn-outline" type="button" @click="closeQuickCommandDialog">取消</button>
+                <button class="btn btn-primary" type="button" @click="saveQuickCommand">
+                  {{ quickDialogMode === 'edit' ? '保存修改' : '创建指令' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="quickDeleteOpen" class="modal-backdrop">
+            <div class="quick-modal quick-modal-sm">
+              <div class="modal-header">
+                <div>
+                  <h3>删除快捷指令</h3>
+                  <p>确认删除该快捷指令，删除后无法恢复。</p>
+                </div>
+                <button class="icon-btn" type="button" @click="closeQuickDeleteDialog">
+                  <span class="material-symbols-outlined">close</span>
+                </button>
+              </div>
+              <div class="modal-body">
+                <div class="quick-delete-summary">
+                  <span class="material-symbols-outlined">warning</span>
+                  <div>
+                    <p class="quick-delete-title">{{ quickDeleting?.name || '未命名指令' }}</p>
+                    <p class="quick-delete-meta">{{ quickDeleting?.mode === 'hex' ? 'HEX' : '文本' }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button class="btn btn-outline" type="button" @click="closeQuickDeleteDialog">取消</button>
+                <button class="btn btn-danger" type="button" @click="confirmQuickDelete">确认删除</button>
               </div>
             </div>
           </div>
