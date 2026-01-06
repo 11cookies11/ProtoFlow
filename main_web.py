@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import atexit
+import logging
 import os
 import sys
+import time
+from pathlib import Path
 from typing import Optional
 
 try:
@@ -16,6 +20,51 @@ from core.event_bus import EventBus
 from core.plugin_manager import PluginManager
 from core.protocol_loader import ProtocolLoader
 from ui.web_window import WebWindow
+
+
+class _TeeStream:
+    def __init__(self, primary, file_handle, is_error: bool) -> None:
+        self._primary = primary
+        self._file = file_handle
+        self._is_error = is_error
+
+    def write(self, data: str) -> int:
+        if not data:
+            return 0
+        written = self._primary.write(data)
+        self._primary.flush()
+        prefix = "[STDERR] " if self._is_error else "[STDOUT] "
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        for line in data.splitlines():
+            if not line.strip():
+                continue
+            self._file.write(f"{timestamp} {prefix}{line}\n")
+        self._file.flush()
+        return written
+
+    def flush(self) -> None:
+        self._primary.flush()
+        self._file.flush()
+
+
+def _setup_run_logging() -> Path:
+    log_dir = Path.cwd() / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    log_path = log_dir / f"web_ui_{timestamp}.log"
+    log_handle = log_path.open("a", encoding="utf-8")
+    atexit.register(log_handle.close)
+
+    sys.stdout = _TeeStream(sys.stdout, log_handle, is_error=False)
+    sys.stderr = _TeeStream(sys.stderr, log_handle, is_error=True)
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s [%(levelname)s] %(threadName)s %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    logging.getLogger("main_web").info("Log file: %s", log_path)
+    return log_path
 
 
 def _detect_d3d11() -> bool:
@@ -77,6 +126,7 @@ def _select_webengine_flags() -> Optional[str]:
 
 
 def main() -> None:
+    _setup_run_logging()
     flags = _select_webengine_flags()
     if flags:
         os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", flags)

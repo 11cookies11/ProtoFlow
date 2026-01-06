@@ -521,6 +521,9 @@ function addCommBatch(batch) {
       ) {
         payload = { text: item.text || '', hex: item.hex || '', ts: item.ts || payload.ts }
       }
+      if (payload && typeof payload === 'object' && !payload.text && !payload.hex) {
+        payload = { text: JSON.stringify(item), ts: item.ts || payload.ts }
+      }
       addCommLog(kind, payload)
     }
   }
@@ -893,11 +896,12 @@ function attachBridge(obj) {
   if (!obj || attachedBridge === obj) return
   attachedBridge = obj
   bridge.value = obj
-  if (obj.comm_batch) {
-    obj.comm_batch.connect((batch) => addCommBatch(batch))
-  } else if (obj.comm_rx && obj.comm_tx) {
+  if (obj.comm_rx && obj.comm_tx) {
     obj.comm_rx.connect((payload) => addCommLog('RX', payload))
     obj.comm_tx.connect((payload) => addCommLog('TX', payload))
+  }
+  if (obj.comm_batch) {
+    obj.comm_batch.connect((batch) => addCommBatch(batch))
   }
   if (obj.protocol_frame) {
     obj.protocol_frame.connect((payload) => {
