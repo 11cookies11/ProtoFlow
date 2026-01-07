@@ -68,6 +68,14 @@ def _setup_run_logging() -> Path:
     return log_path
 
 
+def _ensure_repo_cwd() -> None:
+    base_dir = Path(__file__).resolve().parent
+    try:
+        os.chdir(base_dir)
+    except OSError:
+        pass
+
+
 def _detect_d3d11() -> bool:
     if sys.platform != "win32":
         return False
@@ -127,6 +135,7 @@ def _select_webengine_flags() -> Optional[str]:
 
 
 def main() -> None:
+    _ensure_repo_cwd()
     _setup_run_logging()
     flags = _select_webengine_flags()
     if flags:
