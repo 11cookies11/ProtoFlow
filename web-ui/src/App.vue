@@ -1689,7 +1689,7 @@ function unlockSidebarWidth() {
         <nav class="sidebar-nav">
           <button class="nav-item" :class="{ active: currentView === 'manual' }" @click="currentView = 'manual'">
             <span class="material-symbols-outlined">terminal</span>
-            <span>手动脚本</span>
+          <span>串口终端</span>
           </button>
           <button class="nav-item" :class="{ active: currentView === 'scripts' }" @click="currentView = 'scripts'">
             <span class="material-symbols-outlined">smart_toy</span>

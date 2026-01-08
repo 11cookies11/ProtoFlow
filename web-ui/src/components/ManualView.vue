@@ -64,8 +64,8 @@ const {
   <section class="page">
           <header class="page-header">
             <div>
-              <h2>手动脚本</h2>
-              <p>单步调试指令发送与 I/O 数据流实时监控。</p>
+              <h2>串口终端</h2>
+              <p>传统串口调试工具：发送命令、监听 I/O 与日志回显。</p>
             </div>
             <div class="header-actions">
               <div class="status-indicator" :class="connectionInfo.state">
