@@ -1,8 +1,8 @@
 version: 1
 
 # NOTE:
-# - Put device into MODBUS mode before running:
-#   Send "CMD MODE MODBUS\r\n" over UART and wait for "OK".
+# - Script sends "CMD MODE MODBUS\r\n" before Modbus steps,
+#   then waits briefly for the device to switch mode.
 # - Default slave/unit id is 1 on the device firmware.
 # - Address range is 0..9 for coils / discrete inputs / holding regs / input regs.
 
@@ -14,13 +14,24 @@ channels:
     type: uart
     device: COM9
     baudrate: 115200
+    log_path: ./logs/modbus_rtu_basic_uart.log
 
 state_machine:
-  initial: start
+  initial: enter_modbus
   states:
-    start:
+    enter_modbus:
       do:
-        - log: "modbus rtu demo start"
+        - log: "enter modbus rtu mode"
+        - action: send_text
+          args:
+            text: "CMD MODE MODBUS"
+            append_cr: true
+            append_lf: true
+        - action: read_stream
+          args:
+            duration_ms: 1200
+            log_hex: true
+        - wait: { ms: 200 }
       goto: write_coil_on
 
     write_coil_on:
@@ -45,10 +56,25 @@ state_machine:
             protocol: rtu
             function: 1
             address: 0
-            quantity: 4
+            quantity: 2
             unit_id: "$unit_id"
             retries: 3
-            timeout: 1000
+            timeout: 1500
+        - log: "$last_modbus"
+        - wait: { ms: 200 }
+      goto: read_discrete_inputs
+
+    read_discrete_inputs:
+      do:
+        - action: modbus_read
+          args:
+            protocol: rtu
+            function: 2
+            address: 0
+            quantity: 2
+            unit_id: "$unit_id"
+            retries: 3
+            timeout: 1500
         - log: "$last_modbus"
         - wait: { ms: 200 }
       goto: write_single_reg
@@ -78,7 +104,22 @@ state_machine:
             quantity: 2
             unit_id: "$unit_id"
             retries: 3
-            timeout: 1000
+            timeout: 1500
+        - log: "$last_modbus"
+        - wait: { ms: 200 }
+      goto: read_input_regs
+
+    read_input_regs:
+      do:
+        - action: modbus_read
+          args:
+            protocol: rtu
+            function: 4
+            address: 0
+            quantity: 2
+            unit_id: "$unit_id"
+            retries: 3
+            timeout: 1500
         - log: "$last_modbus"
         - wait: { ms: 200 }
       goto: write_multi_coils
@@ -94,7 +135,7 @@ state_machine:
             values: [1, 0, 1, 0]
             unit_id: "$unit_id"
             retries: 3
-            timeout: 1000
+            timeout: 1500
         - log: "$last_modbus"
         - wait: { ms: 200 }
       goto: write_multi_regs
@@ -110,7 +151,22 @@ state_machine:
             values: [0x1111, 0x2222]
             unit_id: "$unit_id"
             retries: 3
-            timeout: 1000
+            timeout: 1500
+        - log: "$last_modbus"
+        - wait: { ms: 200 }
+      goto: write_coil_off
+
+    write_coil_off:
+      do:
+        - action: modbus_write
+          args:
+            protocol: rtu
+            function: 5
+            address: 0
+            values: [0]
+            unit_id: "$unit_id"
+            retries: 3
+            timeout: 1500
         - log: "$last_modbus"
         - wait: { ms: 200 }
       goto: final_read
@@ -125,7 +181,7 @@ state_machine:
             quantity: 2
             unit_id: "$unit_id"
             retries: 3
-            timeout: 1000
+            timeout: 1500
         - log: "$last_modbus"
       goto: done
 

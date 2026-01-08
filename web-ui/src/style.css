@@ -493,6 +493,83 @@ textarea {
   font-size: 13px;
 }
 
+.channel-config-panel {
+  margin-bottom: 16px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
+}
+
+.config-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.config-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.config-description {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 320px;
+}
+
+.config-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.status-pill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+
+.status-pill.connected {
+  color: #047857;
+  border-color: #bbf7d0;
+}
+
+.status-pill.error {
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.port-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.config-actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
 .header-actions {
   display: flex;
   align-items: center;
