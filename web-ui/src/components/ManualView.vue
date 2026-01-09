@@ -55,6 +55,7 @@ const {
   refreshPorts,
   disconnect,
   connectSerial,
+  openChannelSettings,
   sendPayload,
   sendQuickCommand,
 } = bindings
@@ -67,39 +68,54 @@ const {
               <h2>串口终端</h2>
               <p>传统串口调试工具：发送命令、监听 I/O 与日志回显。</p>
             </div>
-            <div class="header-actions">
-              <div class="status-indicator" :class="connectionInfo.state">
-                <span class="dot"></span>
-                {{ isConnected ? '已连接' : connectionInfo.state === 'error' ? '错误' : '未连接' }}
-              </div>
-              <DropdownSelect
-                v-model="selectedPort"
-                :options="portOptionsList"
-                :placeholder="portPlaceholder"
-                :disabled="noPorts || isConnected || isConnecting"
-                leading-icon="usb"
-                @change="selectPort"
-              />
-              <button
-                class="icon-btn"
-                type="button"
-                title="刷新串口"
-                :disabled="isConnected || isConnecting"
-                @click="refreshPorts"
-              >
-                <span class="material-symbols-outlined">refresh</span>
-              </button>
-              <button
-                class="btn"
-                :class="isConnected ? 'btn-danger' : 'btn-success'"
-                :disabled="isConnecting && !isConnected"
-                @click="isConnected ? disconnect() : connectSerial()"
-              >
-                <span class="material-symbols-outlined">link</span>
-                {{ isConnected ? '断开' : isConnecting ? '连接中' : '连接' }}
-              </button>
-            </div>
           </header>
+          <div class="terminal-config-panel">
+            <div class="config-main">
+              <div>
+                <h3 class="config-title">串口通道</h3>
+                <p class="config-description">配置连接、刷新列表并一键连接。</p>
+              </div>
+              <div class="config-status">
+                <div class="status-pill" :class="connectionInfo.state">
+                  <span class="dot"></span>
+                  {{ isConnected ? '已连接' : connectionInfo.state === 'error' ? '错误' : '未连接' }}
+                </div>
+                <div class="port-picker">
+                  <DropdownSelect
+                    v-model="selectedPort"
+                    :options="portOptionsList"
+                    :placeholder="portPlaceholder"
+                    :disabled="noPorts || isConnected || isConnecting"
+                    leading-icon="usb"
+                    @change="selectPort"
+                  />
+                  <button class="icon-btn" type="button" title="串口设置" @click="openChannelSettings">
+                    <span class="material-symbols-outlined">settings</span>
+                  </button>
+                </div>
+                <div class="config-controls">
+                  <button
+                    class="icon-btn"
+                    type="button"
+                    title="刷新串口"
+                    :disabled="isConnected || isConnecting"
+                    @click="refreshPorts"
+                  >
+                    <span class="material-symbols-outlined">refresh</span>
+                  </button>
+                  <button
+                    class="btn"
+                    :class="isConnected ? 'btn-danger' : 'btn-success'"
+                    :disabled="isConnecting && !isConnected"
+                    @click="isConnected ? disconnect() : connectSerial()"
+                  >
+                    <span class="material-symbols-outlined">link</span>
+                    {{ isConnected ? '断开' : isConnecting ? '连接中' : '连接' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div class="manual-grid">
             <div class="manual-left">
