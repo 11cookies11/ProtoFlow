@@ -47,6 +47,12 @@ jobs:
       - name: Install Inno Setup
         run: choco install innosetup -y
 
+      - name: Install ImageMagick
+        run: choco install imagemagick -y
+
+      - name: Generate installer icon
+        run: powershell -File scripts\\generate_icon.ps1 -Source assets\\icons\\logo.svg -Output installer\\ProtoFlow.ico -Size 256
+
       - name: Build installer (Inno Setup)
         run: |
           iscc installer\\ProtoFlow.iss /DMyAppVersion=${{ github.ref_name }}

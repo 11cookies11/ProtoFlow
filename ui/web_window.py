@@ -6,13 +6,13 @@ import sys
 
 try:
     from PySide6.QtCore import QPoint, Qt, QUrl
-    from PySide6.QtGui import QAction, QGuiApplication
+    from PySide6.QtGui import QAction, QGuiApplication, QIcon
     from PySide6.QtWebChannel import QWebChannel
     from PySide6.QtWidgets import QFileDialog, QMainWindow, QMenu
     from PySide6.QtWebEngineWidgets import QWebEngineView
 except ImportError:  # pragma: no cover
     from PyQt6.QtCore import QPoint, Qt, QUrl  # type: ignore
-    from PyQt6.QtGui import QAction, QGuiApplication  # type: ignore
+    from PyQt6.QtGui import QAction, QGuiApplication, QIcon  # type: ignore
     from PyQt6.QtWebChannel import QWebChannel  # type: ignore
     from PyQt6.QtWidgets import QFileDialog, QMainWindow, QMenu  # type: ignore
     from PyQt6.QtWebEngineWidgets import QWebEngineView  # type: ignore
@@ -44,6 +44,13 @@ class WebWindow(QMainWindow):
         view.page().setWebChannel(channel)
 
         base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
+        icon_svg = base_dir / "assets" / "icons" / "logo.svg"
+        icon_png = base_dir / "assets" / "icons" / "logo.png"
+        icon = QIcon(str(icon_svg))
+        if icon.isNull():
+            icon = QIcon(str(icon_png))
+        if not icon.isNull():
+            self.setWindowIcon(icon)
         dist_index = base_dir / "web-ui" / "dist" / "index.html"
         fallback_index = base_dir / "assets" / "web" / "index.html"
         index_path = dist_index if dist_index.exists() else fallback_index
