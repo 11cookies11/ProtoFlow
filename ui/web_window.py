@@ -43,9 +43,9 @@ class WebWindow(QMainWindow):
         channel.registerObject("bridge", self.bridge)
         view.page().setWebChannel(channel)
 
-        repo_root = Path(__file__).resolve().parents[1]
-        dist_index = repo_root / "web-ui" / "dist" / "index.html"
-        fallback_index = repo_root / "assets" / "web" / "index.html"
+        base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
+        dist_index = base_dir / "web-ui" / "dist" / "index.html"
+        fallback_index = base_dir / "assets" / "web" / "index.html"
         index_path = dist_index if dist_index.exists() else fallback_index
         view.load(QUrl.fromLocalFile(str(index_path)))
         view.page().profile().downloadRequested.connect(self._handle_download)
