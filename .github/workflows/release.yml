@@ -36,6 +36,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Build app (PyInstaller)
+        shell: cmd
         run: |
           pyinstaller --name ProtoFlow --windowed --onedir --noconfirm ^
             --add-data "web-ui\\dist;web-ui\\dist" ^
