@@ -170,41 +170,6 @@ do:
    ```
    Then call in DSL: `- action: my_action`.
 
-### 8.3 Charts (PyQtGraph multi-curve/multi-window)
-- Config: top-level `ui.charts`, `bind` is data key, `group` shares a window, `separate: true` opens its own window.
-  ```yaml
-  ui:
-    charts:
-      - id: temp
-        title: "Temperature"
-        bind: temp
-        group: main
-      - id: current
-        title: "Current"
-        bind: current
-        group: main
-      - id: voltage
-        title: "Voltage"
-        bind: voltage
-        separate: true
-  ```
-- Push data: `chart_add` action (Qt GUI runner required).
-  ```yaml
-  - action: chart_add
-    args: { bind: temp, value: "$temp_val", ts: "$now/1000" }  # ts seconds; defaults to now if omitted
-  ```
-- Behavior: builds one or more windows per `group/separate`; UI thread refreshes every 30ms with double buffering.
-
-## 8.3 Non-blocking Controls (ui.controls)
-- `ui.controls` defines separate, non-modal input panels. Buttons emit EventBus events via `emit`; FSM consumes via existing `on_event` / `wait_for_event` (no blocking).
-
-## 8.4 Declarative Layout (ui.layout, stage 1)
-- Optional YAML structure that places existing charts/controls into a single window using `split` (horizontal/vertical) and leaf references (`charts`/`controls`); no docking/drag-drop/geometry.
-
-## 8.5 3D Chart (scatter3d)
-- `ui.charts` supports `type: scatter3d` with `bind_x`/`bind_y`/`bind_z`, and `chart_add3d` to push points.
-- Requires `pyqtgraph.opengl` (typically `PyOpenGL`).
-
 ## 9. XMODEM Actions
 - `send_xmodem_block`: send specified block (128B, padded with 0x1A), arg `block: "$block"`.
 - `send_eot`: send EOT to finish.
