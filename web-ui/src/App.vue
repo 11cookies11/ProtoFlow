@@ -91,11 +91,10 @@ const dslWorkspacePath = ref('/usr/local/protoflow/workflows')
 const autoConnectOnStart = ref(true)
 const settingsSaving = ref(false)
 const settingsSnapshot = ref(null)
+const settingsTab = ref('general')
 const channelTab = ref('all')
 const protocolTab = ref('all')
-const settingsTab = ref('general')
 const settingsGeneralRef = ref(null)
-const settingsNetworkRef = ref(null)
 const settingsPluginsRef = ref(null)
 const settingsRuntimeRef = ref(null)
 const settingsLogsRef = ref(null)
@@ -203,6 +202,10 @@ const filteredProtocolCards = computed(() => {
   if (protocolTab.value === 'all') return protocolCards.value
   return protocolCards.value.filter((card) => card.category === protocolTab.value)
 })
+
+function setSettingsTab(tab) {
+  settingsTab.value = tab
+}
 
 const manualViewBindings = {
   connectionInfo,
@@ -1400,22 +1403,6 @@ function setProtocolTab(tab) {
   protocolTab.value = tab
 }
 
-function setSettingsTab(tab) {
-  settingsTab.value = tab
-  const targets = {
-    general: settingsGeneralRef,
-    network: settingsNetworkRef,
-    plugins: settingsPluginsRef,
-    runtime: settingsRuntimeRef,
-    logs: settingsLogsRef,
-  }
-  const target = targets[tab]
-  if (target && target.value && typeof target.value.scrollIntoView === 'function') {
-    target.value.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-}
-
-
 const settingsDirty = computed(() => {
   if (!settingsSnapshot.value) return false
   return JSON.stringify(buildSettingsPayload()) !== JSON.stringify(settingsSnapshot.value)
@@ -1849,7 +1836,6 @@ function unlockSidebarWidth() {
               </div>
               <div class="protocol-actions">
                 <button class="btn btn-ghost">配置</button>
-                <button class="btn btn-ghost">监控</button>
                 <button class="icon-btn">
                   <span class="material-symbols-outlined">more_horiz</span>
                 </button>
@@ -1878,20 +1864,18 @@ function unlockSidebarWidth() {
                 保存更改
               </button>
             </div>
-          </header>
-          <div class="tab-strip secondary">
-            <button :class="{ active: settingsTab === 'general' }" @click="setSettingsTab('general')">通用</button>
-            <button :class="{ active: settingsTab === 'network' }" @click="setSettingsTab('network')">网络与端口</button>
-            <button :class="{ active: settingsTab === 'plugins' }" @click="setSettingsTab('plugins')">插件</button>
-            <button :class="{ active: settingsTab === 'runtime' }" @click="setSettingsTab('runtime')">运行时</button>
-            <button :class="{ active: settingsTab === 'logs' }" @click="setSettingsTab('logs')">日志</button>
-          </div>
-
-          <div class="settings-stack">
-            <div class="panel" ref="settingsGeneralRef">
+            </header>
+            <div class="tab-strip secondary">
+              <button :class="{ active: settingsTab === 'general' }" @click="setSettingsTab('general')">通用</button>
+              <button :class="{ active: settingsTab === 'plugins' }" @click="setSettingsTab('plugins')">插件</button>
+              <button :class="{ active: settingsTab === 'runtime' }" @click="setSettingsTab('runtime')">运行时</button>
+              <button :class="{ active: settingsTab === 'logs' }" @click="setSettingsTab('logs')">日志</button>
+            </div>
+            <div class="settings-stack">
+              <div v-if="settingsTab === 'general'" class="panel" ref="settingsGeneralRef">
               <div class="panel-title simple">
                 <span class="material-symbols-outlined">tune</span>
-                通用偏好
+                通用
               </div>
               <div class="form-grid">
                 <label>
@@ -1920,49 +1904,10 @@ function unlockSidebarWidth() {
                 </label>
               </div>
             </div>
-
-            <div class="panel" ref="settingsNetworkRef">
-              <div class="panel-title simple">
-                <span class="material-symbols-outlined">router</span>
-                网络连接设置
-              </div>
-              <div class="section-title">TCP / IP 配置</div>
-              <div class="form-grid triple">
-                <label>
-                  发送超时 (ms)
-                  <input v-model.number="tcpTimeoutMs" type="number" />
-                </label>
-                <label>
-                  心跳间隔 (s)
-                  <input v-model.number="tcpHeartbeatSec" type="number" />
-                </label>
-                <label>
-                  重试次数
-                  <input v-model.number="tcpRetryCount" type="number" />
-                </label>
-              </div>
-              <div class="divider"></div>
-              <div class="section-title">串口配置</div>
-              <div class="form-grid triple">
-                <label>
-                  波特率                  <DropdownSelect v-model="defaultBaud" :options="[9600, 19200, 38400, 57600, 115200]" />
-                </label>
-                <label>
-                  校验位                  <DropdownSelect
-                    v-model="defaultParity"
-                  :options="['无校验', '偶校验', '奇校验', '标记校验', '空格校验']"
-                  />
-                </label>
-                <label>
-                  停止位                  <DropdownSelect v-model="defaultStopBits" :options="['1', '1.5', '2']" />
-                </label>
-              </div>
-            </div>
-
-            <div class="panel" ref="settingsPluginsRef">
+              <div v-if="settingsTab === 'plugins'" class="panel" ref="settingsPluginsRef">
               <div class="panel-title simple">
                 <span class="material-symbols-outlined">extension</span>
-                DSL 脚本目录
+                插件
               </div>
               <label class="file-row">
                 工作目录
@@ -2008,7 +1953,7 @@ function unlockSidebarWidth() {
               </div>
             </div>
 
-            <div class="panel" ref="settingsRuntimeRef">
+              <div v-if="settingsTab === 'runtime'" class="panel" ref="settingsRuntimeRef">
               <div class="panel-title simple">
                 <span class="material-symbols-outlined">tune</span>
                 运行时
@@ -2018,7 +1963,7 @@ function unlockSidebarWidth() {
               </div>
             </div>
 
-            <div class="panel" ref="settingsLogsRef">
+              <div v-if="settingsTab === 'logs'" class="panel" ref="settingsLogsRef">
               <div class="panel-title simple">
                 <span class="material-symbols-outlined">folder_open</span>
                 日志
