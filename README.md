@@ -1,4 +1,4 @@
-<p align="center">
+﻿<p align="center">
   <img src="./assets/icons/logo.png" width="200" alt="ProtoFlow logo"/>
 </p>
 
@@ -17,12 +17,14 @@ ProtoFlow 是一个通信运行时引擎，让 UART / TCP / Modbus / XMODEM 的�
 </p>
 
 <p align="center">
-  <a href="https://github.com/11cookies11/ToolOfCom/actions/workflows/ci.yml"><img alt="ci" src="https://img.shields.io/github/actions/workflow/status/11cookies11/ToolOfCom/ci.yml?branch=main&label=CI&style=for-the-badge"/></a>
-  <a href="https://github.com/11cookies11/ToolOfCom/releases"><img alt="release" src="https://img.shields.io/github/v/release/11cookies11/ToolOfCom?label=Release&style=for-the-badge"/></a>
-  <a href="./LICENSE"><img alt="license" src="https://img.shields.io/github/license/11cookies11/ToolOfCom?label=License&style=for-the-badge"/></a>
-  <a href="https://github.com/11cookies11/ToolOfCom/releases"><img alt="downloads" src="https://img.shields.io/github/downloads/11cookies11/ToolOfCom/total?label=Downloads&style=for-the-badge"/></a>
-  <img alt="platform" src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-orange?style=for-the-badge"/>
-  <img alt="language" src="https://img.shields.io/badge/Language-Python%203.11%2B%20%2B%20Qt-7F3FBF?style=for-the-badge"/>
+  <a href="https://github.com/11cookies11/ToolOfCom/actions/workflows/ci.yml"><img alt="build" src="https://img.shields.io/github/actions/workflow/status/11cookies11/ToolOfCom/ci.yml?branch=main&label=build&style=for-the-badge"/></a>
+  <a href="https://github.com/11cookies11/ToolOfCom/releases"><img alt="release" src="https://img.shields.io/github/v/release/11cookies11/ToolOfCom?label=release&style=for-the-badge"/></a>
+  <a href="./LICENSE"><img alt="license" src="https://img.shields.io/github/license/11cookies11/ToolOfCom?style=for-the-badge"/></a>
+</p>
+<p align="center">
+  <a href="https://github.com/11cookies11/ToolOfCom/releases"><img alt="downloads" src="https://img.shields.io/github/downloads/11cookies11/ToolOfCom/total?label=downloads&style=for-the-badge"/></a>
+  <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-orange?style=for-the-badge"/>
+  <img alt="language" src="https://img.shields.io/badge/language-Python%203.11%2B%20%2B%20Qt-7F3FBF?style=for-the-badge"/>
 </p>
 
 ## 🌐 项目简介（Overview）
@@ -139,26 +141,6 @@ ProtoFlow 的价值在于：
 
 **通信不再以“发送什么”为中心  
 而是以“下一步应该发生什么”为中心。**
-
----
-
-
-
-## 📝 YAML 示例（Demos）
-
-仓库内提供若干可直接运行的 DSL YAML，用于演示不同能力（README 不展开完整 YAML，避免过长）：
-
-- `config/chart_demo.yaml`：曲线窗口（`ui.charts`），演示 `group/separate` 多窗口；使用 `chart_add` 推送数据点。
-- `config/controls_demo.yaml`：交互控件（`ui.controls`），演示输入面板与按钮 `emit` 事件；状态机用 `$event.<field>` 取值。
-- `config/layout_demo.yaml`：声明式布局（`ui.layout`），演示 split 组合 charts/controls 到单窗口；包含 `scatter3d` + `chart_add3d`。
-- `charts_example.yaml`：最小 `ui.charts` 示例；可用 `python charts_main.py charts_example.yaml` 快速预览（随机数据）。
-
-运行方式：
-- GUI：`python main.py` → 脚本模式加载/粘贴 YAML → Run
-- CLI（无 GUI）：`python dsl_main.py <yaml>`（不包含 charts/controls 的可视化）
-
-**没有 Python，没有回调，没有 if-else**
- 通信逻辑变成声明式流。
 
 ---
 

@@ -54,9 +54,11 @@ class ProtocolLoader:
         self._crc_kind: Optional[str] = None
         self._max_length: int = 1024
         self._cmd_map: Dict[int, str] = {}
+        self._enabled = False
         self.load_config()
         # 订阅串口接收事件
-        self.bus.subscribe("serial.rx", self.parse)
+        if self._enabled:
+            self.bus.subscribe("serial.rx", self.parse)
 
     def load_config(self) -> None:
         """加载 YAML 配置，并缓存关键字段。"""
@@ -65,18 +67,21 @@ class ProtocolLoader:
         with self.config_path.open("r", encoding="utf-8") as f:
             self.config = yaml.safe_load(f) or {}
 
-        frame_cfg = self.config.get("frame", {})
+        frame_cfg = self.config.get("frame", {}) or {}
+        commands = self.config.get("commands", {}) or {}
+        self._enabled = bool(frame_cfg or commands)
         self._header = self._hex_to_bytes(frame_cfg.get("header", ""))
         tail_hex = frame_cfg.get("tail")
         self._tail = self._hex_to_bytes(tail_hex) if tail_hex else None
         self._crc_kind = frame_cfg.get("crc")
         self._max_length = int(frame_cfg.get("max_length", 1024))
 
-        commands = self.config.get("commands", {}) or {}
         self._cmd_map = {int(v.get("cmd", 0)): k for k, v in commands.items()}
 
     def parse(self, data: bytes) -> None:
         """增量解析串口字节流，提取完整帧并发布事件。"""
+        if not self._enabled:
+            return
         if not data:
             return
         self._buffer.extend(data)

@@ -1,4 +1,4 @@
-<p align="center">
+﻿<p align="center">
   <img src="./assets/icons/logo.png" width="200" alt="ProtoFlow logo"/>
 </p>
 
@@ -12,7 +12,7 @@ ProtoFlow is a communication runtime engine that transforms UART / TCP / Modbus 
 
 ---
 
-[中文](./README.md)
+[涓枃](./README.md)
 
 <p align="center">
   <a href="https://github.com/11cookies11/ToolOfCom/actions/workflows/ci.yml"><img alt="build" src="https://img.shields.io/github/actions/workflow/status/11cookies11/ToolOfCom/ci.yml?branch=main&label=build&style=for-the-badge"/></a>
@@ -25,31 +25,31 @@ ProtoFlow is a communication runtime engine that transforms UART / TCP / Modbus 
   <img alt="language" src="https://img.shields.io/badge/language-Python%203.11%2B%20%2B%20Qt-7F3FBF?style=for-the-badge"/>
 </p>
 
-## 🌐 Overview
+## 馃寪 Overview
 
-ProtoFlow is not a “serial assistant” tool — it is a **communication logic runtime**.
+ProtoFlow is not a 鈥渟erial assistant鈥?tool 鈥?it is a **communication logic runtime**.
 
 Traditional debugging tools can only send and receive raw bytes. ProtoFlow, however, describes complete communication flows using a DSL and executes them through a state-machine runtime, enabling **configurable, orchestrated, and extensible protocol behaviors**.
 
 ```lua
-                                ┌──────────┐
-                                │ YAML DSL │  ← Human-readable description of communication logic
-                                └─────┬────┘
-                                      ↓
-                                ┌──────────┐
-                                │   AST    │  ← Structured semantic tree (protocol/state/event/action)
-                                └─────┬────┘
-                                      ↓
-                                ┌──────────┐
-                                │ Executor │  ← Runtime on PC / MCU
-                                └──────────┘
+                                鈹屸攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹?
+                                鈹?YAML DSL 鈹? 鈫?Human-readable description of communication logic
+                                鈹斺攢鈹€鈹€鈹€鈹€鈹攢鈹€鈹€鈹€鈹?
+                                      鈫?
+                                鈹屸攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹?
+                                鈹?  AST    鈹? 鈫?Structured semantic tree (protocol/state/event/action)
+                                鈹斺攢鈹€鈹€鈹€鈹€鈹攢鈹€鈹€鈹€鈹?
+                                      鈫?
+                                鈹屸攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹?
+                                鈹?Executor 鈹? 鈫?Runtime on PC / MCU
+                                鈹斺攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹?
 ```
 
 Traditional serial or communication tools focus on only one thing:
 
 **Send some bytes, then wait.**
 
-But real device communication is never a single request–response action.
+But real device communication is never a single request鈥搑esponse action.
  It is a **protocol lifecycle**, including:
 
 - Handshake and negotiation
@@ -68,11 +68,11 @@ You no longer write scripts or click UI buttons.
 In other words:
 
 ```
-Communication → no longer an operation
-Communication → becomes state-driven executable logic
+Communication 鈫?no longer an operation
+Communication 鈫?becomes state-driven executable logic
 ```
 
-## 🤔 Why ProtoFlow?
+## 馃 Why ProtoFlow?
 
 Existing communication tools suffer from fundamental limitations:
 
@@ -87,29 +87,29 @@ The communication world is inherently a **state machine**, not a collection of b
 
 ProtoFlow unlocks:
 
-- Protocol logic → declarative DSL
-- Communication sequence → state-machine executor
-- Device interaction → orchestrated workflow
+- Protocol logic 鈫?declarative DSL
+- Communication sequence 鈫?state-machine executor
+- Device interaction 鈫?orchestrated workflow
 
-**From now on, protocols are not code — they are data.**
+**From now on, protocols are not code 鈥?they are data.**
 
 ------
 
-## 🚀 Features
+## 馃殌 Features
 
 | Feature             | Description                                         |
 | ------------------- | --------------------------------------------------- |
-| 🧩 Declarative DSL   | Describe communication flows in YAML, no scripting  |
-| 🔁 State runtime     | Executes send/receive, wait, branching, retry…      |
-| 🔌 Protocol layer    | UART / TCP / Modbus / XMODEM / Custom protocols     |
-| 🧱 Layered design    | Channels, drivers, and actions fully decoupled      |
-| ⏱ Deterministic     | No uncertain waits; predictable execution path      |
-| 🪢 Extensible        | Register custom actions without modifying core code |
-| 📡 Multi-device flow | Orchestrate workflows across multiple channels      |
+| 馃З Declarative DSL   | Describe communication flows in YAML, no scripting  |
+| 馃攣 State runtime     | Executes send/receive, wait, branching, retry鈥?     |
+| 馃攲 Protocol layer    | UART / TCP / Modbus / XMODEM / Custom protocols     |
+| 馃П Layered design    | Channels, drivers, and actions fully decoupled      |
+| 鈴?Deterministic     | No uncertain waits; predictable execution path      |
+| 馃 Extensible        | Register custom actions without modifying core code |
+| 馃摗 Multi-device flow | Orchestrate workflows across multiple channels      |
 
 ------
 
-## 🧱 Architecture
+## 馃П Architecture
 
                                            +----------------+
                                            |   Workflow     |  <-- YAML DSL
@@ -130,50 +130,31 @@ ProtoFlow unlocks:
                                                 | Channel | <-- Serial / Network / Custom endpoint
                                                 +---------+
 
-**Communication is no longer about “what to send”,
- but about “what should happen next”.**
+**Communication is no longer about 鈥渨hat to send鈥?
+ but about 鈥渨hat should happen next鈥?**
 
 ------
 
-## 📝 YAML Demos
-
-This repo includes several runnable DSL YAML demos (the full YAML is not in README to keep it short):
-
-- `config/chart_demo.yaml`: chart windows (`ui.charts`), multi-window via `group/separate`; pushes points with `chart_add`.
-- `config/controls_demo.yaml`: non-blocking controls (`ui.controls`), input panel + button `emit` events; access payload via `$event.<field>`.
-- `config/layout_demo.yaml`: declarative layout (`ui.layout`), split a single window with charts/controls; includes `scatter3d` + `chart_add3d`.
-- `charts_example.yaml`: minimal `ui.charts`; preview via `python charts_main.py charts_example.yaml` (random data).
-
-How to run:
-- GUI: `python main.py` → Script mode → load/paste YAML → Run
-- CLI (no GUI): `python dsl_main.py <yaml>` (no charts/controls visualization)
-
-**No Python, no callbacks, no if-else statements.**
-
-Communication logic becomes a **declarative execution flow**.
-
-------
-
-## ⚡ Quick Start
+## 鈿?Quick Start
 
 Download the release and run directly.
  (Linux version currently unverified.)
 
 ------
 
-## 🔌 Supported Protocols
+## 馃攲 Supported Protocols
 
 | Protocol        | Status |
 | --------------- | ------ |
-| UART            | ✔️      |
-| TCP             | ✔️      |
-| Modbus RTU      | ✔️      |
-| XMODEM          | ✔️      |
-| Custom Protocol | ✔️      |
+| UART            | 鉁旓笍      |
+| TCP             | 鉁旓笍      |
+| Modbus RTU      | 鉁旓笍      |
+| XMODEM          | 鉁旓笍      |
+| Custom Protocol | 鉁旓笍      |
 
 ------
 
-## 🛣 Roadmap
+## 馃洠 Roadmap
 
 - Web-based visual flow editor
 - Enhanced binary data transfer
@@ -183,14 +164,14 @@ Download the release and run directly.
 
 ------
 
-## 🤝 Contribute
+## 馃 Contribute
 
 PRs, issues, and protocol extension plugins are warmly welcome.
  The long-term goal of ProtoFlow is to become the **execution layer of communication protocols**.
 
 ------
 
-## 📄 License
+## 馃搫 License
 
 This project is licensed under the MIT License.  
 See the [LICENSE](./LICENSE) file for details.
