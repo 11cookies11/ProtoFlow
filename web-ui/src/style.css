@@ -555,7 +555,8 @@ textarea {
   min-width: 200px;
   max-width: 260px;
   flex: 0 1 240px;
-  gap: 2px;
+  gap: 0;
+  margin-right: 6px;
 }
 
 .terminal-port-picker .icon-btn {
@@ -595,7 +596,7 @@ textarea {
 }
 
 .terminal-config-panel .refresh-icon {
-  margin-left: -2px;
+  margin-left: -6px;
 }
 
 .channel-config-panel {
@@ -1668,6 +1669,11 @@ textarea {
   border-top: 1px solid #f1f5f9;
 }
 
+.modal-section.first {
+  padding-top: 0;
+  border-top: none;
+}
+
 .channel-type-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2027,6 +2033,10 @@ textarea {
 
 .form-grid.triple {
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.form-grid.quad {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .form-grid label {
