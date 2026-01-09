@@ -12,7 +12,9 @@ ProtoFlow 是一个通信运行时引擎，让 UART / TCP / Modbus / XMODEM 的�
 
 ---
 
-[EN](./README_EN.md)
+<p align="center">
+  <a href="./README.md">简体中文</a> · <a href="./README_EN.md">English</a>
+</p>
 
 <p align="center">
   <a href="https://github.com/11cookies11/ToolOfCom/actions/workflows/ci.yml"><img alt="build" src="https://img.shields.io/github/actions/workflow/status/11cookies11/ToolOfCom/ci.yml?branch=main&label=build&style=for-the-badge"/></a>
