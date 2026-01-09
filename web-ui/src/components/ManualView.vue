@@ -63,17 +63,12 @@ const {
 
 <template>
   <section class="page">
-          <header class="page-header">
-            <div>
-              <h2>串口终端</h2>
-              <p>传统串口调试工具：发送命令、监听 I/O 与日志回显。</p>
-            </div>
-          </header>
+          
           <div class="terminal-config-panel">
             <div class="config-main">
               <div>
-                <h3 class="config-title">串口通道</h3>
-                <p class="config-description">配置连接、刷新列表并一键连接。</p>
+                <h3 class="config-title">串口终端</h3>
+                <p class="config-description">传统串口调试工具：发送命令，监听 I/O 与日志回显。</p>
               </div>
               <div class="config-status">
                 <div class="status-pill" :class="connectionInfo.state">
