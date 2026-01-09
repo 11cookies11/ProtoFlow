@@ -43,13 +43,14 @@ const {
 
 <template>
   <section class="page">
-          <header class="page-header compact">
-            <div class="file-info">
-              <div class="file-title">
-                {{ scriptFileName }}
+          <header class="page-header spaced scripts-header">
+            <div>
+              <h2 class="scripts-title">
+                自动脚本
+                <span class="chip">{{ scriptFileName }}</span>
                 <span class="badge">只读</span>
-              </div>
-              <div class="file-path">{{ scriptFilePath }}</div>
+              </h2>
+              <p class="scripts-path">{{ scriptFilePath }}</p>
             </div>
             <div class="header-actions">
               <button class="btn btn-outline" @click="loadYaml">

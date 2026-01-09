@@ -467,10 +467,18 @@ textarea {
   padding: 18px 20px;
   border-radius: 14px;
   backdrop-filter: blur(12px);
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
 }
 
 .page-header.spaced {
   align-items: flex-start;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
+}
+
+.page-header.spaced .header-actions {
+  align-items: center;
 }
 
 .page-header > div:first-child {
@@ -493,81 +501,101 @@ textarea {
   font-size: 13px;
 }
 
+.page-header .header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-header .header-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 18px;
+  line-height: 1;
+}
+
 .terminal-config-panel {
-  margin-top: 16px;
-  margin-bottom: 12px;
-  padding: 20px;
+  margin: 0 0 12px;
+  padding: 18px 20px;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
 }
 
-.config-main {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.config-title {
+.terminal-config-panel .config-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--text);
 }
 
-.config-description {
+.terminal-config-panel .config-description {
   margin: 6px 0 0;
   font-size: 13px;
   color: var(--muted);
 }
 
-.config-status {
+.terminal-config-panel .config-status {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.status-pill {
-  display: inline-flex;
-  align-items: center;
+.terminal-config-actions {
+  flex-wrap: nowrap;
   gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.status-pill .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #94a3b8;
-}
-
-.status-pill.connected {
-  color: #047857;
-  border-color: #bbf7d0;
-}
-
-.status-pill.error {
-  color: #b91c1c;
-  border-color: #fecaca;
-}
-
-.port-picker {
-  display: inline-flex;
+  justify-content: flex-end;
   align-items: center;
-  gap: 4px;
 }
 
-.config-controls {
-  display: inline-flex;
-  gap: 8px;
+.terminal-port-picker {
+  min-width: 200px;
+  max-width: 260px;
+  flex: 0 1 240px;
+  gap: 2px;
+}
+
+.terminal-port-picker .icon-btn {
+  align-self: center;
+}
+
+.terminal-config-controls {
+  gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.terminal-config-panel .select-wrap {
+  height: 36px;
+  align-items: center;
+  min-width: 180px;
+  max-width: 240px;
+}
+
+.terminal-config-panel .select-trigger {
+  height: 100%;
+  align-items: center;
+}
+
+.terminal-config-panel .status-pill {
+  height: 32px;
+}
+
+.terminal-config-panel .btn {
+  height: 36px;
+  padding: 0 14px;
+}
+
+.terminal-config-panel .icon-btn {
+  width: 32px;
+  height: 32px;
+}
+
+.terminal-config-panel .refresh-icon {
+  margin-left: -2px;
 }
 
 .channel-config-panel {
@@ -1391,6 +1419,17 @@ textarea {
 .file-path {
   font-size: 12px;
   color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.scripts-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.scripts-path {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 

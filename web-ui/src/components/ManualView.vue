@@ -64,50 +64,50 @@ const {
 <template>
   <section class="page">
           
-          <div class="terminal-config-panel">
-            <div class="config-main">
-              <div>
-                <h3 class="config-title">串口终端</h3>
-                <p class="config-description">传统串口调试工具：发送命令，监听 I/O 与日志回显。</p>
-              </div>
+          <div class="terminal-config-panel page-header spaced">
+            <div>
+              <h3 class="config-title">串口终端</h3>
+              <p class="config-description">传统串口调试工具：发送命令，监听 I/O 与日志回显。</p>
+            </div>
+            <div class="header-actions terminal-config-actions">
               <div class="config-status">
                 <div class="status-pill" :class="connectionInfo.state">
                   <span class="dot"></span>
                   {{ isConnected ? '已连接' : connectionInfo.state === 'error' ? '错误' : '未连接' }}
                 </div>
-                <div class="port-picker">
-                  <DropdownSelect
-                    v-model="selectedPort"
-                    :options="portOptionsList"
-                    :placeholder="portPlaceholder"
-                    :disabled="noPorts || isConnected || isConnecting"
-                    leading-icon="usb"
-                    @change="selectPort"
-                  />
-                  <button class="icon-btn" type="button" title="串口设置" @click="openChannelSettings">
-                    <span class="material-symbols-outlined">settings</span>
-                  </button>
-                </div>
-                <div class="config-controls">
-                  <button
-                    class="icon-btn"
-                    type="button"
-                    title="刷新串口"
-                    :disabled="isConnected || isConnecting"
-                    @click="refreshPorts"
-                  >
-                    <span class="material-symbols-outlined">refresh</span>
-                  </button>
-                  <button
-                    class="btn"
-                    :class="isConnected ? 'btn-danger' : 'btn-success'"
-                    :disabled="isConnecting && !isConnected"
-                    @click="isConnected ? disconnect() : connectSerial()"
-                  >
-                    <span class="material-symbols-outlined">link</span>
-                    {{ isConnected ? '断开' : isConnecting ? '连接中' : '连接' }}
-                  </button>
-                </div>
+              </div>
+              <div class="port-picker terminal-port-picker">
+                <DropdownSelect
+                  v-model="selectedPort"
+                  :options="portOptionsList"
+                  :placeholder="portPlaceholder"
+                  :disabled="noPorts || isConnected || isConnecting"
+                  leading-icon="usb"
+                  @change="selectPort"
+                />
+                <button class="icon-btn" type="button" title="串口设置" @click="openChannelSettings">
+                  <span class="material-symbols-outlined">settings</span>
+                </button>
+                <button
+                  class="icon-btn refresh-icon"
+                  type="button"
+                  title="刷新串口"
+                  :disabled="isConnected || isConnecting"
+                  @click="refreshPorts"
+                >
+                  <span class="material-symbols-outlined">refresh</span>
+                </button>
+              </div>
+              <div class="config-controls terminal-config-controls">
+                <button
+                  class="btn"
+                  :class="isConnected ? 'btn-danger' : 'btn-success'"
+                  :disabled="isConnecting && !isConnected"
+                  @click="isConnected ? disconnect() : connectSerial()"
+                >
+                  <span class="material-symbols-outlined">link</span>
+                  {{ isConnected ? '断开' : isConnecting ? '连接中' : '连接' }}
+                </button>
               </div>
             </div>
           </div>
