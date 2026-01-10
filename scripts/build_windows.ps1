@@ -24,4 +24,6 @@ Write-Host "==> Build app (PyInstaller)"
   main.py
 
 Write-Host "==> Generate installer icon"
-& powershell -File scripts\generate_icon.ps1 -Source assets\icons\logo.svg -Output installer\ProtoFlow.ico -Size 256
+if (-not (Test-Path -LiteralPath "installer\\ProtoFlow.ico")) {
+  & powershell -File scripts\generate_icon.ps1 -Source assets\\icons\\logo.png -Output installer\\ProtoFlow.ico -Size 256
+}

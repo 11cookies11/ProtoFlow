@@ -24,9 +24,6 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install ImageMagick
-        run: choco install imagemagick -y
-
       - name: Build app (onedir)
         run: .\\scripts\\build_windows.ps1
 

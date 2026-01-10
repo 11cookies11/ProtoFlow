@@ -1,5 +1,5 @@
 param(
-  [string]$Source = "assets/icons/logo.svg",
+  [string]$Source = "assets/icons/logo.png",
   [string]$Output = "installer/ProtoFlow.ico",
   [int]$Size = 256
 )
