@@ -1,5 +1,7 @@
 #define MyAppName "ProtoFlow"
+#ifndef MyAppVersion
 #define MyAppVersion "0.0.0"
+#endif
 #define MyAppPublisher "ProtoFlow"
 #define MyAppExeName "ProtoFlow.exe"
 

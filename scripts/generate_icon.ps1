@@ -11,8 +11,8 @@ if (-not (Test-Path -LiteralPath $Source)) {
 $sourceExt = [System.IO.Path]::GetExtension($Source).ToLowerInvariant()
 $magick = Get-Command magick -ErrorAction SilentlyContinue
 
-if ($magick -and $sourceExt -eq ".svg") {
-  & $magick.Path $Source -resize "${Size}x${Size}" $Output | Out-Null
+if ($magick) {
+  & $magick.Path $Source -background none -define icon:auto-resize=256,128,64,48,32,16 $Output | Out-Null
   if (-not (Test-Path -LiteralPath $Output)) {
     throw "Failed to generate icon via ImageMagick."
   }
@@ -48,4 +48,4 @@ if ($sourceExt -eq ".png") {
   return
 }
 
-throw "No available converter. Provide a PNG source or install ImageMagick for SVG."
+throw "No available converter. Provide a PNG source or install ImageMagick."
