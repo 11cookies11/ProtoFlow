@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import atexit
+import io
 import logging
 import os
 import sys
@@ -24,6 +25,8 @@ from ui.web_window import WebWindow
 
 class _TeeStream:
     def __init__(self, primary, file_handle, is_error: bool) -> None:
+        if primary is None:
+            primary = getattr(sys, "__stdout__", None) or io.StringIO()
         self._primary = primary
         self._file = file_handle
         self._is_error = is_error
@@ -31,8 +34,11 @@ class _TeeStream:
     def write(self, data: str) -> int:
         if not data:
             return 0
-        written = self._primary.write(data)
-        self._primary.flush()
+        try:
+            written = self._primary.write(data)
+            self._primary.flush()
+        except Exception:
+            written = 0
         prefix = "[STDERR] " if self._is_error else "[STDOUT] "
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
         for line in data.splitlines():

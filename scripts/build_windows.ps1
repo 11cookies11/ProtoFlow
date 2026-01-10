@@ -16,7 +16,7 @@ Write-Host "==> Install Python deps"
 & $Python -m pip install -r requirements.txt
 
 Write-Host "==> Build app (PyInstaller)"
-& $Python -m PyInstaller --name ProtoFlow --windowed --onedir --noconfirm `
+& $Python -m PyInstaller --name ProtoFlow --windowed --onedir --noconfirm --icon "installer\ProtoFlow.ico" `
   --add-data "web-ui\dist;web-ui\dist" `
   --add-data "config;config" `
   --add-data "plugins;plugins" `
