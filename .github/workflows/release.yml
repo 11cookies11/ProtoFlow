@@ -54,6 +54,9 @@ jobs:
       - name: Generate installer icon
         run: powershell -File scripts\\generate_icon.ps1 -Source assets\\icons\\logo.svg -Output installer\\ProtoFlow.ico -Size 256
 
+      - name: Check installer icon
+        run: dir installer
+
       - name: Build installer (Inno Setup)
         run: |
           iscc installer\\ProtoFlow.iss /DMyAppVersion=${{ github.ref_name }}
