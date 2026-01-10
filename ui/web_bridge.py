@@ -7,6 +7,7 @@ import threading
 import time
 from pathlib import Path
 import logging
+import os
 from typing import Any, Dict, List, Optional
 
 try:
@@ -45,7 +46,8 @@ class WebBridge(QObject):
         self._script_runner: Optional[ScriptRunnerQt] = None
         self._buffer: List[Dict[str, Any]] = []
         self._protocols_loaded = False
-        self._settings_path = Path.cwd() / "config" / "ui_settings.json"
+        self._settings_root = Path(os.environ.get("LOCALAPPDATA", Path.cwd())) / "ProtoFlow"
+        self._settings_path = self._settings_root / "config" / "ui_settings.json"
         self._channel_state: Dict[str, Any] = {
             "type": None,
             "status": "disconnected",
@@ -467,7 +469,7 @@ class WebBridge(QObject):
         return "custom"
 
     def _settings_defaults(self) -> Dict[str, Any]:
-        base_path = (Path.cwd() / "workflows").resolve()
+        base_path = (self._settings_root / "workflows").resolve()
         return {
             "uiLanguage": "简体中文",
             "uiTheme": "系统默认",

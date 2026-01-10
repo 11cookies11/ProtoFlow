@@ -17,7 +17,8 @@ def action_record_start(ctx, args: Dict[str, Any]):
         rec = ctx.recorder
         return str(getattr(rec, "paths", {}).root) if rec else None
 
-    base_dir = _eval_str(ctx, args.get("dir", "logs/experiments")) or "logs/experiments"
+    raw_dir = args.get("dir")
+    base_dir = _eval_str(ctx, raw_dir) if raw_dir is not None else None
     name = _eval_str(ctx, args.get("name", "run")) or "run"
     script_text = args.get("script_text")
     script_path = args.get("script_path")

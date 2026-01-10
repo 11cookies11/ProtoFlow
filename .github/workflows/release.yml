@@ -24,39 +24,18 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Build web UI
-        working-directory: web-ui
-        run: |
-          npm ci
-          npm run build
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Build app (PyInstaller)
-        shell: cmd
-        run: |
-          pyinstaller --name ProtoFlow --windowed --onedir --noconfirm ^
-            --add-data "web-ui\\dist;web-ui\\dist" ^
-            --add-data "config;config" ^
-            --add-data "plugins;plugins" ^
-            --add-data "assets;assets" ^
-            main.py
+      - name: Build app (onedir)
+        run: .\\scripts\\build_windows.ps1
 
       - name: Install Inno Setup
         run: choco install innosetup -y
 
-      - name: Install ImageMagick
-        run: choco install imagemagick -y
-
-      - name: Generate installer icon
-        run: powershell -File scripts\\generate_icon.ps1 -Source assets\\icons\\logo.svg -Output installer\\ProtoFlow.ico -Size 256
+      - name: Check installer icon
+        run: dir installer
 
       - name: Build installer (Inno Setup)
         run: |
-          iscc installer\\ProtoFlow.iss /DMyAppVersion=${{ github.ref_name }}
+          & "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe" "installer\\ProtoFlow.iss" /DMyAppVersion=${{ github.ref_name }}
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4

@@ -59,11 +59,18 @@ class ExperimentPaths:
     vars_snapshot_json: Path
 
 
+def _default_record_dir() -> str:
+    root = os.environ.get("LOCALAPPDATA")
+    if root:
+        return str(Path(root) / "ProtoFlow" / "experiments")
+    return "logs/experiments"
+
+
 class ExperimentRecorder:
     def __init__(
         self,
         *,
-        base_dir: str | os.PathLike[str] = "logs/experiments",
+        base_dir: str | os.PathLike[str] | None = None,
         name: str = "run",
         script_text: Optional[str] = None,
         script_path: Optional[str] = None,
@@ -74,6 +81,8 @@ class ExperimentRecorder:
         self.script_text = script_text
         self.script_path = script_path
 
+        if base_dir is None:
+            base_dir = _default_record_dir()
         base = Path(base_dir)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         root = base / f"{ts}_{_sanitize_name(name)}"
@@ -222,4 +231,3 @@ class ExperimentRecorder:
 def _sanitize_name(name: str) -> str:
     safe = "".join(ch if ch.isalnum() or ch in ("-", "_", ".") else "_" for ch in str(name).strip())
     return safe[:64] if safe else "run"
-
