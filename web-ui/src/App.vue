@@ -7,6 +7,7 @@ import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import ManualView from './components/ManualView.vue'
 import ScriptsView from './components/ScriptsView.vue'
+import ProxyMonitorView from './components/ProxyMonitorView.vue'
 import DropdownSelect from './components/DropdownSelect.vue'
 import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
 
@@ -1698,6 +1699,10 @@ function unlockSidebarWidth() {
             <span class="material-symbols-outlined">smart_toy</span>
             <span>自动脚本</span>
           </button>
+          <button class="nav-item" :class="{ active: currentView === 'proxy' }" @click="currentView = 'proxy'">
+            <span class="material-symbols-outlined">settings_input_hdmi</span>
+            <span>代理监控</span>
+          </button>
           <button class="nav-item" :class="{ active: currentView === 'channels' }" @click="currentView = 'channels'">
             <span class="material-symbols-outlined">cloud_queue</span>
             <span>通道</span>
@@ -1724,6 +1729,7 @@ function unlockSidebarWidth() {
       <main class="main">
         <ManualView v-if="currentView === 'manual'" />
         <ScriptsView v-else-if="currentView === 'scripts'" />
+        <ProxyMonitorView v-else-if="currentView === 'proxy'" />
 
   <section v-else-if="currentView === 'channels'" class="page">
   <header class="page-header spaced">
