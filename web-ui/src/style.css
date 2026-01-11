@@ -61,6 +61,11 @@ body.dragging-window .app-titlebar {
   box-shadow: none !important;
 }
 
+body.resizing .page-header,
+body.dragging-window .page-header {
+  opacity: 0.85;
+}
+
 body.resizing .log-line {
   content-visibility: visible !important;
 }
@@ -480,6 +485,8 @@ textarea {
   gap: 20px;
   padding: 24px 28px 30px;
   overflow-y: auto;
+  overflow-anchor: none;
+  overscroll-behavior: contain;
   flex: 1;
   min-height: 0;
   height: 100%;
@@ -1687,6 +1694,7 @@ textarea {
 .modal-body {
   padding: 20px 22px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 18px;

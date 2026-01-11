@@ -304,7 +304,16 @@ let channelRefreshTimer = null
 let snapPreviewRaf = 0
 let pendingSnapPreview = null
 let attachedBridge = null
-let pageScrollLock = { el: null, top: 0 }
+const SCROLL_LOCK_SELECTORS = [
+  '.page',
+  '.modal-body',
+  '.log-stream',
+  '.quick-list',
+  '.sidebar-nav',
+  '.select-menu',
+  '.proxy-modal-list',
+]
+let scrollLockSnapshot = []
 
 function preventScroll(event) {
   if (!event) return
@@ -312,19 +321,22 @@ function preventScroll(event) {
 }
 
 function lockPageScroll() {
-  const el = document.querySelector('.page')
-  if (el) {
-    pageScrollLock = { el, top: el.scrollTop }
-  }
+  const selector = SCROLL_LOCK_SELECTORS.join(', ')
+  const nodes = document.querySelectorAll(selector)
+  scrollLockSnapshot = Array.from(nodes).map((node) => {
+    return { el: node, top: node.scrollTop || 0 }
+  })
   document.addEventListener('wheel', preventScroll, { passive: false })
   document.addEventListener('touchmove', preventScroll, { passive: false })
 }
 
 function unlockPageScroll() {
-  if (pageScrollLock.el) {
-    pageScrollLock.el.scrollTop = pageScrollLock.top
-  }
-  pageScrollLock = { el: null, top: 0 }
+  scrollLockSnapshot.forEach((item) => {
+    if (item.el) {
+      item.el.scrollTop = item.top
+    }
+  })
+  scrollLockSnapshot = []
   document.removeEventListener('wheel', preventScroll)
   document.removeEventListener('touchmove', preventScroll)
 }

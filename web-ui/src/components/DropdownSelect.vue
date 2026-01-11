@@ -78,7 +78,7 @@ function toggle() {
   setOpenId(dropdownId)
   document.body.classList.add('dropdown-open')
   window.dispatchEvent(new CustomEvent('dropdown:open', { detail: dropdownId }))
-  nextTick(() => updateMenuPosition())
+  nextTick(() => scheduleMenuPosition())
 }
 
 function close() {
@@ -114,6 +114,12 @@ function updateMenuPosition() {
   }
 }
 
+function scheduleMenuPosition() {
+  if (!open.value) return
+  requestAnimationFrame(() => updateMenuPosition())
+  requestAnimationFrame(() => updateMenuPosition())
+}
+
 function handlePointerDown(event) {
   if (!rootRef.value || !event) return
   if (
@@ -133,7 +139,7 @@ function handleKeydown(event) {
 
 function handleViewportChange() {
   if (!open.value) return
-  updateMenuPosition()
+  scheduleMenuPosition()
 }
 
 function handleExternalOpen(event) {
