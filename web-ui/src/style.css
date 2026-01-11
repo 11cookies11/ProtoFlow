@@ -81,6 +81,21 @@ body.dropdown-open *::after {
   animation: none !important;
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
+body.modal-open .app-shell {
+  pointer-events: none;
+}
+
+body.modal-open .modal-backdrop,
+body.modal-open .modal-backdrop *,
+body.modal-open .proxy-modal-backdrop,
+body.modal-open .proxy-modal-backdrop * {
+  pointer-events: auto;
+}
+
 body.proxy-modal-open {
   overflow: hidden;
 }
