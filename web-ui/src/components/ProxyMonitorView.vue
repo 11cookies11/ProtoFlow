@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 const filterTabs = ['全部代理', '正在运行', '已停止', '异常']
 const activeFilter = ref(filterTabs[0])
@@ -43,6 +43,14 @@ const proxies = ref([
   },
 ])
 
+const modalOpen = ref(false)
+const modalProxy = ref(null)
+
+const modalTitle = computed(() => {
+  if (!modalProxy.value) return '抓包详情'
+  return `抓包详情 - ${modalProxy.value.name}`
+})
+
 const filteredProxies = computed(() => {
   if (activeFilter.value === '全部代理') return proxies.value
   if (activeFilter.value === '正在运行') {
@@ -55,6 +63,76 @@ const filteredProxies = computed(() => {
     return proxies.value.filter((proxy) => proxy.status === 'error')
   }
   return proxies.value
+})
+
+const protocolFrames = ref([
+  {
+    id: 'frame-1',
+    time: '14:20:01.2',
+    summary: 'Read Hold Regs',
+    chips: [
+      { text: '01', tone: 'amber', title: 'Slave Addr' },
+      { text: '03', tone: 'blue', title: 'Function Code' },
+      { text: '00 00 00 02', tone: 'green', title: 'Data Bytes' },
+      { text: 'C4 0B', tone: 'rose', title: 'CRC Checksum' },
+    ],
+    detail: [
+      { label: 'Slave Address:', value: '01 (1)', tone: 'amber' },
+      { label: 'Function Code:', value: '03 (Read Holding Registers)', tone: 'blue' },
+      { label: 'Start Address:', value: '0000 (0)' },
+      { label: 'Quantity:', value: '0002 (2)' },
+      { label: 'CRC:', value: '0x0BC4 [Valid]', tone: 'green' },
+    ],
+  },
+  {
+    id: 'frame-2',
+    time: '14:20:01.5',
+    summary: 'Resp: 50.0 / 70.0',
+    chips: [
+      { text: '01', tone: 'amber' },
+      { text: '03', tone: 'blue' },
+      { text: '04 01 F4 02 BC', tone: 'green' },
+      { text: '9B 42', tone: 'rose' },
+    ],
+  },
+  {
+    id: 'frame-3',
+    time: '14:20:02.8',
+    summary: 'EXCEPTION: ILLEGAL_ADDR',
+    error: true,
+    chips: [
+      { text: '01', tone: 'amber' },
+      { text: '83', tone: 'red' },
+      { text: '02', tone: 'green' },
+      { text: 'FF FF', tone: 'rose', warn: true },
+    ],
+  },
+  {
+    id: 'frame-4',
+    time: '14:20:03.2',
+    note: 'Waiting for next frame...',
+  },
+])
+
+function openModal(proxy) {
+  modalProxy.value = proxy
+  modalOpen.value = true
+}
+
+function closeModal() {
+  modalOpen.value = false
+}
+
+watch(
+  () => modalOpen.value,
+  (open) => {
+    document.body.classList.toggle('modal-open', open)
+    document.body.classList.toggle('proxy-modal-open', open)
+  }
+)
+
+onBeforeUnmount(() => {
+  document.body.classList.remove('modal-open', 'proxy-modal-open')
 })
 </script>
 
@@ -133,7 +211,7 @@ const filteredProxies = computed(() => {
             <span class="proxy-toggle-label">{{ proxy.toggleLabel }}</span>
           </div>
           <div class="proxy-actions">
-            <button class="icon-btn" type="button" title="Terminal">
+            <button class="icon-btn" type="button" title="Terminal" @click="openModal(proxy)">
               <span class="material-symbols-outlined">terminal</span>
             </button>
             <button class="icon-btn" type="button" title="Edit">
@@ -155,4 +233,164 @@ const filteredProxies = computed(() => {
       </button>
     </div>
   </section>
+
+  <div v-if="modalOpen" class="proxy-modal-backdrop">
+    <div class="proxy-modal">
+      <div class="proxy-modal-header">
+        <div class="proxy-modal-title">
+          <div class="proxy-modal-icon">
+            <span class="material-symbols-outlined">terminal</span>
+          </div>
+          <div>
+            <h3>{{ modalTitle }}</h3>
+            <div class="proxy-modal-meta">
+              <span class="pulse-dot"></span>
+              实时流量监控中 - 115200 bps
+            </div>
+          </div>
+        </div>
+        <div class="proxy-modal-actions">
+          <div class="proxy-modal-select">
+            <label>手动协议选择</label>
+            <select>
+              <option>Modbus RTU</option>
+              <option>MQTT</option>
+              <option>Raw Hex (无协议)</option>
+              <option>Custom Protocol A</option>
+            </select>
+          </div>
+          <button class="icon-btn" type="button" @click="closeModal">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="proxy-modal-body">
+        <section class="proxy-modal-stream">
+          <div class="proxy-modal-toolbar">
+            <div class="proxy-modal-toolbar-left">
+              <span class="material-symbols-outlined">filter_alt</span>
+              <span>活动协议视图: Modbus RTU</span>
+            </div>
+            <div class="proxy-modal-toolbar-right">
+              <span>右侧显示:</span>
+              <div class="proxy-modal-toggle">
+                <button type="button">ASCII</button>
+                <button class="active" type="button">解析值</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="proxy-modal-list">
+            <div class="proxy-modal-list-header">
+              <span class="col-time">时间戳</span>
+              <span class="col-body">结构化协议字段(已对齐)</span>
+              <span class="col-summary">解析摘要</span>
+            </div>
+
+            <div
+              v-for="frame in protocolFrames"
+              :key="frame.id"
+              class="proxy-frame"
+              :class="{ error: frame.error }"
+            >
+              <template v-if="frame.note">
+                <span class="col-time">{{ frame.time }}</span>
+                <span class="col-body note">{{ frame.note }}</span>
+                <span class="col-summary"></span>
+              </template>
+              <template v-else>
+                <div class="proxy-frame-row">
+                  <span class="col-time">{{ frame.time }}</span>
+                  <span class="col-body chips">
+                    <span
+                      v-for="chip in frame.chips"
+                      :key="chip.text"
+                      class="proxy-chip"
+                      :class="`tone-${chip.tone}`"
+                      :title="chip.title"
+                      :data-warn="chip.warn ? 'true' : null"
+                    >
+                      {{ chip.text }}
+                    </span>
+                  </span>
+                  <span class="col-summary" :class="{ error: frame.error }">{{ frame.summary }}</span>
+                </div>
+                <div v-if="frame.detail" class="proxy-frame-detail">
+                  <div v-for="item in frame.detail" :key="item.label" class="proxy-detail-row">
+                    <span>{{ item.label }}</span>
+                    <span :class="item.tone ? `tone-${item.tone}` : ''">{{ item.value }}</span>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div class="proxy-modal-footer">
+            <div class="proxy-footer-actions">
+              <button class="proxy-btn warning" type="button">
+                <span class="material-symbols-outlined">pause</span>
+                暂停
+              </button>
+              <button class="proxy-btn ghost" type="button">
+                <span class="material-symbols-outlined">delete_sweep</span>
+                重置
+              </button>
+            </div>
+            <button class="proxy-btn primary" type="button">
+              <span class="material-symbols-outlined">download</span>
+              导出当前协议日志
+            </button>
+          </div>
+        </section>
+
+        <aside class="proxy-modal-side">
+          <div>
+            <h4>当前会话统计</h4>
+            <div class="proxy-stat-card">
+              <span>已处理帧数</span>
+              <div class="proxy-stat-value">
+                <strong>1,284</strong>
+                <em>8.4 fps</em>
+              </div>
+              <div class="proxy-stat-bar"></div>
+            </div>
+            <div class="proxy-stat-card">
+              <span>校验错误率</span>
+              <div class="proxy-stat-value">
+                <strong class="danger">0.08%</strong>
+                <em>1 帧错误</em>
+              </div>
+            </div>
+            <div class="proxy-stat-card">
+              <span>持续监控时长</span>
+              <div class="proxy-stat-value">
+                <strong>00:42:15</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="proxy-side-block">
+            <h5>视图过滤器</h5>
+            <label>
+              <input type="checkbox" checked />
+              仅显示合法帧
+            </label>
+            <label>
+              <input type="checkbox" />
+              仅显示写指令
+            </label>
+          </div>
+
+          <div class="proxy-side-tip">
+            <div class="proxy-side-tip-title">
+              <span class="material-symbols-outlined">info</span>
+              当前配置
+            </div>
+            <p>Modbus RTU 监听中。解析对象 1-255 从站地址。</p>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
 </template>
