@@ -304,6 +304,30 @@ let channelRefreshTimer = null
 let snapPreviewRaf = 0
 let pendingSnapPreview = null
 let attachedBridge = null
+let pageScrollLock = { el: null, top: 0 }
+
+function preventScroll(event) {
+  if (!event) return
+  event.preventDefault()
+}
+
+function lockPageScroll() {
+  const el = document.querySelector('.page')
+  if (el) {
+    pageScrollLock = { el, top: el.scrollTop }
+  }
+  document.addEventListener('wheel', preventScroll, { passive: false })
+  document.addEventListener('touchmove', preventScroll, { passive: false })
+}
+
+function unlockPageScroll() {
+  if (pageScrollLock.el) {
+    pageScrollLock.el.scrollTop = pageScrollLock.top
+  }
+  pageScrollLock = { el: null, top: 0 }
+  document.removeEventListener('wheel', preventScroll)
+  document.removeEventListener('touchmove', preventScroll)
+}
 
 function filterCommLogs(lines, tab, keyword) {
   if (tab === 'tcp') return []
@@ -1341,6 +1365,7 @@ function maybeStartWindowMove(event) {
   dragStarted.value = true
   draggingWindow.value = true
   document.body.classList.add('dragging-window')
+  lockPageScroll()
   snapPreview.value = ''
   attachDragListeners()
 }
@@ -1379,6 +1404,7 @@ function showSystemMenu(event) {
 function startResize(edge, event) {
   if (!bridge.value || !edge || !event) return
   document.body.classList.add('resizing')
+  lockPageScroll()
   bridge.value.window_start_resize(edge)
 }
 
@@ -1603,6 +1629,7 @@ function clearDragState() {
   }
   document.body.classList.remove('dragging-window')
   document.body.classList.remove('resizing')
+  unlockPageScroll()
   detachDragListeners()
 }
 
