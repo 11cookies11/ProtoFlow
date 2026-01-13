@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import logging
 import os
 import sys
 
@@ -8,17 +9,36 @@ try:
     from PySide6.QtCore import QPoint, Qt, QUrl
     from PySide6.QtGui import QAction, QGuiApplication, QIcon
     from PySide6.QtWebChannel import QWebChannel
+    from PySide6.QtWebEngineCore import QWebEnginePage
     from PySide6.QtWidgets import QFileDialog, QMainWindow, QMenu
     from PySide6.QtWebEngineWidgets import QWebEngineView
 except ImportError:  # pragma: no cover
     from PyQt6.QtCore import QPoint, Qt, QUrl  # type: ignore
     from PyQt6.QtGui import QAction, QGuiApplication, QIcon  # type: ignore
     from PyQt6.QtWebChannel import QWebChannel  # type: ignore
+    from PyQt6.QtWebEngineCore import QWebEnginePage  # type: ignore
     from PyQt6.QtWidgets import QFileDialog, QMainWindow, QMenu  # type: ignore
     from PyQt6.QtWebEngineWidgets import QWebEngineView  # type: ignore
 
 from ui.web_bridge import WebBridge
 from ui.win_snap import apply_snap_styles
+
+class LoggingWebPage(QWebEnginePage):
+    def javaScriptConsoleMessage(self, level, message, line_number, source_id):  # type: ignore[override]
+        level_map = {
+            QWebEnginePage.JavaScriptConsoleMessageLevel.InfoMessageLevel: "INFO",
+            QWebEnginePage.JavaScriptConsoleMessageLevel.WarningMessageLevel: "WARN",
+            QWebEnginePage.JavaScriptConsoleMessageLevel.ErrorMessageLevel: "ERROR",
+        }
+        tag = level_map.get(level, "LOG")
+        logging.getLogger("web_js").warning(
+            "[%s] %s (%s:%s)",
+            tag,
+            message,
+            source_id,
+            line_number,
+        )
+        super().javaScriptConsoleMessage(level, message, line_number, source_id)
 
 class WebWindow(QMainWindow):
     """Minimal WebEngine host window for the new web UI."""
@@ -36,6 +56,8 @@ class WebWindow(QMainWindow):
         self.setAttribute(Qt.WA_TranslucentBackground, False)
 
         view = QWebEngineView(self)
+        page = LoggingWebPage(view)
+        view.setPage(page)
         self.setCentralWidget(view)
 
         channel = QWebChannel(view)

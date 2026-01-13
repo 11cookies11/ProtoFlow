@@ -7,6 +7,7 @@ import io
 import logging
 import os
 import sys
+import traceback
 import time
 from pathlib import Path
 from typing import Optional
@@ -41,16 +42,24 @@ class _TeeStream:
             written = 0
         prefix = "[STDERR] " if self._is_error else "[STDOUT] "
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        for line in data.splitlines():
-            if not line.strip():
-                continue
-            self._file.write(f"{timestamp} {prefix}{line}\n")
-        self._file.flush()
+        if not getattr(self._file, "closed", False):
+            for line in data.splitlines():
+                if not line.strip():
+                    continue
+                self._file.write(f"{timestamp} {prefix}{line}\n")
+            self._file.flush()
         return written
 
     def flush(self) -> None:
-        self._primary.flush()
-        self._file.flush()
+        try:
+            self._primary.flush()
+        except Exception:
+            pass
+        if not getattr(self._file, "closed", False):
+            try:
+                self._file.flush()
+            except Exception:
+                pass
 
 
 def _setup_run_logging() -> Path:
@@ -71,6 +80,17 @@ def _setup_run_logging() -> Path:
         format="%(asctime)s [%(levelname)s] %(threadName)s %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+    def _log_unraisable(unraisable):  # type: ignore[override]
+        logger = logging.getLogger("unraisable")
+        exc = unraisable.exc_value or unraisable.exc_type
+        tb = unraisable.exc_traceback
+        detail = "".join(traceback.format_exception(unraisable.exc_type, exc, tb)).strip()
+        logger.error(
+            "Unraisable exception in %r: %s",
+            unraisable.object,
+            detail or exc,
+        )
+    sys.unraisablehook = _log_unraisable
     logging.getLogger("main_web").info("Log file: %s", log_path)
     return log_path
 
