@@ -1742,10 +1742,6 @@ function unlockSidebarWidth() {
             <span class="material-symbols-outlined">settings_input_hdmi</span>
             <span>代理监控</span>
           </button>
-          <button class="nav-item" :class="{ active: currentView === 'channels' }" @click="currentView = 'channels'">
-            <span class="material-symbols-outlined">cloud_queue</span>
-            <span>通道</span>
-          </button>
           <button class="nav-item" :class="{ active: currentView === 'protocols' }" @click="currentView = 'protocols'">
             <span class="material-symbols-outlined">cable</span>
             <span>协议</span>
@@ -1769,77 +1765,6 @@ function unlockSidebarWidth() {
         <ManualView v-if="currentView === 'manual'" />
         <ScriptsView v-else-if="currentView === 'scripts'" />
         <ProxyMonitorView v-else-if="currentView === 'proxy'" />
-
-  <section v-else-if="currentView === 'channels'" class="page">
-  <header class="page-header spaced">
-    <div>
-      <h2>通道管理</h2>
-      <p>管理通信连接通道，监控实时状态与配置参数。</p>
-    </div>
-    <div class="header-actions">
-      <button class="btn btn-outline" @click="handleChannelRefresh">
-        <span class="material-symbols-outlined">refresh</span>
-        刷新状态
-      </button>
-      <button class="btn btn-primary" @click="handleNewChannel">
-        <span class="material-symbols-outlined">add</span>
-        新建通道
-      </button>
-    </div>
-  </header>
-  <div class="tab-strip secondary">
-    <button :class="{ active: channelTab === 'all' }" @click="setChannelTab('all')">全部通道</button>
-    <button :class="{ active: channelTab === 'serial' }" @click="setChannelTab('serial')">串口 (Serial)</button>
-    <button :class="{ active: channelTab === 'tcp-client' }" @click="setChannelTab('tcp-client')">TCP 客户端</button>
-    <button :class="{ active: channelTab === 'tcp-server' }" @click="setChannelTab('tcp-server')">TCP 服务端</button>
-  </div>
-  <div class="card-list">
-            <div v-for="card in filteredChannelCards" :key="card.id" class="card">
-              <div class="card-main">
-                <div class="card-icon">
-                  <span class="material-symbols-outlined">settings_input_hdmi</span>
-                </div>
-                <div>
-                  <div class="card-title">
-                    {{ card.name }}
-                    <span class="chip">{{ card.type }}</span>
-                  </div>
-                  <div class="card-meta">
-                    <span>{{ card.details[0] }}</span>
-                    <span class="dot"></span>
-                    <span>{{ card.details[1] }}</span>
-                  </div>
-                </div>
-              </div>
-              <div class="card-side">
-                <div class="traffic">
-                  <span>流量</span>
-                  <strong>{{ card.traffic }}</strong>
-                </div>
-                <div class="status" :class="card.statusClass">
-                  <span class="dot"></span>
-                  {{ card.statusText }}
-                </div>
-                <button class="icon-btn">
-                  <span class="material-symbols-outlined">more_vert</span>
-                </button>
-              </div>
-            </div>
-            <div v-if="filteredChannelCards.length === 0" class="card empty-card">
-              <div class="card-main">
-                <div class="card-icon">
-                  <span class="material-symbols-outlined">link_off</span>
-                </div>
-                <div>
-                  <div class="card-title">暂无通道</div>
-                  <div class="card-meta">
-                    <span>未检测到活动连接</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
 
         <section v-else-if="currentView === 'protocols'" class="page">
           <header class="page-header spaced">
