@@ -1,6 +1,6 @@
 {
   "autoConnectOnStart": false,
-  "dslWorkspacePath": "D:\\GitRepository\\ProtoFlow\\web-ui\\workflows",
+  "dslWorkspacePath": "D:\\GitRepository\\ProtoFlow\\frontend\\workflows",
   "network": {
     "tcpHeartbeatSec": 60,
     "tcpRetryCount": 3,
@@ -12,5 +12,5 @@
     "defaultStopBits": "1"
   },
   "uiLanguage": "English (US)",
-  "uiTheme": "系统默认"
+  "uiTheme": "绯荤粺榛樿"
 }

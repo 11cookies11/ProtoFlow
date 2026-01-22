@@ -19,7 +19,7 @@ except ImportError:  # pragma: no cover
 
 from protocols.registry import ProtocolRegistry
 import protocols as protocols_pkg
-from ui.script_runner_qt import ScriptRunnerQt
+from desktop.script_runner_qt import ScriptRunnerQt
 
 
 class WebBridge(QObject):
@@ -126,7 +126,7 @@ class WebBridge(QObject):
 
     @Slot(str, str, result=str)
     def select_directory(self, title: str, start_dir: str) -> str:
-        return QFileDialog.getExistingDirectory(None, title or "选择目录", start_dir or "")
+        return QFileDialog.getExistingDirectory(None, title or "閫夋嫨鐩綍", start_dir or "")
 
     @Slot(str, int)
     def connect_serial(self, port: str, baud: int = 115200) -> None:
@@ -207,7 +207,7 @@ class WebBridge(QObject):
     def load_yaml(self) -> Dict[str, str]:
         path, _ = QFileDialog.getOpenFileName(
             None,
-            "选择 YAML 脚本",
+            "閫夋嫨 YAML 鑴氭湰",
             str(Path.cwd()),
             "YAML Files (*.yaml *.yml)",
         )
@@ -228,7 +228,7 @@ class WebBridge(QObject):
         default_path = Path.cwd() / (suggested_name or "workflow.yaml")
         path, _ = QFileDialog.getSaveFileName(
             None,
-            "保存 YAML 脚本",
+            "淇濆瓨 YAML 鑴氭湰",
             str(default_path),
             "YAML Files (*.yaml *.yml)",
         )
@@ -471,8 +471,8 @@ class WebBridge(QObject):
     def _settings_defaults(self) -> Dict[str, Any]:
         base_path = (self._settings_root / "workflows").resolve()
         return {
-            "uiLanguage": "简体中文",
-            "uiTheme": "系统默认",
+            "uiLanguage": "绠€浣撲腑鏂?,
+            "uiTheme": "绯荤粺榛樿",
             "autoConnectOnStart": True,
             "dslWorkspacePath": str(base_path),
             "serial": {

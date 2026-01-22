@@ -20,8 +20,8 @@ except ImportError:  # pragma: no cover
     from PyQt6.QtWidgets import QFileDialog, QMainWindow, QMenu  # type: ignore
     from PyQt6.QtWebEngineWidgets import QWebEngineView  # type: ignore
 
-from ui.web_bridge import WebBridge
-from ui.win_snap import apply_snap_styles
+from desktop.web_bridge import WebBridge
+from desktop.win_snap import apply_snap_styles
 
 class LoggingWebPage(QWebEnginePage):
     def javaScriptConsoleMessage(self, level, message, line_number, source_id):  # type: ignore[override]
@@ -73,7 +73,7 @@ class WebWindow(QMainWindow):
             icon = QIcon(str(icon_png))
         if not icon.isNull():
             self.setWindowIcon(icon)
-        dist_index = base_dir / "web-ui" / "dist" / "index.html"
+        dist_index = base_dir / "frontend" / "dist" / "index.html"
         fallback_index = base_dir / "assets" / "web" / "index.html"
         index_path = dist_index if dist_index.exists() else fallback_index
         view.load(QUrl.fromLocalFile(str(index_path)))
@@ -83,7 +83,7 @@ class WebWindow(QMainWindow):
         suggested = item.downloadFileName()
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "保存日志",
+            "濞ｅ洦绻傞悺銊╁籍閵夈儳绠?,
             suggested or "io_logs.log",
             "Log Files (*.log);;All Files (*.*)",
         )

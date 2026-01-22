@@ -1,4 +1,4 @@
-"""应用入口：使用 Qt WebEngine + Vue Web UI。"""
+"""搴旂敤鍏ュ彛锛氫娇鐢?Qt WebEngine + Vue Frontend銆?""
 
 from __future__ import annotations
 

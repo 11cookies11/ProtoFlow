@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host "==> Build web UI"
-Push-Location "web-ui"
+Push-Location "frontend"
 & $Node ci
 & $Node run build
 Pop-Location
@@ -17,7 +17,7 @@ Write-Host "==> Install Python deps"
 
 Write-Host "==> Build app (PyInstaller)"
 & $Python -m PyInstaller --name ProtoFlow --windowed --onedir --noconfirm --icon "installer\ProtoFlow.ico" `
-  --add-data "web-ui\dist;web-ui\dist" `
+  --add-data "frontend\dist;frontend\dist" `
   --add-data "config;config" `
   --add-data "plugins;plugins" `
   --add-data "assets;assets" `

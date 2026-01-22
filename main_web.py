@@ -21,7 +21,7 @@ from core.communication_manager import CommunicationManager
 from core.event_bus import EventBus
 from core.plugin_manager import PluginManager
 from core.protocol_loader import ProtocolLoader
-from ui.web_window import WebWindow
+from desktop.web_window import WebWindow
 
 
 class _TeeStream:

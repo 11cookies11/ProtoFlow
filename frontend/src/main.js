@@ -23,7 +23,7 @@ async function bootstrap() {
       console.log('[bridge]', msg)
     })
     bridge.notify_ready()
-    bridge.ping('web-ui').then((resp) => console.log(resp))
+    bridge.ping('frontend').then((resp) => console.log(resp))
   }
   createApp(App).mount('#app')
 }
