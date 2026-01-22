@@ -1,4 +1,4 @@
-"""搴旂敤鍏ュ彛锛氫娇鐢?Qt WebEngine + Vue Frontend銆?""
+﻿"""Entry point: Qt WebEngine host for the Vue frontend."""
 
 from __future__ import annotations
 
