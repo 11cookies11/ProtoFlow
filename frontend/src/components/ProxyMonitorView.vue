@@ -105,10 +105,14 @@ const captureFrames = ref([
     size: 64,
     note: '01 03 00 00 00 02 C4 0B',
     summary: 'Read Hold Regs',
+    summaryText: '请求: 读取保持寄存器 0x0000',
     tone: 'green',
     warn: false,
     channel: 'COM5',
     baud: '115200',
+    protocolLabel: 'Modbus RTU',
+    protocolType: 'modbus',
+    protocolTooltip: 'Modbus RTU v1.1',
   },
   {
     id: 'frame-002',
@@ -117,10 +121,14 @@ const captureFrames = ref([
     size: 128,
     note: '01 03 04 01 F4 02 BC 9B 42',
     summary: 'Resp: 50.0 / 70.0',
+    summaryText: '响应: 寄存器 0=500.0, 1=700.0',
     tone: 'blue',
     warn: false,
     channel: 'COM3',
     baud: '115200',
+    protocolLabel: 'Modbus RTU',
+    protocolType: 'modbus',
+    protocolTooltip: 'Modbus RTU v1.1',
   },
   {
     id: 'frame-003',
@@ -129,10 +137,14 @@ const captureFrames = ref([
     size: 1,
     note: '01 83 02 FF FF',
     summary: 'EXCEPTION: ILLEGAL_ADDR',
+    summaryText: '异常: 非法寄存器地址',
     tone: 'red',
     warn: true,
     channel: 'COM5',
     baud: '115200',
+    protocolLabel: 'Unknown',
+    protocolType: 'unknown',
+    protocolTooltip: '未知协议 - 点击配置',
   },
   {
     id: 'frame-004',
@@ -141,12 +153,90 @@ const captureFrames = ref([
     size: 0,
     note: 'Waiting for next frame...',
     summary: '',
+    summaryText: '等待下一帧...',
     tone: 'amber',
     warn: false,
     channel: 'COM5',
     baud: '115200',
+    protocolLabel: 'Modbus RTU',
+    protocolType: 'modbus',
+    protocolTooltip: 'Modbus RTU v1.1',
   },
 ])
+
+const captureMeta = ref({
+  channel: 'Ethernet (TAP)',
+  engine: '通用动态解析 (Agnostic Engine)',
+  bufferUsed: 85,
+  rangeStart: 1,
+  rangeEnd: 50,
+  totalFrames: 50234,
+  page: 1,
+  pageCount: 1005,
+})
+
+const captureMetrics = ref({
+  rtt: '4.2 ms',
+  loss: '0.02 %',
+})
+
+const protocolTrees = {
+  modbus: [
+    { label: '报文标识 (Header)', raw: '01 03', value: '0x0103' },
+    { label: '数据长度 (Len)', raw: '08', value: '8 Bytes' },
+  ],
+  unknown: [
+    { label: '报文标识 (Header)', raw: 'FF EE', value: '65518' },
+    { label: '数据长度 (Len)', raw: '10', value: '16 Bytes' },
+  ],
+}
+
+const activeFrame = computed(() => selectedFrame.value || captureFrames.value[0] || null)
+
+const isUnknownFrame = computed(() => activeFrame.value?.protocolType === 'unknown')
+
+const activeProtocolLabel = computed(() => activeFrame.value?.protocolLabel || selectedProtocol.value)
+
+const activeProtocolTooltip = computed(() => activeFrame.value?.protocolTooltip || '未知协议')
+
+const activeSummaryText = computed(() => activeFrame.value?.summaryText || activeFrame.value?.summary || '')
+
+const activeHexBytes = computed(() => {
+  const raw = activeFrame.value?.note || ''
+  const parts = raw
+    .trim()
+    .split(/\s+/)
+    .filter((item) => item.length)
+  return parts.map((part) => part.toUpperCase())
+})
+
+const activeHexCells = computed(() => {
+  const bytes = activeHexBytes.value.slice(0, 16)
+  while (bytes.length < 16) bytes.push('--')
+  return bytes
+})
+
+const activeHexAscii = computed(() => {
+  const bytes = activeHexCells.value.map((cell) => {
+    if (cell === '--') return '.'
+    const code = parseInt(cell, 16)
+    if (!Number.isFinite(code)) return '.'
+    return code >= 32 && code <= 126 ? String.fromCharCode(code) : '.'
+  })
+  return [bytes.slice(0, 8).join(''), bytes.slice(8, 16).join('')]
+})
+
+const activeHexSize = computed(() => activeHexBytes.value.length || 0)
+
+const activeTreeRows = computed(() => (isUnknownFrame.value ? protocolTrees.unknown : protocolTrees.modbus))
+
+function hexCellClass(index, value) {
+  if (value === '--') return 'text-slate-300'
+  if (index < 2) return 'text-blue-500 bg-blue-50 rounded'
+  if (index === 3 || index === 4) return 'text-emerald-500 font-bold bg-emerald-50 rounded'
+  if (index === 5 || index === 6) return 'text-amber-500 font-bold bg-amber-50 rounded'
+  return 'text-slate-400'
+}
 
 const filteredFrames = computed(() => {
   if (captureFilter.value === 'all') return captureFrames.value
@@ -448,7 +538,7 @@ onBeforeUnmount(() => {
               <div class="flex items-center gap-2 mt-1">
                 <span class="flex h-2 w-2 rounded-full bg-emerald-500"></span>
                 <p class="text-[10px] font-medium text-slate-500">
-                  活动通道: {{ captureProxy ? captureProxy.hostPort : 'Ethernet (TAP)' }} | 引擎状态: 通用动态解析 (Agnostic Engine)
+                  活动通道: {{ captureProxy ? captureProxy.hostPort : captureMeta.channel }} | 引擎状态: {{ captureMeta.engine }}
                 </p>
               </div>
             </div>
@@ -526,17 +616,17 @@ onBeforeUnmount(() => {
                           >
                             {{ frame.tone === 'red' ? '?' : 'M' }}
                           </span>
-                          <span>{{ frame.tone === 'red' ? 'Unknown' : selectedProtocol }}</span>
+                          <span>{{ frame.protocolLabel || (frame.tone === 'red' ? 'Unknown' : selectedProtocol) }}</span>
                         </div>
                         <div class="protocol-tooltip bg-slate-800 text-white text-[10px] px-2 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap border border-slate-700">
-                          {{ frame.tone === 'red' ? '未知协议 - 点击配置' : 'Modbus RTU v1.1' }}
+                          {{ frame.protocolTooltip || (frame.tone === 'red' ? '未知协议 - 点击配置' : 'Modbus RTU v1.1') }}
                         </div>
                       </div>
                     </td>
                     <td class="px-3 py-2 text-slate-500">{{ frame.size }}B</td>
                     <td class="px-3 py-2 hex-font text-slate-400 truncate max-w-[240px]">{{ frame.note }}</td>
                     <td class="px-3 py-2 text-slate-600 italic">
-                      {{ frame.summary || 'HEX: ' + frame.note + ' | ASCII: ....' }}
+                      {{ frame.summaryText || frame.summary || ('HEX: ' + frame.note + ' | ASCII: ....') }}
                     </td>
                   </tr>
                 </tbody>
@@ -564,47 +654,49 @@ onBeforeUnmount(() => {
                   <span class="material-symbols-outlined !text-3xl">question_mark</span>
                 </div>
                 <div>
-                  <h3 class="text-sm font-bold text-slate-800">未知协议报文 (Unknown Protocol)</h3>
+                  <h3 class="text-sm font-bold text-slate-800">
+                    {{ isUnknownFrame ? '未知协议报文 (Unknown Protocol)' : `${activeProtocolLabel} 报文` }}
+                  </h3>
                   <p class="text-[11px] text-slate-500 mt-1 max-w-[280px] mx-auto leading-relaxed">
-                    系统未能自动匹配已知的解析插件。您可以尝试手动配置解析规则，或使用万能解析脚本。
+                    {{
+                      isUnknownFrame
+                        ? '系统未能自动匹配已知的解析插件。您可以尝试手动配置解析规则，或使用万能解析脚本。'
+                        : '已匹配协议解析插件，当前展示该报文的解析详情。'
+                    }}
                   </p>
                 </div>
                 <div class="flex justify-center gap-3">
-                  <button class="px-3 py-1.5 bg-white border border-slate-300 rounded text-[11px] font-bold hover:bg-slate-50 transition-colors shadow-sm">手动解析</button>
+                  <button class="px-3 py-1.5 bg-white border border-slate-300 rounded text-[11px] font-bold hover:bg-slate-50 transition-colors shadow-sm">
+                    {{ isUnknownFrame ? '手动解析' : '查看详情' }}
+                  </button>
                   <button class="px-3 py-1.5 bg-blue-600 text-white rounded text-[11px] font-bold hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-md">
-                    <span class="material-symbols-outlined !text-xs">schema</span> 配置解析规则
+                    <span class="material-symbols-outlined !text-xs">schema</span>
+                    {{ isUnknownFrame ? '配置解析规则' : '调整解析规则' }}
                   </button>
                 </div>
               </div>
               <div class="p-4 border-b border-slate-200">
                 <div class="flex items-center justify-between mb-3">
                   <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">原始十六进制 (RAW HEX)</h3>
-                  <span class="text-[10px] font-mono bg-slate-200 px-1.5 py-0.5 rounded text-slate-600">16 字节</span>
+                  <span class="text-[10px] font-mono bg-slate-200 px-1.5 py-0.5 rounded text-slate-600">
+                    {{ activeHexSize }} 字节
+                  </span>
                 </div>
                 <div class="bg-white border border-slate-200 rounded-lg overflow-hidden flex shadow-inner">
                   <div class="bg-slate-50 border-r border-slate-200 p-2 text-[10px] font-mono text-slate-400 leading-6 text-right w-12 shrink-0">
                     0000<br />0008
                   </div>
                   <div class="flex-1 p-2 hex-font text-xs leading-6 grid grid-cols-8 gap-x-1 text-center font-medium">
-                    <span class="text-blue-500 bg-blue-50 rounded">FF</span>
-                    <span class="text-blue-500 bg-blue-50 rounded">EE</span>
-                    <span class="text-slate-400">DD</span>
-                    <span class="text-emerald-500 font-bold bg-emerald-50 rounded">CC</span>
-                    <span class="text-emerald-500 font-bold bg-emerald-50 rounded">00</span>
-                    <span class="text-amber-500 font-bold bg-amber-50 rounded">11</span>
-                    <span class="text-amber-500 font-bold bg-amber-50 rounded">22</span>
-                    <span class="text-slate-400">33</span>
-                    <span class="text-slate-400">44</span>
-                    <span class="text-slate-400">55</span>
-                    <span class="text-slate-400">66</span>
-                    <span class="text-slate-400">77</span>
-                    <span class="text-slate-400">88</span>
-                    <span class="text-slate-400">99</span>
-                    <span class="text-slate-400">AA</span>
-                    <span class="text-slate-400">BB</span>
+                    <span
+                      v-for="(cell, cellIndex) in activeHexCells"
+                      :key="`hex-${cellIndex}`"
+                      :class="hexCellClass(cellIndex, cell)"
+                    >
+                      {{ cell }}
+                    </span>
                   </div>
                   <div class="border-l border-slate-200 p-2 text-[10px] font-mono text-slate-500 leading-6 tracking-tight w-24 shrink-0 bg-slate-50/50">
-                    ........<br />........
+                    {{ activeHexAscii[0] }}<br />{{ activeHexAscii[1] }}
                   </div>
                 </div>
               </div>
@@ -627,15 +719,14 @@ onBeforeUnmount(() => {
                           <div class="col-span-4">字段</div>
                           <div class="col-span-5 text-right">解析值</div>
                         </div>
-                        <div class="grid grid-cols-12 items-center py-1.5 px-2 rounded hover:bg-blue-50 cursor-default transition-colors border-l-2 border-transparent hover:border-blue-500">
-                          <div class="col-span-3 font-mono text-[11px] text-blue-600">FF EE</div>
-                          <div class="col-span-4 text-[11px] text-slate-500">报文标识 (Header)</div>
-                          <div class="col-span-5 text-[11px] text-right font-bold text-slate-700">65518</div>
-                        </div>
-                        <div class="grid grid-cols-12 items-center py-1.5 px-2 rounded hover:bg-blue-50 cursor-default transition-colors border-l-2 border-transparent hover:border-blue-500">
-                          <div class="col-span-3 font-mono text-[11px] text-blue-600">10</div>
-                          <div class="col-span-4 text-[11px] text-slate-500">数据长度 (Len)</div>
-                          <div class="col-span-5 text-[11px] text-right font-bold text-primary">16 Bytes</div>
+                        <div
+                          v-for="(row, rowIndex) in activeTreeRows"
+                          :key="`tree-${rowIndex}`"
+                          class="grid grid-cols-12 items-center py-1.5 px-2 rounded hover:bg-blue-50 cursor-default transition-colors border-l-2 border-transparent hover:border-blue-500"
+                        >
+                          <div class="col-span-3 font-mono text-[11px] text-blue-600">{{ row.raw }}</div>
+                          <div class="col-span-4 text-[11px] text-slate-500">{{ row.label }}</div>
+                          <div class="col-span-5 text-[11px] text-right font-bold text-slate-700">{{ row.value }}</div>
                         </div>
                       </div>
                     </details>
@@ -648,11 +739,11 @@ onBeforeUnmount(() => {
               <div class="grid grid-cols-2 gap-4">
                 <div class="bg-white p-2 rounded border border-slate-200 shadow-sm">
                   <p class="text-[9px] text-slate-500">往返延时 (RTT)</p>
-                  <p class="text-sm font-bold text-emerald-500">4.2 ms</p>
+                  <p class="text-sm font-bold text-emerald-500">{{ captureMetrics.rtt }}</p>
                 </div>
                 <div class="bg-white p-2 rounded border border-slate-200 shadow-sm">
                   <p class="text-[9px] text-slate-500">丢包率 (Packet Loss)</p>
-                  <p class="text-sm font-bold text-slate-900">0.02 %</p>
+                  <p class="text-sm font-bold text-slate-900">{{ captureMetrics.loss }}</p>
                 </div>
               </div>
             </div>
@@ -663,12 +754,14 @@ onBeforeUnmount(() => {
             <div class="flex items-center gap-2">
               <span class="text-[10px] font-bold text-slate-500 uppercase">接收缓冲区</span>
               <div class="w-32 h-2 bg-slate-200 rounded-full overflow-hidden border border-slate-300">
-                <div class="h-full bg-amber-500 w-[85%]"></div>
+                <div class="h-full bg-amber-500" :style="{ width: `${captureMeta.bufferUsed}%` }"></div>
               </div>
-              <span class="text-[10px] font-mono font-bold text-slate-600">85%</span>
+              <span class="text-[10px] font-mono font-bold text-slate-600">{{ captureMeta.bufferUsed }}%</span>
             </div>
             <div class="h-4 w-[1px] bg-slate-300"></div>
-            <p class="text-[10px] font-medium text-slate-500 uppercase">显示 1-50 / 共 50,234 报文</p>
+            <p class="text-[10px] font-medium text-slate-500 uppercase">
+              显示 {{ captureMeta.rangeStart }}-{{ captureMeta.rangeEnd }} / 共 {{ captureMeta.totalFrames }} 报文
+            </p>
           </div>
           <div class="flex items-center gap-4">
             <div class="flex items-center gap-1 bg-white p-0.5 rounded border border-slate-200">
@@ -678,7 +771,7 @@ onBeforeUnmount(() => {
               <button class="p-1 hover:bg-slate-100 rounded">
                 <span class="material-symbols-outlined !text-sm">chevron_left</span>
               </button>
-              <div class="px-3 text-[10px] font-bold text-slate-700">第 1 / 1005 页</div>
+              <div class="px-3 text-[10px] font-bold text-slate-700">第 {{ captureMeta.page }} / {{ captureMeta.pageCount }} 页</div>
               <button class="p-1 hover:bg-slate-100 rounded">
                 <span class="material-symbols-outlined !text-sm">chevron_right</span>
               </button>
