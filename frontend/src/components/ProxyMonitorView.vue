@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import DropdownSelect from './DropdownSelect.vue'
 
@@ -14,7 +14,11 @@ const modalProxy = ref(null)
 const captureOpen = ref(false)
 const captureProxy = ref(null)
 const captureFilter = ref('all')
+const captureView = ref('parsed')
+const selectedProtocol = ref('Modbus RTU')
 const selectedFrame = ref(null)
+
+const protocolOptions = ['Modbus RTU', 'MQTT', 'Raw Hex', 'Custom Protocol A']
 
 const proxyName = ref('')
 const connectionMode = ref('透传模式')
@@ -50,13 +54,13 @@ const proxies = ref([
   },
   {
     id: 'proxy-com7',
-    name: '电机反馈转发器',
+    name: '电机反馈继电器',
     meta: 'ID: PX-00992 · 8-E-1',
     status: 'stopped',
     statusLabel: '已停止',
     statusIcon: 'pause_circle',
     routeIcon: 'more_horiz',
-    routeLabel: '空闲',
+    routeLabel: '离线',
     routeTone: 'muted',
     hostPort: 'COM7',
     devicePort: 'COM10',
@@ -69,7 +73,7 @@ const proxies = ref([
   },
   {
     id: 'proxy-com1',
-    name: 'GPS 数据流',
+    name: 'GPS 模块数据流',
     meta: 'ID: PX-00219 · 7-N-2',
     status: 'error',
     statusLabel: '异常',
@@ -97,10 +101,10 @@ const captureFrames = ref([
   {
     id: 'frame-001',
     direction: 'RX',
-    time: '12:41:03.482',
+    time: '14:20:01.2',
     size: 64,
-    note: '握手：READY',
-    summary: 'ACK 0x06',
+    note: '01 03 00 00 00 02 C4 0B',
+    summary: 'Read Hold Regs',
     tone: 'green',
     warn: false,
     channel: 'COM5',
@@ -109,10 +113,10 @@ const captureFrames = ref([
   {
     id: 'frame-002',
     direction: 'TX',
-    time: '12:41:03.940',
+    time: '14:20:01.5',
     size: 128,
-    note: 'XMODEM 块 #12',
-    summary: 'Payload: 128 bytes',
+    note: '01 03 04 01 F4 02 BC 9B 42',
+    summary: 'Resp: 50.0 / 70.0',
     tone: 'blue',
     warn: false,
     channel: 'COM3',
@@ -121,11 +125,11 @@ const captureFrames = ref([
   {
     id: 'frame-003',
     direction: 'RX',
-    time: '12:41:04.102',
+    time: '14:20:02.8',
     size: 1,
-    note: '重试信号',
-    summary: 'NAK 0x15',
-    tone: 'amber',
+    note: '01 83 02 FF FF',
+    summary: 'EXCEPTION: ILLEGAL_ADDR',
+    tone: 'red',
     warn: true,
     channel: 'COM5',
     baud: '115200',
@@ -133,12 +137,12 @@ const captureFrames = ref([
   {
     id: 'frame-004',
     direction: 'RX',
-    time: '12:41:04.288',
+    time: '14:20:03.2',
     size: 0,
-    note: '超时',
-    summary: 'No response',
-    tone: 'red',
-    warn: true,
+    note: 'Waiting for next frame...',
+    summary: '',
+    tone: 'amber',
+    warn: false,
     channel: 'COM5',
     baud: '115200',
   },
@@ -152,17 +156,7 @@ const filteredFrames = computed(() => {
   return captureFrames.value.filter((frame) => frame.direction === captureFilter.value)
 })
 
-const captureStats = computed(() => {
-  const frames = captureFrames.value
-  const total = frames.length
-  const rx = frames.filter((frame) => frame.direction === 'RX').length
-  const tx = frames.filter((frame) => frame.direction === 'TX').length
-  const errors = frames.filter((frame) => frame.tone === 'red').length
-  return { total, rx, tx, errors }
-})
-
 function openEditModal(proxy) {
-  console.debug('[proxy-monitor] openEditModal', proxy && proxy.id ? proxy.id : proxy)
   modalProxy.value = proxy
   proxyName.value = proxy && proxy.name ? proxy.name : ''
   hostPort.value = proxy && proxy.hostPort ? proxy.hostPort : hostPort.value
@@ -172,22 +166,17 @@ function openEditModal(proxy) {
 }
 
 function openCaptureModal(proxy) {
-  console.debug('[proxy-monitor] openCaptureModal', proxy && proxy.id ? proxy.id : proxy)
   captureProxy.value = proxy
   captureFilter.value = 'all'
   selectedFrame.value = captureFrames.value[0] || null
   captureOpen.value = true
 }
 
-function closeModal(event) {
-  const target = event && event.target ? event.target.tagName || event.target.className : 'unknown'
-  console.debug('[proxy-monitor] closeModal', target, new Error().stack)
+function closeModal() {
   modalOpen.value = false
 }
 
-function closeCaptureModal(event) {
-  const target = event && event.target ? event.target.tagName || event.target.className : 'unknown'
-  console.debug('[proxy-monitor] closeCaptureModal', target, new Error().stack)
+function closeCaptureModal() {
   captureOpen.value = false
 }
 
@@ -198,7 +187,6 @@ function selectFrame(frame) {
 watch(
   () => modalOpen.value,
   (open) => {
-    console.debug('[proxy-monitor] modalOpen changed', open)
     document.body.classList.toggle('proxy-edit-open', open)
   }
 )
@@ -206,7 +194,6 @@ watch(
 watch(
   () => captureOpen.value,
   (open) => {
-    console.debug('[proxy-monitor] captureOpen changed', open)
     document.body.classList.toggle('proxy-modal-open', open)
   }
 )
@@ -223,7 +210,7 @@ onBeforeUnmount(() => {
       <div class="proxy-hero-card">
         <div>
           <h2>代理监控</h2>
-          <p>管理转发链路并实时观察通信流量。</p>
+          <p>管理转发链路并实时监控数据流状态。</p>
         </div>
         <div class="proxy-hero-actions">
           <button class="proxy-hero-btn" type="button">
@@ -275,7 +262,7 @@ onBeforeUnmount(() => {
 
         <div class="proxy-route-card" :class="`status-${proxy.status}`">
           <div class="proxy-route-col">
-            <p>主机端口</p>
+            <p>主机源端口</p>
             <span class="proxy-route-chip proxy-mono">{{ proxy.hostPort }}</span>
           </div>
           <div class="proxy-route-state" :class="proxy.routeTone">
@@ -283,7 +270,7 @@ onBeforeUnmount(() => {
             <span>{{ proxy.routeLabel }}</span>
           </div>
           <div class="proxy-route-col">
-            <p>设备端口</p>
+            <p>设备代理端口</p>
             <span class="proxy-route-chip proxy-mono">{{ proxy.devicePort }}</span>
           </div>
         </div>
@@ -331,21 +318,6 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </article>
-
-      <button class="proxy-panel proxy-panel-add" type="button">
-        <div class="proxy-add-icon">
-          <span class="material-symbols-outlined">add</span>
-        </div>
-        <div class="proxy-add-copy">
-          <h3>添加新转发代理</h3>
-          <p>将物理串口连接到虚拟代理节点。</p>
-        </div>
-        <div class="proxy-add-tags">
-          <span>RS-232</span>
-          <span>RS-485</span>
-          <span>USB-TTY</span>
-        </div>
-      </button>
     </div>
   </section>
 
@@ -363,7 +335,6 @@ onBeforeUnmount(() => {
             <span class="material-symbols-outlined">close</span>
           </button>
         </div>
-
         <div class="proxy-modal-body">
           <div class="proxy-modal-stack">
             <div class="proxy-modal-grid">
@@ -373,14 +344,9 @@ onBeforeUnmount(() => {
               </div>
               <div class="proxy-field">
                 <label>连接模式</label>
-                <DropdownSelect
-                  v-model="connectionMode"
-                  class="proxy-select"
-                  :options="connectionOptions"
-                />
+                <DropdownSelect v-model="connectionMode" class="proxy-select" :options="connectionOptions" />
               </div>
             </div>
-
             <div class="proxy-port-map">
               <div class="proxy-field">
                 <label>
@@ -397,7 +363,6 @@ onBeforeUnmount(() => {
                 <DropdownSelect v-model="devicePort" class="proxy-select" :options="portOptions" />
               </div>
             </div>
-
             <div class="proxy-section">
               <div class="proxy-section-title">
                 <span class="material-symbols-outlined">settings_ethernet</span>
@@ -440,7 +405,6 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-
             <div class="proxy-section proxy-modal-advanced">
               <div class="proxy-section-title muted">
                 <span class="material-symbols-outlined">settings_suggest</span>
@@ -468,175 +432,265 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div v-if="captureOpen" class="proxy-modal-overlay" @mousedown.self="closeCaptureModal">
-      <div class="proxy-modal" @mousedown.stop @click.stop>
-        <div class="proxy-modal-header">
-          <div class="proxy-modal-title">
-            <div class="proxy-modal-icon">
-              <span class="material-symbols-outlined">monitoring</span>
+    <div v-if="captureOpen" class="proxy-modal-overlay proxy-capture" @mousedown.self="closeCaptureModal">
+      <div
+        class="packet-modal w-full max-w-[1600px] h-screen md:h-[96vh] bg-[var(--bg-light)] shadow-2xl md:rounded-xl flex flex-col overflow-hidden border border-slate-200"
+        @mousedown.stop
+        @click.stop
+      >
+        <header class="px-4 py-3 flex items-center justify-between border-b border-slate-200 bg-white">
+          <div class="flex items-center gap-4">
+            <div class="p-1.5 bg-blue-100 rounded text-blue-600">
+              <span class="material-symbols-outlined">analytics</span>
             </div>
             <div>
-              <h2>抓包详情</h2>
-              <p class="proxy-subtitle">{{ captureProxy ? captureProxy.name : '代理会话' }}</p>
+              <h1 class="text-sm font-bold text-slate-900 leading-none">多协议通用报文分析引擎</h1>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                <p class="text-[10px] font-medium text-slate-500">
+                  活动通道: {{ captureProxy ? captureProxy.hostPort : 'Ethernet (TAP)' }} | 引擎状态: 通用动态解析 (Agnostic Engine)
+                </p>
+              </div>
             </div>
           </div>
-          <button class="proxy-modal-close" type="button" @click="closeCaptureModal">
-            <span class="material-symbols-outlined">close</span>
-          </button>
+          <div class="flex items-center gap-3">
+            <div class="flex items-center bg-slate-100 rounded-md px-2 border border-slate-200">
+              <span class="material-symbols-outlined text-slate-400">search</span>
+              <input
+                class="bg-transparent border-none text-xs w-64 lg:w-96 focus:ring-0 text-slate-900 placeholder-slate-500"
+                placeholder="搜索标识、十六进制、协议、原始数据..."
+                type="text"
+              />
+            </div>
+            <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
+            <button class="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition-colors shadow-sm">
+              <span class="material-symbols-outlined !text-sm">play_arrow</span> 继续捕获
+            </button>
+            <button class="p-1.5 hover:bg-slate-100 rounded text-slate-400">
+              <span class="material-symbols-outlined">settings</span>
+            </button>
+          </div>
+        </header>
+
+        <div class="h-1.5 w-full bg-slate-200 relative cursor-pointer group overflow-hidden">
+          <div class="timeline-heatmap h-full w-full opacity-80 group-hover:opacity-100 transition-opacity"></div>
+          <div class="absolute top-0 bottom-0 left-[20%] w-[5%] border-x border-white/50 bg-white/20 shadow-sm pointer-events-none"></div>
         </div>
 
-        <div class="proxy-modal-body">
-          <div class="proxy-modal-stream">
-            <div class="proxy-modal-toolbar">
-              <div class="proxy-modal-toolbar-left">
-                <span>抓包</span>
-                <div class="proxy-modal-toggle">
-                  <button
-                    type="button"
-                    :class="{ active: captureFilter === 'all' }"
-                    @click="captureFilter = 'all'"
+        <main class="flex-1 flex overflow-hidden">
+          <section class="flex-[2] flex flex-col min-w-0 bg-white">
+            <div class="overflow-auto flex-1">
+              <table class="w-full text-left border-separate border-spacing-0">
+                <thead class="sticky top-0 z-10 bg-slate-50 shadow-sm">
+                  <tr class="text-[10px] uppercase tracking-wider font-bold text-slate-500">
+                    <th class="px-3 py-2 border-b border-slate-200 w-16">序号</th>
+                    <th class="px-3 py-2 border-b border-slate-200 w-28">时间戳</th>
+                    <th class="px-3 py-2 border-b border-slate-200 w-12 text-center">方向</th>
+                    <th class="px-3 py-2 border-b border-slate-200 w-32">协议</th>
+                    <th class="px-3 py-2 border-b border-slate-200 w-16">长度</th>
+                    <th class="px-3 py-2 border-b border-slate-200 w-72">原始数据</th>
+                    <th class="px-3 py-2 border-b border-slate-200">摘要 (解析结果/HEX/ASCII)</th>
+                  </tr>
+                </thead>
+                <tbody class="text-xs">
+                  <tr
+                    v-for="(frame, index) in filteredFrames"
+                    :key="frame.id"
+                    class="hover:bg-slate-50 cursor-pointer border-b border-slate-100"
+                    :class="{ 'bg-orange-50/40 border-l-4 border-l-orange-400': frame.tone === 'red' }"
+                    @click="selectFrame(frame)"
                   >
-                    全部
-                  </button>
-                  <button
-                    type="button"
-                    :class="{ active: captureFilter === 'RX' }"
-                    @click="captureFilter = 'RX'"
-                  >
-                    RX
-                  </button>
-                  <button
-                    type="button"
-                    :class="{ active: captureFilter === 'TX' }"
-                    @click="captureFilter = 'TX'"
-                  >
-                    TX
-                  </button>
-                  <button
-                    type="button"
-                    :class="{ active: captureFilter === 'error' }"
-                    @click="captureFilter = 'error'"
-                  >
-                    异常
-                  </button>
-                </div>
-              </div>
-              <div class="proxy-modal-toolbar-right">
-                <span>{{ filteredFrames.length }} 条</span>
-              </div>
+                    <td class="px-3 py-2 text-slate-400 font-mono">{{ 50234 - index }}</td>
+                    <td class="px-3 py-2 text-slate-500 font-mono">{{ frame.time }}</td>
+                    <td class="px-3 py-2 text-center">
+                      <span
+                        class="material-symbols-outlined !text-sm"
+                        :class="frame.direction === 'RX' ? 'text-emerald-500' : 'text-blue-500'"
+                      >
+                        {{ frame.direction === 'RX' ? 'arrow_downward' : 'arrow_upward' }}
+                      </span>
+                    </td>
+                    <td class="px-3 py-2">
+                      <div class="relative inline-block protocol-badge">
+                        <div
+                          class="flex items-center gap-1.5 px-2 py-0.5 rounded-full font-bold text-[9px] border"
+                          :class="
+                            frame.tone === 'red'
+                              ? 'bg-slate-100 text-slate-600 border-dashed border-slate-300'
+                              : 'bg-blue-100 text-blue-800 border-blue-200'
+                          "
+                        >
+                          <span
+                            class="w-3.5 h-3.5 flex items-center justify-center text-white rounded-full text-[8px] font-black"
+                            :class="frame.tone === 'red' ? 'bg-slate-400' : 'bg-blue-600'"
+                          >
+                            {{ frame.tone === 'red' ? '?' : 'M' }}
+                          </span>
+                          <span>{{ frame.tone === 'red' ? 'Unknown' : selectedProtocol }}</span>
+                        </div>
+                        <div class="protocol-tooltip bg-slate-800 text-white text-[10px] px-2 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap border border-slate-700">
+                          {{ frame.tone === 'red' ? '未知协议 - 点击配置' : 'Modbus RTU v1.1' }}
+                        </div>
+                      </div>
+                    </td>
+                    <td class="px-3 py-2 text-slate-500">{{ frame.size }}B</td>
+                    <td class="px-3 py-2 hex-font text-slate-400 truncate max-w-[240px]">{{ frame.note }}</td>
+                    <td class="px-3 py-2 text-slate-600 italic">
+                      {{ frame.summary || 'HEX: ' + frame.note + ' | ASCII: ....' }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
+          </section>
 
-            <div class="proxy-modal-list">
-              <div class="proxy-modal-list-header">
-                <span>方向</span>
-                <span>负载</span>
-                <span>摘要</span>
+          <aside class="flex-1 w-[450px] flex flex-col border-l border-slate-200 bg-slate-50">
+            <div class="px-4 py-3 border-b border-slate-200 flex justify-between items-center bg-white shadow-sm">
+              <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                <span class="material-symbols-outlined !text-sm text-blue-500">info</span> 报文解析详情
+              </h2>
+              <div class="flex gap-2">
+                <button class="p-1 hover:bg-slate-100 rounded" title="复制原始十六进制">
+                  <span class="material-symbols-outlined !text-sm">content_copy</span>
+                </button>
+                <button class="p-1 hover:bg-slate-100 rounded" @click="closeCaptureModal">
+                  <span class="material-symbols-outlined !text-sm">close</span>
+                </button>
               </div>
-              <div
-                v-for="frame in filteredFrames"
-                :key="frame.id"
-                class="proxy-frame"
-                :class="{ error: frame.tone === 'red' }"
-              >
-                <div class="proxy-frame-row" @click="selectFrame(frame)">
-                  <span
-                    class="proxy-chip"
-                    :class="[
-                      frame.tone === 'red'
-                        ? 'tone-red'
-                        : frame.direction === 'RX'
-                        ? 'tone-green'
-                        : frame.tone === 'amber'
-                        ? 'tone-amber'
-                        : 'tone-blue',
-                    ]"
-                    :data-warn="frame.warn"
-                  >
-                    {{ frame.direction }}
-                  </span>
-                  <div class="note">
-                    <div>{{ frame.note }}</div>
-                    <div class="proxy-mono">{{ frame.time }}</div>
+            </div>
+            <div class="flex-1 overflow-y-auto">
+              <div class="p-6 text-center space-y-4 border-b border-slate-200 bg-orange-50/20">
+                <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-100 text-orange-600 mb-1">
+                  <span class="material-symbols-outlined !text-3xl">question_mark</span>
+                </div>
+                <div>
+                  <h3 class="text-sm font-bold text-slate-800">未知协议报文 (Unknown Protocol)</h3>
+                  <p class="text-[11px] text-slate-500 mt-1 max-w-[280px] mx-auto leading-relaxed">
+                    系统未能自动匹配已知的解析插件。您可以尝试手动配置解析规则，或使用万能解析脚本。
+                  </p>
+                </div>
+                <div class="flex justify-center gap-3">
+                  <button class="px-3 py-1.5 bg-white border border-slate-300 rounded text-[11px] font-bold hover:bg-slate-50 transition-colors shadow-sm">手动解析</button>
+                  <button class="px-3 py-1.5 bg-blue-600 text-white rounded text-[11px] font-bold hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-md">
+                    <span class="material-symbols-outlined !text-xs">schema</span> 配置解析规则
+                  </button>
+                </div>
+              </div>
+              <div class="p-4 border-b border-slate-200">
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">原始十六进制 (RAW HEX)</h3>
+                  <span class="text-[10px] font-mono bg-slate-200 px-1.5 py-0.5 rounded text-slate-600">16 字节</span>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-lg overflow-hidden flex shadow-inner">
+                  <div class="bg-slate-50 border-r border-slate-200 p-2 text-[10px] font-mono text-slate-400 leading-6 text-right w-12 shrink-0">
+                    0000<br />0008
                   </div>
-                  <div class="col-summary" :class="{ error: frame.tone === 'red' }">
-                    {{ frame.summary }}
+                  <div class="flex-1 p-2 hex-font text-xs leading-6 grid grid-cols-8 gap-x-1 text-center font-medium">
+                    <span class="text-blue-500 bg-blue-50 rounded">FF</span>
+                    <span class="text-blue-500 bg-blue-50 rounded">EE</span>
+                    <span class="text-slate-400">DD</span>
+                    <span class="text-emerald-500 font-bold bg-emerald-50 rounded">CC</span>
+                    <span class="text-emerald-500 font-bold bg-emerald-50 rounded">00</span>
+                    <span class="text-amber-500 font-bold bg-amber-50 rounded">11</span>
+                    <span class="text-amber-500 font-bold bg-amber-50 rounded">22</span>
+                    <span class="text-slate-400">33</span>
+                    <span class="text-slate-400">44</span>
+                    <span class="text-slate-400">55</span>
+                    <span class="text-slate-400">66</span>
+                    <span class="text-slate-400">77</span>
+                    <span class="text-slate-400">88</span>
+                    <span class="text-slate-400">99</span>
+                    <span class="text-slate-400">AA</span>
+                    <span class="text-slate-400">BB</span>
+                  </div>
+                  <div class="border-l border-slate-200 p-2 text-[10px] font-mono text-slate-500 leading-6 tracking-tight w-24 shrink-0 bg-slate-50/50">
+                    ........<br />........
                   </div>
                 </div>
-                <div v-if="selectedFrame && selectedFrame.id === frame.id" class="proxy-frame-detail">
-                  <div class="proxy-detail-row">
-                    <span>大小</span>
-                    <strong class="proxy-mono">{{ frame.size }} bytes</strong>
+              </div>
+              <div class="p-4 space-y-4">
+                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">协议层级解析 (PROTOCOL TREE)</h3>
+                <div class="relative pl-4 space-y-1">
+                  <div class="flex items-center gap-2 -ml-4 cursor-pointer hover:bg-slate-100 p-1 rounded transition-colors group">
+                    <span class="material-symbols-outlined text-slate-400 group-open:rotate-90">arrow_right</span>
+                    <span class="text-[11px] font-bold text-slate-500 uppercase">链路层 (Data Link Layer)</span>
                   </div>
-                  <div class="proxy-detail-row">
-                    <span>通道</span>
-                    <strong class="proxy-mono">{{ frame.channel }}</strong>
-                  </div>
-                  <div class="proxy-detail-row">
-                    <span>波特率</span>
-                    <strong class="proxy-mono">{{ frame.baud }}</strong>
-                  </div>
-                  <div class="proxy-detail-row">
-                    <span>状态</span>
-                    <strong
-                      class="proxy-mono"
-                      :class="frame.tone === 'red' ? 'tone-red' : frame.tone === 'amber' ? 'tone-amber' : 'tone-green'"
-                    >
-                      {{ frame.tone === 'red' ? '错误' : frame.tone === 'amber' ? '警告' : '正常' }}
-                    </strong>
+                  <div class="tree-line relative pl-2 space-y-1">
+                    <details class="group" open>
+                      <summary class="flex items-center gap-2 list-none cursor-pointer hover:bg-slate-100 p-1 rounded -ml-4 transition-colors">
+                        <span class="material-symbols-outlined text-blue-500 group-open:rotate-90 transition-transform">arrow_drop_down</span>
+                        <span class="text-[11px] font-bold text-slate-800 uppercase">Agnostic Data Frame</span>
+                      </summary>
+                      <div class="mt-2 space-y-0.5 pl-2">
+                        <div class="grid grid-cols-12 text-[9px] font-bold text-slate-400 px-2 py-1 uppercase tracking-tighter">
+                          <div class="col-span-3">原始值</div>
+                          <div class="col-span-4">字段</div>
+                          <div class="col-span-5 text-right">解析值</div>
+                        </div>
+                        <div class="grid grid-cols-12 items-center py-1.5 px-2 rounded hover:bg-blue-50 cursor-default transition-colors border-l-2 border-transparent hover:border-blue-500">
+                          <div class="col-span-3 font-mono text-[11px] text-blue-600">FF EE</div>
+                          <div class="col-span-4 text-[11px] text-slate-500">报文标识 (Header)</div>
+                          <div class="col-span-5 text-[11px] text-right font-bold text-slate-700">65518</div>
+                        </div>
+                        <div class="grid grid-cols-12 items-center py-1.5 px-2 rounded hover:bg-blue-50 cursor-default transition-colors border-l-2 border-transparent hover:border-blue-500">
+                          <div class="col-span-3 font-mono text-[11px] text-blue-600">10</div>
+                          <div class="col-span-4 text-[11px] text-slate-500">数据长度 (Len)</div>
+                          <div class="col-span-5 text-[11px] text-right font-bold text-primary">16 Bytes</div>
+                        </div>
+                      </div>
+                    </details>
                   </div>
                 </div>
               </div>
             </div>
-
-            <div class="proxy-modal-footer">
-              <button class="proxy-btn ghost" type="button">清空</button>
-              <div class="proxy-footer-actions">
-                <button class="proxy-btn warning" type="button">暂停</button>
-                <button class="proxy-btn primary" type="button">导出</button>
-              </div>
-            </div>
-          </div>
-
-          <aside class="proxy-modal-side">
-            <div>
-              <h4>会话统计</h4>
-              <div class="proxy-stat-card">
-                <span>总帧数</span>
-                <div class="proxy-stat-value">
-                  <strong>{{ captureStats.total }}</strong>
-                  <em>实时</em>
+            <div class="p-4 bg-slate-100/50 border-t border-slate-200">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">实时网络指标</p>
+              <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white p-2 rounded border border-slate-200 shadow-sm">
+                  <p class="text-[9px] text-slate-500">往返延时 (RTT)</p>
+                  <p class="text-sm font-bold text-emerald-500">4.2 ms</p>
                 </div>
-                <div class="proxy-stat-bar"></div>
-              </div>
-              <div class="proxy-stat-card">
-                <span>异常</span>
-                <div class="proxy-stat-value">
-                  <strong class="danger">{{ captureStats.errors }}</strong>
-                  <em>告警</em>
+                <div class="bg-white p-2 rounded border border-slate-200 shadow-sm">
+                  <p class="text-[9px] text-slate-500">丢包率 (Packet Loss)</p>
+                  <p class="text-sm font-bold text-slate-900">0.02 %</p>
                 </div>
-                <div class="proxy-stat-bar"></div>
               </div>
-            </div>
-            <div class="proxy-side-block">
-              <h5>方向</h5>
-              <label>
-                <input type="checkbox" checked />
-                RX 帧 {{ captureStats.rx }}
-              </label>
-              <label>
-                <input type="checkbox" checked />
-                TX 帧 {{ captureStats.tx }}
-              </label>
-            </div>
-            <div class="proxy-side-tip">
-              <div class="proxy-side-tip-title">
-                <span class="material-symbols-outlined">tips_and_updates</span>
-                提示
-              </div>
-              当前为演示数据，可接入 bridge 事件展示真实帧。
             </div>
           </aside>
-        </div>
+        </main>
+        <footer class="px-4 py-2 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+          <div class="flex items-center gap-6">
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-bold text-slate-500 uppercase">接收缓冲区</span>
+              <div class="w-32 h-2 bg-slate-200 rounded-full overflow-hidden border border-slate-300">
+                <div class="h-full bg-amber-500 w-[85%]"></div>
+              </div>
+              <span class="text-[10px] font-mono font-bold text-slate-600">85%</span>
+            </div>
+            <div class="h-4 w-[1px] bg-slate-300"></div>
+            <p class="text-[10px] font-medium text-slate-500 uppercase">显示 1-50 / 共 50,234 报文</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-1 bg-white p-0.5 rounded border border-slate-200">
+              <button class="p-1 hover:bg-slate-100 rounded" disabled>
+                <span class="material-symbols-outlined !text-sm">first_page</span>
+              </button>
+              <button class="p-1 hover:bg-slate-100 rounded">
+                <span class="material-symbols-outlined !text-sm">chevron_left</span>
+              </button>
+              <div class="px-3 text-[10px] font-bold text-slate-700">第 1 / 1005 页</div>
+              <button class="p-1 hover:bg-slate-100 rounded">
+                <span class="material-symbols-outlined !text-sm">chevron_right</span>
+              </button>
+              <button class="p-1 hover:bg-slate-100 rounded">
+                <span class="material-symbols-outlined !text-sm">last_page</span>
+              </button>
+            </div>
+            <button class="flex items-center gap-1 px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[10px] font-bold transition-colors">
+              <span class="material-symbols-outlined !text-sm">download</span> 导出分析结果
+            </button>
+          </div>
+        </footer>
       </div>
     </div>
   </teleport>
