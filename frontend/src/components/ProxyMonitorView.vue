@@ -13,6 +13,8 @@ const modalOpen = ref(false)
 const modalProxy = ref(null)
 const modalMode = ref('edit')
 const captureOpen = ref(false)
+const confirmOpen = ref(false)
+const confirmProxy = ref(null)
 const captureProxy = ref(null)
 const captureFilter = ref('all')
 const captureView = ref('parsed')
@@ -521,8 +523,22 @@ function saveProxy() {
 
 function confirmDeleteProxy(proxy) {
   if (!proxy) return
-  const ok = window.confirm(`确认删除转发对「${proxy.name}」吗？删除前将停止转发。`)
-  if (!ok) return
+  confirmProxy.value = proxy
+  confirmOpen.value = true
+}
+
+onMounted(() => {
+  loadProxyPairs()
+})
+
+function closeConfirm() {
+  confirmOpen.value = false
+  confirmProxy.value = null
+}
+
+function applyConfirmDelete() {
+  const proxy = confirmProxy.value
+  if (!proxy) return
   setProxyStatus(proxy, false)
   if (bridge && bridge.value && bridge.value.delete_proxy_pair) {
     withBridgeResult(bridge.value.delete_proxy_pair(proxy.id), (success) => {
@@ -530,14 +546,11 @@ function confirmDeleteProxy(proxy) {
         proxies.value = proxies.value.filter((item) => item.id !== proxy.id)
       }
     })
-    return
+  } else {
+    proxies.value = proxies.value.filter((item) => item.id !== proxy.id)
   }
-  proxies.value = proxies.value.filter((item) => item.id !== proxy.id)
+  closeConfirm()
 }
-
-onMounted(() => {
-  loadProxyPairs()
-})
 
 watch(
   () => modalOpen.value,
@@ -1056,6 +1069,34 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </footer>
+      </div>
+    </div>
+
+    <div v-if="confirmOpen" class="proxy-modal-overlay" @mousedown.self="closeConfirm">
+      <div class="proxy-modal proxy-confirm-modal" @mousedown.stop @click.stop>
+        <div class="proxy-modal-header">
+          <div class="proxy-modal-title">
+            <div class="proxy-modal-icon">
+              <span class="material-symbols-outlined">warning</span>
+            </div>
+            <h2>确认删除</h2>
+          </div>
+          <button class="proxy-modal-close" type="button" @click="closeConfirm">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="proxy-modal-body">
+          <p class="proxy-confirm-text">
+            确认删除转发对「{{ confirmProxy?.name || '未命名转发对' }}」吗？删除前将停止转发。
+          </p>
+        </div>
+        <div class="proxy-modal-footer">
+          <div></div>
+          <div class="proxy-footer-actions">
+            <button class="proxy-btn ghost" type="button" @click="closeConfirm">取消</button>
+            <button class="proxy-btn warning" type="button" @click="applyConfirmDelete">确认删除</button>
+          </div>
+        </div>
       </div>
     </div>
   </teleport>
