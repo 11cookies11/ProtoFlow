@@ -2290,86 +2290,88 @@ function unlockSidebarWidth() {
           </div>
         </div>
 
-      <div <div v-if="protocolDialogOpen" class="modal-backdrop" @mousedown.self="closeProtocolDialog">
-        <div class="channel-modal" @mousedown.stop @click.stop>
-          <div class="modal-header">
-            <div>
-              <h3>{{ protocolDialogMode === 'create' ? '新建协议' : protocolDialogMode === 'edit' ? '配置协议' : '协议详情' }}</h3>
-              <p>{{ protocolDialogMode === 'create' ? '添加自定义协议元数据，供解析引擎识别。' : '查看或更新协议描述与分类。' }}</p>
+      <teleport to="body">
+        <div v-if="protocolDialogOpen" class="modal-backdrop" @mousedown.self="closeProtocolDialog">
+          <div class="channel-modal protocol-modal" @mousedown.stop @click.stop>
+            <div class="modal-header">
+              <div>
+                <h3>{{ protocolDialogMode === 'create' ? '新建协议' : protocolDialogMode === 'edit' ? '配置协议' : '协议详情' }}</h3>
+                <p>{{ protocolDialogMode === 'create' ? '添加自定义协议元数据，供解析引擎识别。' : '查看或更新协议描述与分类。' }}</p>
+              </div>
+              <button class="icon-btn" type="button" @click="closeProtocolDialog">
+                <span class="material-symbols-outlined">close</span>
+              </button>
             </div>
-            <button class="icon-btn" type="button" @click="closeProtocolDialog">
-              <span class="material-symbols-outlined">close</span>
-            </button>
-          </div>
-          <div class="modal-body">
-            <div class="form-grid">
-              <label>
-                协议名称
-                <input v-model="protocolDraft.name" type="text" :disabled="protocolDialogMode === 'view'" />
-              </label>
-              <label>
-                键名
-                <input v-model="protocolDraft.key" type="text" :disabled="protocolDialogMode !== 'create'" />
-              </label>
-            </div>
-            <div class="form-grid">
-              <label>
-                分类
-                <select v-model="protocolDraft.category" :disabled="protocolDialogMode === 'view'">
-                  <option value="modbus">Modbus</option>
-                  <option value="tcp">TCP/IP</option>
-                  <option value="custom">自定义</option>
-                </select>
-              </label>
-              <label>
-                状态
-                <select v-model="protocolDraft.status" :disabled="protocolDialogMode === 'view'">
-                  <option value="available">可用</option>
-                  <option value="custom">自定义</option>
-                  <option value="disabled">已禁用</option>
-                </select>
-              </label>
-            </div>
-            <label>
-              描述
-              <textarea v-model="protocolDraft.desc" rows="3" :disabled="protocolDialogMode === 'view'"></textarea>
-            </label>
-            <div class="modal-section" v-if="protocolEditing && protocolEditing.driver">
-              <div class="section-title">驱动</div>
-              <div class="form-grid">
+            <div class="modal-body protocol-modal-body">
+              <div class="form-grid protocol-grid">
                 <label>
-                  驱动类
-                  <input :value="protocolEditing.driver" type="text" disabled />
+                  协议名称
+                  <input v-model="protocolDraft.name" type="text" :disabled="protocolDialogMode === 'view'" />
+                </label>
+                <label>
+                  键名
+                  <input v-model="protocolDraft.key" type="text" :disabled="protocolDialogMode !== 'create'" />
                 </label>
               </div>
+              <div class="form-grid protocol-grid">
+                <label>
+                  分类
+                  <select v-model="protocolDraft.category" :disabled="protocolDialogMode === 'view'">
+                    <option value="modbus">Modbus</option>
+                    <option value="tcp">TCP/IP</option>
+                    <option value="custom">自定义</option>
+                  </select>
+                </label>
+                <label>
+                  状态
+                  <select v-model="protocolDraft.status" :disabled="protocolDialogMode === 'view'">
+                    <option value="available">可用</option>
+                    <option value="custom">自定义</option>
+                    <option value="disabled">已禁用</option>
+                  </select>
+                </label>
+              </div>
+              <label class="protocol-textarea">
+                描述
+                <textarea v-model="protocolDraft.desc" rows="3" :disabled="protocolDialogMode === 'view'"></textarea>
+              </label>
+              <div class="modal-section protocol-driver" v-if="protocolEditing && protocolEditing.driver">
+                <div class="section-title">驱动</div>
+                <div class="form-grid protocol-grid">
+                  <label>
+                    驱动类
+                    <input :value="protocolEditing.driver" type="text" disabled />
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-outline" type="button" @click="closeProtocolDialog">取消</button>
+              <button v-if="protocolDialogMode !== 'view'" class="btn btn-primary" type="button" @click="saveProtocol">保存</button>
             </div>
           </div>
-          <div class="modal-footer">
-            <button class="btn btn-outline" type="button" @click="closeProtocolDialog">取消</button>
-            <button v-if="protocolDialogMode !== 'view'" class="btn btn-primary" type="button" @click="saveProtocol">保存</button>
-          </div>
         </div>
-      </div>
 
-      <div v-if="protocolDeleteOpen" class="modal-backdrop" @mousedown.self="closeProtocolDelete">
-        <div class="quick-modal quick-modal-sm" @mousedown.stop @click.stop>
-          <div class="modal-header">
-            <div>
-              <h3>删除协议</h3>
-              <p>确认删除自定义协议“{{ protocolDeleting?.name }}”吗？</p>
+        <div v-if="protocolDeleteOpen" class="modal-backdrop" @mousedown.self="closeProtocolDelete">
+          <div class="quick-modal quick-modal-sm" @mousedown.stop @click.stop>
+            <div class="modal-header">
+              <div>
+                <h3>删除协议</h3>
+                <p>确认删除自定义协议“{{ protocolDeleting?.name }}”吗？</p>
+              </div>
+              <button class="icon-btn" type="button" @click="closeProtocolDelete">
+                <span class="material-symbols-outlined">close</span>
+              </button>
             </div>
-            <button class="icon-btn" type="button" @click="closeProtocolDelete">
-              <span class="material-symbols-outlined">close</span>
-            </button>
-          </div>
-          <div class="modal-footer">
-            <button class="btn btn-outline" type="button" @click="closeProtocolDelete">取消</button>
-            <button class="btn btn-danger" type="button" @click="confirmProtocolDelete">确认删除</button>
+            <div class="modal-footer">
+              <button class="btn btn-outline" type="button" @click="closeProtocolDelete">取消</button>
+              <button class="btn btn-danger" type="button" @click="confirmProtocolDelete">确认删除</button>
+            </div>
           </div>
         </div>
-      </div>
+      </teleport>
 
-      </main>
+</main>
     </div>
 
     <div v-if="snapPreview" class="snap-overlay" :class="`snap-${snapPreview}`"></div>
