@@ -108,6 +108,19 @@ const settingsSnapshot = ref(null)
 const settingsTab = ref('general')
 const channelTab = ref('all')
 const protocolTab = ref('all')
+const protocolDialogOpen = ref(false)
+const protocolDialogMode = ref('create')
+const protocolEditing = ref(null)
+const protocolDeleteOpen = ref(false)
+const protocolDeleting = ref(null)
+const protocolDraft = ref({
+  id: '',
+  key: '',
+  name: '',
+  desc: '',
+  category: 'custom',
+  status: 'custom',
+})
 const settingsGeneralRef = ref(null)
 const settingsPluginsRef = ref(null)
 const settingsRuntimeRef = ref(null)
@@ -935,21 +948,41 @@ function prettyProtocolName(key, fallback) {
   return parts.join(" ")
 }
 
+function protocolStatusInfo(status) {
+  if (status === "available") {
+    return { text: "可用", className: "badge-green" }
+  }
+  if (status === "custom") {
+    return { text: "自定义", className: "badge-blue" }
+  }
+  if (status === "disabled") {
+    return { text: "已禁用", className: "badge-gray" }
+  }
+  return { text: status || "未知", className: "badge-gray" }
+}
+
 function setProtocols(items) {
   const list = Array.isArray(items) ? items : []
   protocolCards.value = list.map((item) => {
     const key = String(item.key || item.id || "")
-    const driver = String(item.driver || item.name || "")
+    const driver = String(item.driver || "")
+    const name = String(item.name || "")
     const category = String(item.category || protocolCategory(key))
     const status = String(item.status || "available")
-    const desc = String(item.desc || "暂无描述")
+    const source = String(item.source || "builtin")
+    const desc = String(item.desc || "")
+    const statusInfo = protocolStatusInfo(status)
     return {
       id: key || driver || Math.random().toString(36).slice(2),
-      name: prettyProtocolName(key, driver),
+      key,
+      name: name || prettyProtocolName(key, driver),
+      driver,
       category,
       desc,
-      statusText: status === "available" ? "可用" : status,
-      statusClass: status === "available" ? "badge-green" : "badge-gray",
+      statusText: statusInfo.text,
+      statusClass: statusInfo.className,
+      status,
+      source,
       rows: [
         { label: "键名", value: key || "--" },
         { label: "驱动", value: driver || "--" },
@@ -963,6 +996,98 @@ function refreshProtocols() {
   if (!bridge.value || !bridge.value.list_protocols) return
   withResult(bridge.value.list_protocols(), (items) => {
     setProtocols(items)
+  })
+}
+
+function resetProtocolDraft() {
+  protocolDraft.value = {
+    id: "",
+    key: "",
+    name: "",
+    desc: "",
+    category: "custom",
+    status: "custom",
+  }
+}
+
+function openCreateProtocol() {
+  protocolDialogMode.value = "create"
+  protocolEditing.value = null
+  resetProtocolDraft()
+  protocolDialogOpen.value = true
+}
+
+function openProtocolDetails(card) {
+  if (!card) return
+  protocolEditing.value = card
+  protocolDialogMode.value = card.source === "custom" ? "edit" : "view"
+  protocolDraft.value = {
+    id: card.id || "",
+    key: card.key || "",
+    name: card.name || "",
+    desc: card.desc || "",
+    category: card.category || "custom",
+    status: card.status || "available",
+  }
+  protocolDialogOpen.value = true
+}
+
+function closeProtocolDialog() {
+  protocolDialogOpen.value = false
+}
+
+function saveProtocol() {
+  if (!bridge.value) {
+    protocolDialogOpen.value = false
+    return
+  }
+  const payload = {
+    id: protocolDraft.value.id,
+    key: protocolDraft.value.key,
+    name: protocolDraft.value.name,
+    desc: protocolDraft.value.desc,
+    category: protocolDraft.value.category,
+    status: protocolDraft.value.status,
+  }
+  if (protocolDialogMode.value === "create") {
+    if (!bridge.value.create_protocol) return
+    withResult(bridge.value.create_protocol(payload), () => {
+      refreshProtocols()
+      protocolDialogOpen.value = false
+    })
+    return
+  }
+  if (protocolDialogMode.value === "edit") {
+    if (!bridge.value.update_protocol) return
+    withResult(bridge.value.update_protocol(payload), () => {
+      refreshProtocols()
+      protocolDialogOpen.value = false
+    })
+    return
+  }
+  protocolDialogOpen.value = false
+}
+
+function openProtocolDelete(card) {
+  if (!card || card.source !== "custom") return
+  protocolDeleting.value = card
+  protocolDeleteOpen.value = true
+}
+
+function closeProtocolDelete() {
+  protocolDeleteOpen.value = false
+  protocolDeleting.value = null
+}
+
+function confirmProtocolDelete() {
+  if (!bridge.value || !bridge.value.delete_protocol || !protocolDeleting.value) {
+    closeProtocolDelete()
+    return
+  }
+  const id = protocolDeleting.value.id
+  withResult(bridge.value.delete_protocol(id), () => {
+    refreshProtocols()
+    closeProtocolDelete()
   })
 }
 
@@ -1403,7 +1528,7 @@ watch(
 )
 
 watch(
-  () => channelDialogOpen.value || quickDialogOpen.value || quickDeleteOpen.value,
+  () => channelDialogOpen.value || quickDialogOpen.value || quickDeleteOpen.value || protocolDialogOpen.value || protocolDeleteOpen.value,
   (open) => {
     document.body.classList.toggle('modal-open', open)
   }
@@ -1861,7 +1986,7 @@ function unlockSidebarWidth() {
                 <span class="material-symbols-outlined">refresh</span>
                 刷新
               </button>
-              <button class="btn btn-primary">
+              <button class="btn btn-primary" @click="openCreateProtocol">
                 <span class="material-symbols-outlined">add</span>
                 新建协议
               </button>
@@ -1878,7 +2003,7 @@ function unlockSidebarWidth() {
               <div class="protocol-header">
                 <div>
                   <div class="protocol-title">{{ card.name }}</div>
-                  <div class="protocol-sub">{{ card.desc }}</div>
+                  <div class="protocol-sub">{{ card.desc || '暂无描述' }}</div>
                 </div>
                 <span class="badge" :class="card.statusClass">{{ card.statusText }}</span>
               </div>
@@ -1889,23 +2014,29 @@ function unlockSidebarWidth() {
                 </div>
               </div>
               <div class="protocol-actions">
-                <button class="btn btn-ghost">配置</button>
-                <button class="icon-btn">
-                  <span class="material-symbols-outlined">more_horiz</span>
+                <button class="btn btn-ghost" @click="openProtocolDetails(card)">
+                  {{ card.source === 'custom' ? '配置' : '查看' }}
+                </button>
+                <button v-if="card.source === 'custom'" class="icon-btn" @click="openProtocolDelete(card)">
+                  <span class="material-symbols-outlined">delete</span>
                 </button>
               </div>
             </div>
             <div v-if="filteredProtocolCards.length === 0" class="protocol-card empty">
               <div class="empty-icon">
-                <span class="material-symbols-outlined">add</span>
+                <span class="material-symbols-outlined">inventory_2</span>
               </div>
-              <h3>从模板创建</h3>
-              <p>使用预设的 Modbus、MQTT 或 TCP 模板快速开始。</p>
+              <h3>暂无协议</h3>
+              <p>暂无可用协议，可从内置模板创建或新增自定义协议。</p>
+              <button class="btn btn-primary" @click="openCreateProtocol">
+                <span class="material-symbols-outlined">add</span>
+                新建协议
+              </button>
             </div>
           </div>
         </section>
 
-        <section v-else class="page">
+<section v-else class="page">
           <header class="page-header spaced">
             <div>
               <h2>应用设置</h2>
@@ -2158,6 +2289,86 @@ function unlockSidebarWidth() {
             </div>
           </div>
         </div>
+
+      <div <div v-if="protocolDialogOpen" class="modal-backdrop" @mousedown.self="closeProtocolDialog">
+        <div class="channel-modal" @mousedown.stop @click.stop>
+          <div class="modal-header">
+            <div>
+              <h3>{{ protocolDialogMode === 'create' ? '新建协议' : protocolDialogMode === 'edit' ? '配置协议' : '协议详情' }}</h3>
+              <p>{{ protocolDialogMode === 'create' ? '添加自定义协议元数据，供解析引擎识别。' : '查看或更新协议描述与分类。' }}</p>
+            </div>
+            <button class="icon-btn" type="button" @click="closeProtocolDialog">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-grid">
+              <label>
+                协议名称
+                <input v-model="protocolDraft.name" type="text" :disabled="protocolDialogMode === 'view'" />
+              </label>
+              <label>
+                键名
+                <input v-model="protocolDraft.key" type="text" :disabled="protocolDialogMode !== 'create'" />
+              </label>
+            </div>
+            <div class="form-grid">
+              <label>
+                分类
+                <select v-model="protocolDraft.category" :disabled="protocolDialogMode === 'view'">
+                  <option value="modbus">Modbus</option>
+                  <option value="tcp">TCP/IP</option>
+                  <option value="custom">自定义</option>
+                </select>
+              </label>
+              <label>
+                状态
+                <select v-model="protocolDraft.status" :disabled="protocolDialogMode === 'view'">
+                  <option value="available">可用</option>
+                  <option value="custom">自定义</option>
+                  <option value="disabled">已禁用</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              描述
+              <textarea v-model="protocolDraft.desc" rows="3" :disabled="protocolDialogMode === 'view'"></textarea>
+            </label>
+            <div class="modal-section" v-if="protocolEditing && protocolEditing.driver">
+              <div class="section-title">驱动</div>
+              <div class="form-grid">
+                <label>
+                  驱动类
+                  <input :value="protocolEditing.driver" type="text" disabled />
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-outline" type="button" @click="closeProtocolDialog">取消</button>
+            <button v-if="protocolDialogMode !== 'view'" class="btn btn-primary" type="button" @click="saveProtocol">保存</button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="protocolDeleteOpen" class="modal-backdrop" @mousedown.self="closeProtocolDelete">
+        <div class="quick-modal quick-modal-sm" @mousedown.stop @click.stop>
+          <div class="modal-header">
+            <div>
+              <h3>删除协议</h3>
+              <p>确认删除自定义协议“{{ protocolDeleting?.name }}”吗？</p>
+            </div>
+            <button class="icon-btn" type="button" @click="closeProtocolDelete">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-outline" type="button" @click="closeProtocolDelete">取消</button>
+            <button class="btn btn-danger" type="button" @click="confirmProtocolDelete">确认删除</button>
+          </div>
+        </div>
+      </div>
+
       </main>
     </div>
 

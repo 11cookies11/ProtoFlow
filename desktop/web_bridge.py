@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import json
 import pkgutil
+import re
 import threading
 import time
 from pathlib import Path
@@ -50,7 +51,9 @@ class WebBridge(QObject):
         self._settings_root = Path(os.environ.get("LOCALAPPDATA", Path.cwd())) / "ProtoFlow"
         self._settings_path = self._settings_root / "config" / "ui_settings.json"
         self._proxy_pairs_path = self._settings_root / "config" / "proxy_pairs.json"
+        self._protocols_path = self._settings_root / "config" / "protocols.json"
         self._proxy_pairs: List[Dict[str, Any]] = self._load_proxy_pairs()
+        self._custom_protocols: List[Dict[str, Any]] = self._load_custom_protocols()
         self._channel_state: Dict[str, Any] = {
             "type": None,
             "status": "disconnected",
@@ -116,9 +119,86 @@ class WebBridge(QObject):
                     "desc": desc,
                     "category": category,
                     "status": "available",
+                    "source": "builtin",
                 }
             )
+        existing = {item.get("id") for item in items}
+        for custom in self._custom_protocols:
+            if not isinstance(custom, dict):
+                continue
+            custom_id = custom.get("id") or custom.get("key")
+            if not custom_id or custom_id in existing:
+                continue
+            merged = {
+                "id": custom_id,
+                "key": custom.get("key") or custom_id,
+                "name": custom.get("name") or "",
+                "driver": custom.get("driver") or "",
+                "desc": custom.get("desc") or "",
+                "category": custom.get("category") or "custom",
+                "status": custom.get("status") or "custom",
+                "source": "custom",
+            }
+            items.append(merged)
         return items
+
+    @Slot("QVariant", result="QVariant")
+    def create_protocol(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(payload, dict):
+            return {}
+        self._load_protocols()
+        raw_key = payload.get("key") or payload.get("id") or payload.get("name") or "custom_protocol"
+        key = self._normalize_protocol_key(str(raw_key))
+        key = self._ensure_protocol_key_unique(key)
+        item = {
+            "id": key,
+            "key": key,
+            "name": payload.get("name") or key,
+            "desc": payload.get("desc") or "",
+            "category": payload.get("category") or "custom",
+            "status": payload.get("status") or "custom",
+            "driver": payload.get("driver") or "",
+        }
+        self._custom_protocols.append(item)
+        self._save_custom_protocols()
+        return item
+
+    @Slot("QVariant", result="QVariant")
+    def update_protocol(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(payload, dict):
+            return {}
+        protocol_id = payload.get("id") or payload.get("key")
+        if not protocol_id:
+            return {}
+        updated: Dict[str, Any] = {}
+        for item in self._custom_protocols:
+            if item.get("id") == protocol_id or item.get("key") == protocol_id:
+                item["name"] = payload.get("name") or item.get("name") or item.get("key") or ""
+                item["desc"] = payload.get("desc") or ""
+                item["category"] = payload.get("category") or item.get("category") or "custom"
+                item["status"] = payload.get("status") or item.get("status") or "custom"
+                if payload.get("driver"):
+                    item["driver"] = payload.get("driver")
+                updated = dict(item)
+                break
+        if updated:
+            self._save_custom_protocols()
+        return updated
+
+    @Slot(str, result=bool)
+    def delete_protocol(self, protocol_id: str) -> bool:
+        if not protocol_id:
+            return False
+        before = len(self._custom_protocols)
+        self._custom_protocols = [
+            item
+            for item in self._custom_protocols
+            if item.get("id") != protocol_id and item.get("key") != protocol_id
+        ]
+        if len(self._custom_protocols) == before:
+            return False
+        self._save_custom_protocols()
+        return True
 
     @Slot(result="QVariant")
     def load_settings(self) -> Dict[str, Any]:
@@ -660,6 +740,47 @@ class WebBridge(QObject):
                 json.dump(self._proxy_pairs, handle, ensure_ascii=False, indent=2)
         except Exception as exc:
             self.log.emit(f"[WARN] Save proxy pairs failed: {exc}")
+
+    def _load_custom_protocols(self) -> List[Dict[str, Any]]:
+        if not self._protocols_path.exists():
+            return []
+        try:
+            with self._protocols_path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle) or []
+        except Exception:
+            return []
+        if not isinstance(data, list):
+            return []
+        items = [item for item in data if isinstance(item, dict)]
+        return items
+
+    def _save_custom_protocols(self) -> None:
+        try:
+            self._protocols_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._protocols_path.open("w", encoding="utf-8") as handle:
+                json.dump(self._custom_protocols, handle, ensure_ascii=False, indent=2)
+        except Exception as exc:
+            self.log.emit(f"[WARN] Save protocols failed: {exc}")
+
+    def _normalize_protocol_key(self, value: str) -> str:
+        value = value.strip().lower().replace(" ", "_")
+        value = re.sub(r"[^a-z0-9_]+", "_", value)
+        value = re.sub(r"_+", "_", value).strip("_")
+        return value or "custom_protocol"
+
+    def _ensure_protocol_key_unique(self, key: str) -> str:
+        registry_keys = set(ProtocolRegistry.list().keys())
+        existing = {item.get("id") for item in self._custom_protocols if isinstance(item, dict)}
+        existing.update({item.get("key") for item in self._custom_protocols if isinstance(item, dict)})
+        existing.update(registry_keys)
+        if key not in existing:
+            return key
+        index = 2
+        candidate = f"{key}_{index}"
+        while candidate in existing:
+            index += 1
+            candidate = f"{key}_{index}"
+        return candidate
 
     def _append_buffer(self, item: Dict[str, Any]) -> None:
         self._buffer.append(item)
