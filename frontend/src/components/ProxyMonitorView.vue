@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import DropdownSelect from './DropdownSelect.vue'
 
 const filterTabs = [
-  { id: 'all', label: '全部转发' },
+  { id: 'all', label: '全部' },
   { id: 'running', label: '运行中' },
   { id: 'stopped', label: '已停止' },
   { id: 'error', label: '异常' },
@@ -11,17 +11,22 @@ const filterTabs = [
 const activeFilter = ref(filterTabs[0].id)
 const modalOpen = ref(false)
 const modalProxy = ref(null)
+const captureOpen = ref(false)
+const captureProxy = ref(null)
+const captureFilter = ref('all')
+const selectedFrame = ref(null)
+
 const proxyName = ref('')
 const connectionMode = ref('透传模式')
 const hostPort = ref('COM3')
 const devicePort = ref('COM5')
 const baudRate = ref('115200')
-const parity = ref('None (无)')
+const parity = ref('无')
 
-const connectionOptions = ['透传模式', '协议转换', '映射模式']
+const connectionOptions = ['透传模式', '协议桥接', '映射模式']
 const portOptions = ['COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM10', 'COM12']
 const baudOptions = ['4800', '9600', '19200', '38400', '57600', '115200']
-const parityOptions = ['None (无)', 'Even (偶)', 'Odd (奇)', 'Mark', 'Space']
+const parityOptions = ['无', '偶校验', '奇校验', 'Mark', 'Space']
 
 const proxies = ref([
   {
@@ -45,13 +50,13 @@ const proxies = ref([
   },
   {
     id: 'proxy-com7',
-    name: '电机反馈集线器',
+    name: '电机反馈转发器',
     meta: 'ID: PX-00992 · 8-E-1',
     status: 'stopped',
     statusLabel: '已停止',
     statusIcon: 'pause_circle',
     routeIcon: 'more_horiz',
-    routeLabel: '离线',
+    routeLabel: '空闲',
     routeTone: 'muted',
     hostPort: 'COM7',
     devicePort: 'COM10',
@@ -64,7 +69,7 @@ const proxies = ref([
   },
   {
     id: 'proxy-com1',
-    name: 'GPS 模块数据流',
+    name: 'GPS 数据流',
     meta: 'ID: PX-00219 · 7-N-2',
     status: 'error',
     statusLabel: '异常',
@@ -88,6 +93,74 @@ const filteredProxies = computed(() => {
   return proxies.value.filter((proxy) => proxy.status === activeFilter.value)
 })
 
+const captureFrames = ref([
+  {
+    id: 'frame-001',
+    direction: 'RX',
+    time: '12:41:03.482',
+    size: 64,
+    note: '握手：READY',
+    summary: 'ACK 0x06',
+    tone: 'green',
+    warn: false,
+    channel: 'COM5',
+    baud: '115200',
+  },
+  {
+    id: 'frame-002',
+    direction: 'TX',
+    time: '12:41:03.940',
+    size: 128,
+    note: 'XMODEM 块 #12',
+    summary: 'Payload: 128 bytes',
+    tone: 'blue',
+    warn: false,
+    channel: 'COM3',
+    baud: '115200',
+  },
+  {
+    id: 'frame-003',
+    direction: 'RX',
+    time: '12:41:04.102',
+    size: 1,
+    note: '重试信号',
+    summary: 'NAK 0x15',
+    tone: 'amber',
+    warn: true,
+    channel: 'COM5',
+    baud: '115200',
+  },
+  {
+    id: 'frame-004',
+    direction: 'RX',
+    time: '12:41:04.288',
+    size: 0,
+    note: '超时',
+    summary: 'No response',
+    tone: 'red',
+    warn: true,
+    channel: 'COM5',
+    baud: '115200',
+  },
+])
+
+const filteredFrames = computed(() => {
+  if (captureFilter.value === 'all') return captureFrames.value
+  if (captureFilter.value === 'error') {
+    return captureFrames.value.filter((frame) => frame.tone === 'red')
+  }
+  return captureFrames.value.filter((frame) => frame.direction === captureFilter.value)
+})
+
+const captureStats = computed(() => {
+  const frames = captureFrames.value
+  const total = frames.length
+  const rx = frames.filter((frame) => frame.direction === 'RX').length
+  const tx = frames.filter((frame) => frame.direction === 'TX').length
+  const errors = frames.filter((frame) => frame.tone === 'red').length
+  return { total, rx, tx, errors }
+})
+
 function openEditModal(proxy) {
   console.debug('[proxy-monitor] openEditModal', proxy && proxy.id ? proxy.id : proxy)
   modalProxy.value = proxy
@@ -98,10 +171,28 @@ function openEditModal(proxy) {
   modalOpen.value = true
 }
 
+function openCaptureModal(proxy) {
+  console.debug('[proxy-monitor] openCaptureModal', proxy && proxy.id ? proxy.id : proxy)
+  captureProxy.value = proxy
+  captureFilter.value = 'all'
+  selectedFrame.value = captureFrames.value[0] || null
+  captureOpen.value = true
+}
+
 function closeModal(event) {
   const target = event && event.target ? event.target.tagName || event.target.className : 'unknown'
   console.debug('[proxy-monitor] closeModal', target, new Error().stack)
   modalOpen.value = false
+}
+
+function closeCaptureModal(event) {
+  const target = event && event.target ? event.target.tagName || event.target.className : 'unknown'
+  console.debug('[proxy-monitor] closeCaptureModal', target, new Error().stack)
+  captureOpen.value = false
+}
+
+function selectFrame(frame) {
+  selectedFrame.value = frame
 }
 
 watch(
@@ -112,8 +203,17 @@ watch(
   }
 )
 
+watch(
+  () => captureOpen.value,
+  (open) => {
+    console.debug('[proxy-monitor] captureOpen changed', open)
+    document.body.classList.toggle('proxy-modal-open', open)
+  }
+)
+
 onBeforeUnmount(() => {
   document.body.classList.remove('proxy-edit-open')
+  document.body.classList.remove('proxy-modal-open')
 })
 </script>
 
@@ -122,8 +222,8 @@ onBeforeUnmount(() => {
     <header class="proxy-dashboard-hero">
       <div class="proxy-hero-card">
         <div>
-          <h2>串口代理转发监控</h2>
-          <p>管理串口转发对并实时监控数据流状态。</p>
+          <h2>代理监控</h2>
+          <p>管理转发链路并实时观察通信流量。</p>
         </div>
         <div class="proxy-hero-actions">
           <button class="proxy-hero-btn" type="button">
@@ -175,7 +275,7 @@ onBeforeUnmount(() => {
 
         <div class="proxy-route-card" :class="`status-${proxy.status}`">
           <div class="proxy-route-col">
-            <p>主机源端口</p>
+            <p>主机端口</p>
             <span class="proxy-route-chip proxy-mono">{{ proxy.hostPort }}</span>
           </div>
           <div class="proxy-route-state" :class="proxy.routeTone">
@@ -183,7 +283,7 @@ onBeforeUnmount(() => {
             <span>{{ proxy.routeLabel }}</span>
           </div>
           <div class="proxy-route-col">
-            <p>设备代理端口</p>
+            <p>设备端口</p>
             <span class="proxy-route-chip proxy-mono">{{ proxy.devicePort }}</span>
           </div>
         </div>
@@ -219,7 +319,7 @@ onBeforeUnmount(() => {
             <span class="proxy-toggle-text">{{ proxy.toggleLabel }}</span>
           </label>
           <div class="proxy-footer-actions">
-            <button class="icon-btn" type="button" title="终端">
+            <button class="icon-btn" type="button" title="抓包" @click="openCaptureModal(proxy)">
               <span class="material-symbols-outlined">terminal</span>
             </button>
             <button class="icon-btn" type="button" title="编辑" @click="openEditModal(proxy)">
@@ -238,7 +338,7 @@ onBeforeUnmount(() => {
         </div>
         <div class="proxy-add-copy">
           <h3>添加新转发代理</h3>
-          <p>将物理串口连接到虚拟代理节点</p>
+          <p>将物理串口连接到虚拟代理节点。</p>
         </div>
         <div class="proxy-add-tags">
           <span>RS-232</span>
@@ -285,14 +385,14 @@ onBeforeUnmount(() => {
               <div class="proxy-field">
                 <label>
                   <span class="material-symbols-outlined">computer</span>
-                  主机源端口
+                  主机端口
                 </label>
                 <DropdownSelect v-model="hostPort" class="proxy-select" :options="portOptions" />
               </div>
               <div class="proxy-field">
                 <label>
                   <span class="material-symbols-outlined">settings_input_component</span>
-                  设备代理端口
+                  设备端口
                 </label>
                 <DropdownSelect v-model="devicePort" class="proxy-select" :options="portOptions" />
               </div>
@@ -302,15 +402,15 @@ onBeforeUnmount(() => {
               <div class="proxy-section-title">
                 <span class="material-symbols-outlined">settings_ethernet</span>
                 串口参数配置
-                <span>（两端同步应用）</span>
+                <span>（两端需一致）</span>
               </div>
               <div class="proxy-section-grid">
                 <div class="proxy-field">
-                  <label>波特率 (Baud Rate)</label>
+                  <label>波特率</label>
                   <DropdownSelect v-model="baudRate" class="proxy-select" :options="baudOptions" />
                 </div>
                 <div class="proxy-field">
-                  <label>数据位 (Data Bits)</label>
+                  <label>数据位</label>
                   <div class="proxy-segmented">
                     <button type="button">5</button>
                     <button type="button">6</button>
@@ -319,11 +419,11 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
                 <div class="proxy-field">
-                  <label>校验位 (Parity)</label>
+                  <label>校验位</label>
                   <DropdownSelect v-model="parity" class="proxy-select" :options="parityOptions" />
                 </div>
                 <div class="proxy-field">
-                  <label>停止位 (Stop Bits)</label>
+                  <label>停止位</label>
                   <div class="proxy-segmented">
                     <button type="button" class="active">1</button>
                     <button type="button">1.5</button>
@@ -331,7 +431,7 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
                 <div class="proxy-field proxy-span-2">
-                  <label>流控 (Flow Control)</label>
+                  <label>流控</label>
                   <div class="proxy-segmented">
                     <button type="button" class="active">None</button>
                     <button type="button">RTS/CTS</button>
@@ -344,7 +444,7 @@ onBeforeUnmount(() => {
             <div class="proxy-section proxy-modal-advanced">
               <div class="proxy-section-title muted">
                 <span class="material-symbols-outlined">settings_suggest</span>
-                高级运行选项
+                高级选项
               </div>
               <div class="proxy-toggle-row">
                 <label>
@@ -359,11 +459,183 @@ onBeforeUnmount(() => {
                     <input type="checkbox" />
                     <span></span>
                   </span>
-                  详细日志记录
+                  详细日志
                 </label>
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="captureOpen" class="proxy-modal-overlay" @mousedown.self="closeCaptureModal">
+      <div class="proxy-modal" @mousedown.stop @click.stop>
+        <div class="proxy-modal-header">
+          <div class="proxy-modal-title">
+            <div class="proxy-modal-icon">
+              <span class="material-symbols-outlined">monitoring</span>
+            </div>
+            <div>
+              <h2>抓包详情</h2>
+              <p class="proxy-subtitle">{{ captureProxy ? captureProxy.name : '代理会话' }}</p>
+            </div>
+          </div>
+          <button class="proxy-modal-close" type="button" @click="closeCaptureModal">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <div class="proxy-modal-body">
+          <div class="proxy-modal-stream">
+            <div class="proxy-modal-toolbar">
+              <div class="proxy-modal-toolbar-left">
+                <span>抓包</span>
+                <div class="proxy-modal-toggle">
+                  <button
+                    type="button"
+                    :class="{ active: captureFilter === 'all' }"
+                    @click="captureFilter = 'all'"
+                  >
+                    全部
+                  </button>
+                  <button
+                    type="button"
+                    :class="{ active: captureFilter === 'RX' }"
+                    @click="captureFilter = 'RX'"
+                  >
+                    RX
+                  </button>
+                  <button
+                    type="button"
+                    :class="{ active: captureFilter === 'TX' }"
+                    @click="captureFilter = 'TX'"
+                  >
+                    TX
+                  </button>
+                  <button
+                    type="button"
+                    :class="{ active: captureFilter === 'error' }"
+                    @click="captureFilter = 'error'"
+                  >
+                    异常
+                  </button>
+                </div>
+              </div>
+              <div class="proxy-modal-toolbar-right">
+                <span>{{ filteredFrames.length }} 条</span>
+              </div>
+            </div>
+
+            <div class="proxy-modal-list">
+              <div class="proxy-modal-list-header">
+                <span>方向</span>
+                <span>负载</span>
+                <span>摘要</span>
+              </div>
+              <div
+                v-for="frame in filteredFrames"
+                :key="frame.id"
+                class="proxy-frame"
+                :class="{ error: frame.tone === 'red' }"
+              >
+                <div class="proxy-frame-row" @click="selectFrame(frame)">
+                  <span
+                    class="proxy-chip"
+                    :class="[
+                      frame.tone === 'red'
+                        ? 'tone-red'
+                        : frame.direction === 'RX'
+                        ? 'tone-green'
+                        : frame.tone === 'amber'
+                        ? 'tone-amber'
+                        : 'tone-blue',
+                    ]"
+                    :data-warn="frame.warn"
+                  >
+                    {{ frame.direction }}
+                  </span>
+                  <div class="note">
+                    <div>{{ frame.note }}</div>
+                    <div class="proxy-mono">{{ frame.time }}</div>
+                  </div>
+                  <div class="col-summary" :class="{ error: frame.tone === 'red' }">
+                    {{ frame.summary }}
+                  </div>
+                </div>
+                <div v-if="selectedFrame && selectedFrame.id === frame.id" class="proxy-frame-detail">
+                  <div class="proxy-detail-row">
+                    <span>大小</span>
+                    <strong class="proxy-mono">{{ frame.size }} bytes</strong>
+                  </div>
+                  <div class="proxy-detail-row">
+                    <span>通道</span>
+                    <strong class="proxy-mono">{{ frame.channel }}</strong>
+                  </div>
+                  <div class="proxy-detail-row">
+                    <span>波特率</span>
+                    <strong class="proxy-mono">{{ frame.baud }}</strong>
+                  </div>
+                  <div class="proxy-detail-row">
+                    <span>状态</span>
+                    <strong
+                      class="proxy-mono"
+                      :class="frame.tone === 'red' ? 'tone-red' : frame.tone === 'amber' ? 'tone-amber' : 'tone-green'"
+                    >
+                      {{ frame.tone === 'red' ? '错误' : frame.tone === 'amber' ? '警告' : '正常' }}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="proxy-modal-footer">
+              <button class="proxy-btn ghost" type="button">清空</button>
+              <div class="proxy-footer-actions">
+                <button class="proxy-btn warning" type="button">暂停</button>
+                <button class="proxy-btn primary" type="button">导出</button>
+              </div>
+            </div>
+          </div>
+
+          <aside class="proxy-modal-side">
+            <div>
+              <h4>会话统计</h4>
+              <div class="proxy-stat-card">
+                <span>总帧数</span>
+                <div class="proxy-stat-value">
+                  <strong>{{ captureStats.total }}</strong>
+                  <em>实时</em>
+                </div>
+                <div class="proxy-stat-bar"></div>
+              </div>
+              <div class="proxy-stat-card">
+                <span>异常</span>
+                <div class="proxy-stat-value">
+                  <strong class="danger">{{ captureStats.errors }}</strong>
+                  <em>告警</em>
+                </div>
+                <div class="proxy-stat-bar"></div>
+              </div>
+            </div>
+            <div class="proxy-side-block">
+              <h5>方向</h5>
+              <label>
+                <input type="checkbox" checked />
+                RX 帧 {{ captureStats.rx }}
+              </label>
+              <label>
+                <input type="checkbox" checked />
+                TX 帧 {{ captureStats.tx }}
+              </label>
+            </div>
+            <div class="proxy-side-tip">
+              <div class="proxy-side-tip-title">
+                <span class="material-symbols-outlined">tips_and_updates</span>
+                提示
+              </div>
+              当前为演示数据，可接入 bridge 事件展示真实帧。
+            </div>
+          </aside>
         </div>
       </div>
     </div>
