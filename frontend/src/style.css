@@ -2575,15 +2575,10 @@ textarea {
   width: 34px;
   height: 18px;
   display: inline-block;
+  cursor: pointer;
 }
 
-.proxy-toggle input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.proxy-toggle span {
+.proxy-toggle-track {
   position: absolute;
   inset: 0;
   background: #e2e8f0;
@@ -2591,7 +2586,7 @@ textarea {
   transition: 0.2s;
 }
 
-.proxy-toggle span::before {
+.proxy-toggle-track::before {
   content: "";
   position: absolute;
   height: 14px;
@@ -2604,11 +2599,11 @@ textarea {
   transition: 0.2s;
 }
 
-.proxy-toggle input:checked + span {
+.proxy-toggle.active .proxy-toggle-track {
   background: #2563eb;
 }
 
-.proxy-toggle input:checked + span::before {
+.proxy-toggle.active .proxy-toggle-track::before {
   transform: translateX(16px);
 }
 

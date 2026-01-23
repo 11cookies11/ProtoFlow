@@ -144,6 +144,10 @@ class WebBridge(QObject):
             "devicePort": payload.get("devicePort") or "",
             "baud": payload.get("baud") or "115200",
             "status": payload.get("status") or "stopped",
+            "dataBits": payload.get("dataBits") or "8",
+            "stopBits": payload.get("stopBits") or "1",
+            "parity": payload.get("parity") or "none",
+            "flowControl": payload.get("flowControl") or "none",
         }
         self._proxy_pairs.insert(0, pair)
         self._save_proxy_pairs()
@@ -160,7 +164,22 @@ class WebBridge(QObject):
             if pair.get("id") == pair_id:
                 updated = {
                     **pair,
-                    **{k: v for k, v in payload.items() if k in {"name", "hostPort", "devicePort", "baud", "status"}},
+                    **{
+                        k: v
+                        for k, v in payload.items()
+                        if k
+                        in {
+                            "name",
+                            "hostPort",
+                            "devicePort",
+                            "baud",
+                            "status",
+                            "dataBits",
+                            "stopBits",
+                            "parity",
+                            "flowControl",
+                        }
+                    },
                 }
                 self._proxy_pairs[idx] = updated
                 self._save_proxy_pairs()

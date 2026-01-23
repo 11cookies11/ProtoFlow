@@ -29,6 +29,9 @@ const hostPort = ref('COM3')
 const devicePort = ref('COM5')
 const baudRate = ref('115200')
 const parity = ref('无')
+const dataBits = ref('8')
+const stopBits = ref('1')
+const flowControl = ref('none')
 
 const connectionOptions = ['透传模式', '协议桥接', '映射模式']
 const portOptions = ['COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM10', 'COM12']
@@ -143,6 +146,10 @@ function mapProxyFromBackend(payload) {
     hostPort: payload.hostPort || 'COM1',
     devicePort: payload.devicePort || 'COM2',
     baud,
+    dataBits: payload.dataBits || '8',
+    stopBits: payload.stopBits || '1',
+    parity: payload.parity || 'none',
+    flowControl: payload.flowControl || 'none',
     bandwidth: payload.bandwidth || '0.0',
     bandwidthUnit: payload.bandwidthUnit || 'KB/s',
     spark: payload.spark || '',
@@ -365,6 +372,10 @@ function openEditModal(proxy) {
   hostPort.value = proxy && proxy.hostPort ? proxy.hostPort : hostPort.value
   devicePort.value = proxy && proxy.devicePort ? proxy.devicePort : devicePort.value
   baudRate.value = proxy && proxy.baud ? String(proxy.baud) : baudRate.value
+  dataBits.value = proxy && proxy.dataBits ? String(proxy.dataBits) : dataBits.value
+  stopBits.value = proxy && proxy.stopBits ? String(proxy.stopBits) : stopBits.value
+  parity.value = proxy && proxy.parity ? String(proxy.parity) : parity.value
+  flowControl.value = proxy && proxy.flowControl ? String(proxy.flowControl) : flowControl.value
   modalOpen.value = true
 }
 
@@ -375,6 +386,10 @@ function openCreateModal() {
   hostPort.value = portOptions[0] || 'COM1'
   devicePort.value = portOptions[1] || 'COM2'
   baudRate.value = baudOptions[5] || '115200'
+  dataBits.value = '8'
+  stopBits.value = '1'
+  parity.value = 'none'
+  flowControl.value = 'none'
   modalOpen.value = true
 }
 
@@ -449,6 +464,10 @@ function saveProxy() {
     hostPort: hostPort.value,
     devicePort: devicePort.value,
     baud: baudRate.value,
+    dataBits: dataBits.value,
+    stopBits: stopBits.value,
+    parity: parity.value,
+    flowControl: flowControl.value,
   }
 
   if (modalMode.value === 'create') {
@@ -459,6 +478,10 @@ function saveProxy() {
           hostPort: payload.hostPort,
           devicePort: payload.devicePort,
           baud: payload.baud,
+          dataBits: payload.dataBits,
+          stopBits: payload.stopBits,
+          parity: payload.parity,
+          flowControl: payload.flowControl,
         }),
         (created) => {
           if (created) {
@@ -482,6 +505,10 @@ function saveProxy() {
           hostPort: payload.hostPort,
           devicePort: payload.devicePort,
           baud: payload.baud,
+          dataBits: payload.dataBits,
+          stopBits: payload.stopBits,
+          parity: payload.parity,
+          flowControl: payload.flowControl,
           bandwidth: '0.0',
           bandwidthUnit: 'KB/s',
           spark: '',
@@ -501,6 +528,10 @@ function saveProxy() {
           hostPort: payload.hostPort,
           devicePort: payload.devicePort,
           baud: payload.baud,
+          dataBits: payload.dataBits,
+          stopBits: payload.stopBits,
+          parity: payload.parity,
+          flowControl: payload.flowControl,
           status: modalProxy.value.status,
         }),
         (updated) => {
@@ -514,6 +545,10 @@ function saveProxy() {
       modalProxy.value.hostPort = payload.hostPort
       modalProxy.value.devicePort = payload.devicePort
       modalProxy.value.baud = payload.baud
+      modalProxy.value.dataBits = payload.dataBits
+      modalProxy.value.stopBits = payload.stopBits
+      modalProxy.value.parity = payload.parity
+      modalProxy.value.flowControl = payload.flowControl
       modalProxy.value.meta = buildProxyMeta(payload.hostPort, payload.baud)
     }
   }
@@ -667,9 +702,8 @@ onBeforeUnmount(() => {
 
         <div class="proxy-panel-footer" :class="`status-${proxy.status}`">
           <label class="proxy-footer-toggle">
-            <span class="proxy-toggle">
-              <input type="checkbox" :checked="proxy.active" @change="setProxyStatus(proxy, $event.target.checked)" />
-              <span></span>
+            <span class="proxy-toggle" :class="{ active: proxy.active }" @click="setProxyStatus(proxy, !proxy.active)">
+              <span class="proxy-toggle-track"></span>
             </span>
             <span class="proxy-toggle-text">{{ proxy.toggleLabel }}</span>
           </label>
@@ -745,10 +779,10 @@ onBeforeUnmount(() => {
                 <div class="proxy-field">
                   <label>数据位</label>
                   <div class="proxy-segmented">
-                    <button type="button">5</button>
-                    <button type="button">6</button>
-                    <button type="button">7</button>
-                    <button type="button" class="active">8</button>
+                    <button type="button" :class="{ active: dataBits === '5' }" @click="dataBits = '5'">5</button>
+                    <button type="button" :class="{ active: dataBits === '6' }" @click="dataBits = '6'">6</button>
+                    <button type="button" :class="{ active: dataBits === '7' }" @click="dataBits = '7'">7</button>
+                    <button type="button" :class="{ active: dataBits === '8' }" @click="dataBits = '8'">8</button>
                   </div>
                 </div>
                 <div class="proxy-field">
@@ -758,17 +792,17 @@ onBeforeUnmount(() => {
                 <div class="proxy-field">
                   <label>停止位</label>
                   <div class="proxy-segmented">
-                    <button type="button" class="active">1</button>
-                    <button type="button">1.5</button>
-                    <button type="button">2</button>
+                    <button type="button" :class="{ active: stopBits === '1' }" @click="stopBits = '1'">1</button>
+                    <button type="button" :class="{ active: stopBits === '1.5' }" @click="stopBits = '1.5'">1.5</button>
+                    <button type="button" :class="{ active: stopBits === '2' }" @click="stopBits = '2'">2</button>
                   </div>
                 </div>
                 <div class="proxy-field proxy-span-2">
                   <label>流控</label>
                   <div class="proxy-segmented">
-                    <button type="button" class="active">None</button>
-                    <button type="button">RTS/CTS</button>
-                    <button type="button">XON/XOFF</button>
+                    <button type="button" :class="{ active: flowControl === 'none' }" @click="flowControl = 'none'">None</button>
+                    <button type="button" :class="{ active: flowControl === 'rtscts' }" @click="flowControl = 'rtscts'">RTS/CTS</button>
+                    <button type="button" :class="{ active: flowControl === 'xonxoff' }" @click="flowControl = 'xonxoff'">XON/XOFF</button>
                   </div>
                 </div>
               </div>
