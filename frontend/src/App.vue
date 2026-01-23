@@ -308,6 +308,7 @@ const scriptsViewBindings = {
 
 provide('manualView', manualViewBindings)
 provide('scriptsView', scriptsViewBindings)
+provide('bridge', bridge)
 
 let scriptTimer = null
 let yamlEditor = null

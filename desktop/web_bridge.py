@@ -49,6 +49,8 @@ class WebBridge(QObject):
         self._protocols_loaded = False
         self._settings_root = Path(os.environ.get("LOCALAPPDATA", Path.cwd())) / "ProtoFlow"
         self._settings_path = self._settings_root / "config" / "ui_settings.json"
+        self._proxy_pairs_path = self._settings_root / "config" / "proxy_pairs.json"
+        self._proxy_pairs: List[Dict[str, Any]] = self._load_proxy_pairs()
         self._channel_state: Dict[str, Any] = {
             "type": None,
             "status": "disconnected",
@@ -121,6 +123,72 @@ class WebBridge(QObject):
     @Slot(result="QVariant")
     def load_settings(self) -> Dict[str, Any]:
         return self._load_settings()
+
+    @Slot(result="QVariant")
+    def list_proxy_pairs(self) -> List[Dict[str, Any]]:
+        return list(self._proxy_pairs)
+
+    @Slot(result="QVariant")
+    def refresh_proxy_pairs(self) -> List[Dict[str, Any]]:
+        self._proxy_pairs = self._load_proxy_pairs()
+        return list(self._proxy_pairs)
+
+    @Slot("QVariant", result="QVariant")
+    def create_proxy_pair(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(payload, dict):
+            return {}
+        pair = {
+            "id": payload.get("id") or f"proxy-{int(time.time() * 1000)}",
+            "name": payload.get("name") or "未命名转发对",
+            "hostPort": payload.get("hostPort") or "",
+            "devicePort": payload.get("devicePort") or "",
+            "baud": payload.get("baud") or "115200",
+            "status": payload.get("status") or "stopped",
+        }
+        self._proxy_pairs.insert(0, pair)
+        self._save_proxy_pairs()
+        return pair
+
+    @Slot("QVariant", result="QVariant")
+    def update_proxy_pair(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(payload, dict):
+            return {}
+        pair_id = payload.get("id")
+        if not pair_id:
+            return {}
+        for idx, pair in enumerate(self._proxy_pairs):
+            if pair.get("id") == pair_id:
+                updated = {
+                    **pair,
+                    **{k: v for k, v in payload.items() if k in {"name", "hostPort", "devicePort", "baud", "status"}},
+                }
+                self._proxy_pairs[idx] = updated
+                self._save_proxy_pairs()
+                return updated
+        return {}
+
+    @Slot(str, result=bool)
+    def delete_proxy_pair(self, pair_id: str) -> bool:
+        if not pair_id:
+            return False
+        before = len(self._proxy_pairs)
+        self._proxy_pairs = [pair for pair in self._proxy_pairs if pair.get("id") != pair_id]
+        if len(self._proxy_pairs) != before:
+            self._save_proxy_pairs()
+            return True
+        return False
+
+    @Slot(str, bool, result="QVariant")
+    def set_proxy_pair_status(self, pair_id: str, active: bool) -> Dict[str, Any]:
+        status = "running" if active else "stopped"
+        for idx, pair in enumerate(self._proxy_pairs):
+            if pair.get("id") == pair_id:
+                pair = dict(pair)
+                pair["status"] = status
+                self._proxy_pairs[idx] = pair
+                self._save_proxy_pairs()
+                return pair
+        return {}
 
     @Slot("QVariant", result=bool)
     def save_settings(self, payload: Dict[str, Any]) -> bool:
@@ -532,6 +600,26 @@ class WebBridge(QObject):
             self.log.emit(f"[WARN] Save settings failed: {exc}")
             return False
         return True
+
+    def _load_proxy_pairs(self) -> List[Dict[str, Any]]:
+        if not self._proxy_pairs_path.exists():
+            return []
+        try:
+            with self._proxy_pairs_path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle) or []
+        except Exception:
+            return []
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def _save_proxy_pairs(self) -> None:
+        try:
+            self._proxy_pairs_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._proxy_pairs_path.open("w", encoding="utf-8") as handle:
+                json.dump(self._proxy_pairs, handle, ensure_ascii=False, indent=2)
+        except Exception as exc:
+            self.log.emit(f"[WARN] Save proxy pairs failed: {exc}")
 
     def _append_buffer(self, item: Dict[str, Any]) -> None:
         self._buffer.append(item)

@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import DropdownSelect from './DropdownSelect.vue'
 
 const filterTabs = [
@@ -32,6 +32,8 @@ const connectionOptions = ['透传模式', '协议桥接', '映射模式']
 const portOptions = ['COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM10', 'COM12']
 const baudOptions = ['4800', '9600', '19200', '38400', '57600', '115200']
 const parityOptions = ['无', '偶校验', '奇校验', 'Mark', 'Space']
+
+const bridge = inject('bridge', null)
 
 const proxies = ref([
   {
@@ -105,6 +107,54 @@ function normalizeProxy(proxy, updates = {}) {
     next.meta = buildProxyMeta(next.hostPort, next.baud)
   }
   return next
+}
+
+function withBridgeResult(result, onSuccess) {
+  if (!result) return
+  if (typeof result.then === 'function') {
+    result.then(onSuccess).catch(() => {})
+    return
+  }
+  onSuccess(result)
+}
+
+function mapProxyFromBackend(payload) {
+  const status = payload.status || 'stopped'
+  const active = status === 'running'
+  const statusLabel = active ? '运行中' : '已停止'
+  const routeLabel = active ? '转发中' : '离线'
+  const routeTone = active ? 'primary' : 'muted'
+  const statusIcon = active ? 'swap_horizontal_circle' : 'pause_circle'
+  const routeIcon = active ? 'keyboard_double_arrow_right' : 'more_horiz'
+  const baud = payload.baud ? String(payload.baud) : '115200'
+  proxySeq = Math.max(proxySeq, Number(String(payload.id || '').replace(/\D/g, '')) || proxySeq)
+  return {
+    id: payload.id || `proxy-${Date.now()}`,
+    name: payload.name || '未命名转发对',
+    meta: payload.meta || buildProxyMeta(payload.hostPort, baud),
+    status,
+    statusLabel,
+    statusIcon,
+    routeIcon,
+    routeLabel,
+    routeTone,
+    hostPort: payload.hostPort || 'COM1',
+    devicePort: payload.devicePort || 'COM2',
+    baud,
+    bandwidth: payload.bandwidth || '0.0',
+    bandwidthUnit: payload.bandwidthUnit || 'KB/s',
+    spark: payload.spark || '',
+    active,
+    toggleLabel: statusLabel,
+  }
+}
+
+function loadProxyPairs() {
+  if (!bridge || !bridge.value || !bridge.value.list_proxy_pairs) return
+  withBridgeResult(bridge.value.list_proxy_pairs(), (items) => {
+    if (!Array.isArray(items)) return
+    proxies.value = items.map((item) => mapProxyFromBackend(item))
+  })
 }
 
 const filteredProxies = computed(() => {
@@ -346,6 +396,13 @@ function selectFrame(frame) {
 }
 
 function refreshProxies() {
+  if (bridge && bridge.value && bridge.value.refresh_proxy_pairs) {
+    withBridgeResult(bridge.value.refresh_proxy_pairs(), (items) => {
+      if (!Array.isArray(items)) return
+      proxies.value = items.map((item) => mapProxyFromBackend(item))
+    })
+    return
+  }
   proxies.value = proxies.value.map((proxy) => ({ ...proxy }))
 }
 
@@ -364,6 +421,14 @@ function setProxyStatus(proxy, active) {
   proxy.statusIcon = statusIcon
   proxy.routeIcon = routeIcon
   proxy.active = active
+
+  if (bridge && bridge.value && bridge.value.set_proxy_pair_status) {
+    withBridgeResult(bridge.value.set_proxy_pair_status(proxy.id, active), (updated) => {
+      if (updated && typeof updated === 'object') {
+        Object.assign(proxy, mapProxyFromBackend(updated))
+      }
+    })
+  }
 }
 
 function saveProxy() {
@@ -375,36 +440,70 @@ function saveProxy() {
   }
 
   if (modalMode.value === 'create') {
-    proxySeq += 1
-    const newProxy = normalizeProxy(
-      {
-        id: `proxy-${proxySeq}`,
-        name: payload.name,
-        meta: buildProxyMeta(payload.hostPort, payload.baud),
-        status: 'stopped',
-        statusLabel: '已停止',
-        statusIcon: 'pause_circle',
-        routeIcon: 'more_horiz',
-        routeLabel: '离线',
-        routeTone: 'muted',
-        hostPort: payload.hostPort,
-        devicePort: payload.devicePort,
-        baud: payload.baud,
-        bandwidth: '0.0',
-        bandwidthUnit: 'KB/s',
-        spark: '',
-        active: false,
-        toggleLabel: '已停止',
-      },
-      {}
-    )
-    proxies.value.unshift(newProxy)
+    if (bridge && bridge.value && bridge.value.create_proxy_pair) {
+      withBridgeResult(
+        bridge.value.create_proxy_pair({
+          name: payload.name,
+          hostPort: payload.hostPort,
+          devicePort: payload.devicePort,
+          baud: payload.baud,
+        }),
+        (created) => {
+          if (created) {
+            proxies.value.unshift(mapProxyFromBackend(created))
+          }
+        }
+      )
+    } else {
+      proxySeq += 1
+      const newProxy = normalizeProxy(
+        {
+          id: `proxy-${proxySeq}`,
+          name: payload.name,
+          meta: buildProxyMeta(payload.hostPort, payload.baud),
+          status: 'stopped',
+          statusLabel: '已停止',
+          statusIcon: 'pause_circle',
+          routeIcon: 'more_horiz',
+          routeLabel: '离线',
+          routeTone: 'muted',
+          hostPort: payload.hostPort,
+          devicePort: payload.devicePort,
+          baud: payload.baud,
+          bandwidth: '0.0',
+          bandwidthUnit: 'KB/s',
+          spark: '',
+          active: false,
+          toggleLabel: '已停止',
+        },
+        {}
+      )
+      proxies.value.unshift(newProxy)
+    }
   } else if (modalProxy.value) {
-    modalProxy.value.name = payload.name
-    modalProxy.value.hostPort = payload.hostPort
-    modalProxy.value.devicePort = payload.devicePort
-    modalProxy.value.baud = payload.baud
-    modalProxy.value.meta = buildProxyMeta(payload.hostPort, payload.baud)
+    if (bridge && bridge.value && bridge.value.update_proxy_pair) {
+      withBridgeResult(
+        bridge.value.update_proxy_pair({
+          id: modalProxy.value.id,
+          name: payload.name,
+          hostPort: payload.hostPort,
+          devicePort: payload.devicePort,
+          baud: payload.baud,
+          status: modalProxy.value.status,
+        }),
+        (updated) => {
+          if (updated) {
+            Object.assign(modalProxy.value, mapProxyFromBackend(updated))
+          }
+        }
+      )
+    } else {
+      modalProxy.value.name = payload.name
+      modalProxy.value.hostPort = payload.hostPort
+      modalProxy.value.devicePort = payload.devicePort
+      modalProxy.value.baud = payload.baud
+      modalProxy.value.meta = buildProxyMeta(payload.hostPort, payload.baud)
+    }
   }
 
   modalOpen.value = false
@@ -415,8 +514,20 @@ function confirmDeleteProxy(proxy) {
   const ok = window.confirm(`确认删除转发对「${proxy.name}」吗？删除前将停止转发。`)
   if (!ok) return
   setProxyStatus(proxy, false)
+  if (bridge && bridge.value && bridge.value.delete_proxy_pair) {
+    withBridgeResult(bridge.value.delete_proxy_pair(proxy.id), (success) => {
+      if (success) {
+        proxies.value = proxies.value.filter((item) => item.id !== proxy.id)
+      }
+    })
+    return
+  }
   proxies.value = proxies.value.filter((item) => item.id !== proxy.id)
 }
+
+onMounted(() => {
+  loadProxyPairs()
+})
 
 watch(
   () => modalOpen.value,
