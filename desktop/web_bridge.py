@@ -31,6 +31,7 @@ class WebBridge(QObject):
     comm_tx = Signal(str)
     comm_status = Signal(object)
     protocol_frame = Signal(object)
+    capture_frame = Signal(object)
     comm_batch = Signal(str)
     script_log = Signal(str)
     script_state = Signal(str)
@@ -76,6 +77,7 @@ class WebBridge(QObject):
             self._bus.subscribe("comm.disconnected", self._on_comm_status)
             self._bus.subscribe("comm.error", self._on_comm_status)
             self._bus.subscribe("protocol.frame", self._on_protocol_frame)
+            self._bus.subscribe("capture.frame", self._on_capture_frame)
 
     @Slot(str, result=str)
     def ping(self, message: str) -> str:
@@ -448,6 +450,9 @@ class WebBridge(QObject):
 
     def _on_protocol_frame(self, payload: Any) -> None:
         self._append_buffer({"kind": "FRAME", "payload": payload, "ts": time.time()})
+
+    def _on_capture_frame(self, payload: Any) -> None:
+        self._append_buffer({"kind": "CAPTURE", "payload": payload, "ts": time.time()})
 
     def _load_protocols(self) -> None:
         if self._protocols_loaded:

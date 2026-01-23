@@ -1197,6 +1197,12 @@ function attachBridge(obj) {
       addCommLog('FRAME', { text: JSON.stringify(payload), ts })
     })
   }
+  if (obj.capture_frame) {
+    obj.capture_frame.connect((payload) => {
+      const ts = payload && payload.ts ? payload.ts : Date.now() / 1000
+      addCommLog('CAPTURE', { text: JSON.stringify(payload), ts })
+    })
+  }
   obj.comm_status.connect((payload) => {
     const detail = payload && payload.payload !== undefined ? payload.payload : payload
     const ts = payload && payload.ts ? payload.ts : Date.now() / 1000

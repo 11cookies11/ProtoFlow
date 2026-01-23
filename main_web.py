@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover
 
 from core.communication_manager import CommunicationManager
 from core.event_bus import EventBus
+from core.packet_engine import PacketAnalysisEngine
 from core.plugin_manager import PluginManager
 from core.protocol_loader import ProtocolLoader
 from desktop.web_window import WebWindow
@@ -170,6 +171,7 @@ def main() -> None:
     bus = EventBus()
     comm = CommunicationManager(bus)
     protocol = ProtocolLoader(bus)
+    packet_engine = PacketAnalysisEngine(bus)
     plugins = PluginManager(bus, protocol=protocol)
     plugins.load_all()
 
