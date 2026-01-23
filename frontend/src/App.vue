@@ -37,6 +37,19 @@ let commLogSeq = 0
 let scriptLogSeq = 0
 let lastStatusText = ''
 let hasStatusActivity = false
+const captureFrames = ref([])
+const captureMeta = ref({
+  channel: '',
+  engine: '通用动态解析 (Agnostic Engine)',
+  bufferUsed: 0,
+  rangeStart: 0,
+  rangeEnd: 0,
+  totalFrames: 0,
+  page: 1,
+  pageCount: 1,
+})
+const captureMetrics = ref({ rtt: '--', loss: '--' })
+const MAX_CAPTURE_FRAMES = 200
 const scriptState = ref('idle')
 const scriptProgress = ref(0)
 const yamlText = ref('# paste DSL YAML here')
@@ -539,6 +552,64 @@ function scheduleLogFlush() {
     logFlushHandle = 0
     flushLogs()
   })
+}
+
+function formatCaptureTime(ts) {
+  const date = new Date((ts || 0) * 1000)
+  const pad = (value, length = 2) => String(value).padStart(length, '0')
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(
+    date.getMilliseconds(),
+    3
+  )}`
+}
+
+function mapCaptureFrame(payload) {
+  if (!payload || typeof payload !== 'object') return null
+  const protocol = payload.protocol || {}
+  const unknown = Boolean(protocol.unknown)
+  const direction = payload.direction || 'RX'
+  const tone = unknown ? 'red' : direction === 'TX' ? 'blue' : 'green'
+  return {
+    id: payload.id || `cap-${Date.now()}`,
+    direction,
+    time: formatCaptureTime(payload.timestamp || Date.now() / 1000),
+    size: payload.length || 0,
+    note: payload.raw_hex || '',
+    summary: payload.summary || '',
+    summaryText: payload.summary || '',
+    tone,
+    warn: unknown,
+    channel: payload.channel || '',
+    baud: payload.baud || '',
+    protocolLabel: protocol.name || (unknown ? 'Unknown' : 'Protocol'),
+    protocolType: unknown
+      ? 'unknown'
+      : (protocol.name || '').toLowerCase().includes('modbus')
+        ? 'modbus'
+        : 'custom',
+    protocolTooltip: protocol.name ? `${protocol.name}${protocol.version ? ` ${protocol.version}` : ''}` : '未知协议',
+    hexDump: payload.hex_dump || null,
+    tree: payload.tree || [],
+  }
+}
+
+function ingestCaptureFrame(payload) {
+  const frame = mapCaptureFrame(payload)
+  if (!frame) return
+  captureFrames.value.push(frame)
+  if (captureFrames.value.length > MAX_CAPTURE_FRAMES) {
+    captureFrames.value.splice(0, captureFrames.value.length - MAX_CAPTURE_FRAMES)
+  }
+  captureMeta.value.totalFrames += 1
+  captureMeta.value.rangeEnd = captureMeta.value.totalFrames
+  captureMeta.value.rangeStart = Math.max(1, captureMeta.value.totalFrames - captureFrames.value.length + 1)
+  captureMeta.value.bufferUsed = Math.min(
+    100,
+    Math.round((captureFrames.value.length / MAX_CAPTURE_FRAMES) * 100)
+  )
+  if (payload && payload.channel) {
+    captureMeta.value.channel = payload.channel
+  }
 }
 
 function flushLogs() {
@@ -1201,6 +1272,7 @@ function attachBridge(obj) {
     obj.capture_frame.connect((payload) => {
       const ts = payload && payload.ts ? payload.ts : Date.now() / 1000
       addCommLog('CAPTURE', { text: JSON.stringify(payload), ts })
+      ingestCaptureFrame(payload)
     })
   }
   obj.comm_status.connect((payload) => {
@@ -1770,7 +1842,12 @@ function unlockSidebarWidth() {
       <main class="main">
         <ManualView v-if="currentView === 'manual'" />
         <ScriptsView v-else-if="currentView === 'scripts'" />
-        <ProxyMonitorView v-else-if="currentView === 'proxy'" />
+        <ProxyMonitorView
+          v-else-if="currentView === 'proxy'"
+          :capture-frames="captureFrames"
+          :capture-meta="captureMeta"
+          :capture-metrics="captureMetrics"
+        />
 
         <section v-else-if="currentView === 'protocols'" class="page">
           <header class="page-header spaced">

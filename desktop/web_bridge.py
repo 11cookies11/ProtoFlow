@@ -369,6 +369,10 @@ class WebBridge(QObject):
     def _emit_comm_tx_signal(self, payload: str) -> None:
         self.comm_tx.emit(payload)
 
+    @Slot("QVariant")
+    def _emit_capture_frame_signal(self, payload: Any) -> None:
+        self.capture_frame.emit(payload)
+
     def _on_comm_rx(self, payload: Any) -> None:
         if isinstance(payload, (bytes, bytearray)):
             self._traffic["rx"] += len(payload)
@@ -453,6 +457,12 @@ class WebBridge(QObject):
 
     def _on_capture_frame(self, payload: Any) -> None:
         self._append_buffer({"kind": "CAPTURE", "payload": payload, "ts": time.time()})
+        QMetaObject.invokeMethod(
+            self,
+            "_emit_capture_frame_signal",
+            Qt.QueuedConnection,
+            Q_ARG(object, payload),
+        )
 
     def _load_protocols(self) -> None:
         if self._protocols_loaded:

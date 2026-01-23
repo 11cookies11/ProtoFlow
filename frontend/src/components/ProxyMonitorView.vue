@@ -97,7 +97,22 @@ const filteredProxies = computed(() => {
   return proxies.value.filter((proxy) => proxy.status === activeFilter.value)
 })
 
-const captureFrames = ref([
+const props = defineProps({
+  captureFrames: {
+    type: Array,
+    default: () => [],
+  },
+  captureMeta: {
+    type: Object,
+    default: () => ({}),
+  },
+  captureMetrics: {
+    type: Object,
+    default: () => ({}),
+  },
+})
+
+const localCaptureFrames = ref([
   {
     id: 'frame-001',
     direction: 'RX',
@@ -164,7 +179,7 @@ const captureFrames = ref([
   },
 ])
 
-const captureMeta = ref({
+const localCaptureMeta = ref({
   channel: 'Ethernet (TAP)',
   engine: '通用动态解析 (Agnostic Engine)',
   bufferUsed: 85,
@@ -175,7 +190,7 @@ const captureMeta = ref({
   pageCount: 1005,
 })
 
-const captureMetrics = ref({
+const localCaptureMetrics = ref({
   rtt: '4.2 ms',
   loss: '0.02 %',
 })
@@ -191,6 +206,18 @@ const protocolTrees = {
   ],
 }
 
+const captureFrames = computed(() =>
+  props.captureFrames && props.captureFrames.length ? props.captureFrames : localCaptureFrames.value
+)
+
+const captureMeta = computed(() =>
+  props.captureMeta && Object.keys(props.captureMeta).length ? props.captureMeta : localCaptureMeta.value
+)
+
+const captureMetrics = computed(() =>
+  props.captureMetrics && Object.keys(props.captureMetrics).length ? props.captureMetrics : localCaptureMetrics.value
+)
+
 const activeFrame = computed(() => selectedFrame.value || captureFrames.value[0] || null)
 
 const isUnknownFrame = computed(() => activeFrame.value?.protocolType === 'unknown')
@@ -202,6 +229,10 @@ const activeProtocolTooltip = computed(() => activeFrame.value?.protocolTooltip 
 const activeSummaryText = computed(() => activeFrame.value?.summaryText || activeFrame.value?.summary || '')
 
 const activeHexBytes = computed(() => {
+  const hexDump = activeFrame.value?.hexDump
+  if (hexDump && Array.isArray(hexDump.bytes) && hexDump.bytes.length) {
+    return hexDump.bytes.map((part) => String(part || '').toUpperCase())
+  }
   const raw = activeFrame.value?.note || ''
   const parts = raw
     .trim()
@@ -226,9 +257,23 @@ const activeHexAscii = computed(() => {
   return [bytes.slice(0, 8).join(''), bytes.slice(8, 16).join('')]
 })
 
-const activeHexSize = computed(() => activeHexBytes.value.length || 0)
+const activeHexSize = computed(() => {
+  const hexDump = activeFrame.value?.hexDump
+  if (hexDump && typeof hexDump.size === 'number') return hexDump.size
+  return activeHexBytes.value.length || 0
+})
 
-const activeTreeRows = computed(() => (isUnknownFrame.value ? protocolTrees.unknown : protocolTrees.modbus))
+const activeTreeRows = computed(() => {
+  const rows = activeFrame.value?.tree
+  if (Array.isArray(rows) && rows.length) {
+    return rows.map((row) => ({
+      label: row.label || row.name || '字段',
+      raw: row.raw || row.raw_hex || '--',
+      value: row.value || row.display || '--',
+    }))
+  }
+  return isUnknownFrame.value ? protocolTrees.unknown : protocolTrees.modbus
+})
 
 function hexCellClass(index, value) {
   if (value === '--') return 'text-slate-300'
