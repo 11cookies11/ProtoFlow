@@ -377,6 +377,13 @@ function openCreateModal() {
 }
 
 function openCaptureModal(proxy) {
+  if (bridge && bridge.value && bridge.value.start_capture) {
+    bridge.value.start_capture({
+      id: proxy?.id,
+      channel: proxy?.hostPort,
+      hostPort: proxy?.hostPort,
+    })
+  }
   captureProxy.value = proxy
   captureFilter.value = 'all'
   selectedFrame.value = captureFrames.value[0] || null
@@ -388,6 +395,9 @@ function closeModal() {
 }
 
 function closeCaptureModal() {
+  if (bridge && bridge.value && bridge.value.stop_capture) {
+    bridge.value.stop_capture()
+  }
   captureOpen.value = false
 }
 

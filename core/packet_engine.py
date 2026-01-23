@@ -31,6 +31,8 @@ class PacketAnalysisEngine:
         self._bus = bus
         self._queue: "queue.Queue[Tuple[str, bytes, float]]" = queue.Queue()
         self._channel = _ChannelInfo()
+        self._enabled = False
+        self._target_channel: Optional[str] = None
         self._counter = 0
         self._stop = threading.Event()
         self._worker = threading.Thread(target=self._run, daemon=True)
@@ -39,15 +41,24 @@ class PacketAnalysisEngine:
         self._bus.subscribe("comm.tx", self._on_tx)
         self._bus.subscribe("comm.connected", self._on_connected)
         self._bus.subscribe("comm.disconnected", self._on_disconnected)
+        self._bus.subscribe("capture.control", self._on_control)
 
     def _on_rx(self, payload: Any) -> None:
+        if not self._enabled:
+            return
         data = self._to_bytes(payload)
         if data:
+            if self._target_channel and self._channel.channel and self._channel.channel != self._target_channel:
+                return
             self._queue.put(("RX", data, time.time()))
 
     def _on_tx(self, payload: Any) -> None:
+        if not self._enabled:
+            return
         data = self._to_bytes(payload)
         if data:
+            if self._target_channel and self._channel.channel and self._channel.channel != self._target_channel:
+                return
             self._queue.put(("TX", data, time.time()))
 
     def _on_connected(self, payload: Any) -> None:
@@ -63,6 +74,18 @@ class PacketAnalysisEngine:
 
     def _on_disconnected(self, payload: Any) -> None:
         self._channel = _ChannelInfo()
+
+    def _on_control(self, payload: Any) -> None:
+        if not isinstance(payload, dict):
+            return
+        action = payload.get("action")
+        if action == "start":
+            self._enabled = True
+            channel = payload.get("channel")
+            self._target_channel = str(channel) if channel else None
+        elif action == "stop":
+            self._enabled = False
+            self._target_channel = None
 
     def _run(self) -> None:
         while not self._stop.is_set():

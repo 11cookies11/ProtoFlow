@@ -194,6 +194,27 @@ class WebBridge(QObject):
     def save_settings(self, payload: Dict[str, Any]) -> bool:
         return self._save_settings(payload)
 
+    @Slot("QVariant", result=bool)
+    def start_capture(self, payload: Dict[str, Any]) -> bool:
+        if not isinstance(payload, dict):
+            return False
+        channel = payload.get("channel") or payload.get("hostPort")
+        pair_id = payload.get("id") or payload.get("pairId")
+        self._bus.publish(
+            "capture.control",
+            {
+                "action": "start",
+                "channel": channel,
+                "pair_id": pair_id,
+            },
+        )
+        return True
+
+    @Slot(result=bool)
+    def stop_capture(self) -> bool:
+        self._bus.publish("capture.control", {"action": "stop"})
+        return True
+
     @Slot(str, str, result=str)
     def select_directory(self, title: str, start_dir: str) -> str:
         return QFileDialog.getExistingDirectory(None, title or "Select directory", start_dir or "")
