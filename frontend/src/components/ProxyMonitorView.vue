@@ -11,6 +11,7 @@ const filterTabs = [
 const activeFilter = ref(filterTabs[0].id)
 const modalOpen = ref(false)
 const modalProxy = ref(null)
+const modalMode = ref('edit')
 const captureOpen = ref(false)
 const captureProxy = ref(null)
 const captureFilter = ref('all')
@@ -91,6 +92,20 @@ const proxies = ref([
     toggleLabel: '异常',
   },
 ])
+
+let proxySeq = 1000
+
+function buildProxyMeta(host, baud) {
+  return `ID: PX-${proxySeq} · ${baud ? String(baud) : '8'}-N-1`
+}
+
+function normalizeProxy(proxy, updates = {}) {
+  const next = { ...proxy, ...updates }
+  if (!next.meta) {
+    next.meta = buildProxyMeta(next.hostPort, next.baud)
+  }
+  return next
+}
 
 const filteredProxies = computed(() => {
   if (activeFilter.value === 'all') return proxies.value
@@ -292,11 +307,22 @@ const filteredFrames = computed(() => {
 })
 
 function openEditModal(proxy) {
+  modalMode.value = 'edit'
   modalProxy.value = proxy
   proxyName.value = proxy && proxy.name ? proxy.name : ''
   hostPort.value = proxy && proxy.hostPort ? proxy.hostPort : hostPort.value
   devicePort.value = proxy && proxy.devicePort ? proxy.devicePort : devicePort.value
   baudRate.value = proxy && proxy.baud ? String(proxy.baud) : baudRate.value
+  modalOpen.value = true
+}
+
+function openCreateModal() {
+  modalMode.value = 'create'
+  modalProxy.value = null
+  proxyName.value = ''
+  hostPort.value = portOptions[0] || 'COM1'
+  devicePort.value = portOptions[1] || 'COM2'
+  baudRate.value = baudOptions[5] || '115200'
   modalOpen.value = true
 }
 
@@ -317,6 +343,79 @@ function closeCaptureModal() {
 
 function selectFrame(frame) {
   selectedFrame.value = frame
+}
+
+function refreshProxies() {
+  proxies.value = proxies.value.map((proxy) => ({ ...proxy }))
+}
+
+function setProxyStatus(proxy, active) {
+  const nextStatus = active ? 'running' : 'stopped'
+  const statusLabel = active ? '运行中' : '已停止'
+  const routeLabel = active ? '转发中' : '离线'
+  const routeTone = active ? 'primary' : 'muted'
+  const statusIcon = active ? 'swap_horizontal_circle' : 'pause_circle'
+  const routeIcon = active ? 'keyboard_double_arrow_right' : 'more_horiz'
+  proxy.status = nextStatus
+  proxy.statusLabel = statusLabel
+  proxy.toggleLabel = statusLabel
+  proxy.routeLabel = routeLabel
+  proxy.routeTone = routeTone
+  proxy.statusIcon = statusIcon
+  proxy.routeIcon = routeIcon
+  proxy.active = active
+}
+
+function saveProxy() {
+  const payload = {
+    name: proxyName.value || '未命名转发对',
+    hostPort: hostPort.value,
+    devicePort: devicePort.value,
+    baud: baudRate.value,
+  }
+
+  if (modalMode.value === 'create') {
+    proxySeq += 1
+    const newProxy = normalizeProxy(
+      {
+        id: `proxy-${proxySeq}`,
+        name: payload.name,
+        meta: buildProxyMeta(payload.hostPort, payload.baud),
+        status: 'stopped',
+        statusLabel: '已停止',
+        statusIcon: 'pause_circle',
+        routeIcon: 'more_horiz',
+        routeLabel: '离线',
+        routeTone: 'muted',
+        hostPort: payload.hostPort,
+        devicePort: payload.devicePort,
+        baud: payload.baud,
+        bandwidth: '0.0',
+        bandwidthUnit: 'KB/s',
+        spark: '',
+        active: false,
+        toggleLabel: '已停止',
+      },
+      {}
+    )
+    proxies.value.unshift(newProxy)
+  } else if (modalProxy.value) {
+    modalProxy.value.name = payload.name
+    modalProxy.value.hostPort = payload.hostPort
+    modalProxy.value.devicePort = payload.devicePort
+    modalProxy.value.baud = payload.baud
+    modalProxy.value.meta = buildProxyMeta(payload.hostPort, payload.baud)
+  }
+
+  modalOpen.value = false
+}
+
+function confirmDeleteProxy(proxy) {
+  if (!proxy) return
+  const ok = window.confirm(`确认删除转发对「${proxy.name}」吗？删除前将停止转发。`)
+  if (!ok) return
+  setProxyStatus(proxy, false)
+  proxies.value = proxies.value.filter((item) => item.id !== proxy.id)
 }
 
 watch(
@@ -348,11 +447,11 @@ onBeforeUnmount(() => {
           <p>管理转发链路并实时监控数据流状态。</p>
         </div>
         <div class="proxy-hero-actions">
-          <button class="proxy-hero-btn" type="button">
+          <button class="proxy-hero-btn" type="button" @click="refreshProxies">
             <span class="material-symbols-outlined">refresh</span>
             刷新状态
           </button>
-          <button class="proxy-hero-btn primary" type="button">
+          <button class="proxy-hero-btn primary" type="button" @click="openCreateModal">
             <span class="material-symbols-outlined">add</span>
             新建转发对
           </button>
@@ -435,7 +534,7 @@ onBeforeUnmount(() => {
         <div class="proxy-panel-footer" :class="`status-${proxy.status}`">
           <label class="proxy-footer-toggle">
             <span class="proxy-toggle">
-              <input type="checkbox" :checked="proxy.active" />
+              <input type="checkbox" :checked="proxy.active" @change="setProxyStatus(proxy, $event.target.checked)" />
               <span></span>
             </span>
             <span class="proxy-toggle-text">{{ proxy.toggleLabel }}</span>
@@ -447,7 +546,7 @@ onBeforeUnmount(() => {
             <button class="icon-btn" type="button" title="编辑" @click="openEditModal(proxy)">
               <span class="material-symbols-outlined">edit</span>
             </button>
-            <button class="icon-btn danger" type="button" title="删除">
+            <button class="icon-btn danger" type="button" title="删除" @click="confirmDeleteProxy(proxy)">
               <span class="material-symbols-outlined">delete</span>
             </button>
           </div>
@@ -464,7 +563,7 @@ onBeforeUnmount(() => {
             <div class="proxy-modal-icon">
               <span class="material-symbols-outlined">edit_square</span>
             </div>
-            <h2>编辑转发代理</h2>
+            <h2>{{ modalMode === 'create' ? '新建转发对' : '编辑转发代理' }}</h2>
           </div>
           <button class="proxy-modal-close" type="button" @click="closeModal">
             <span class="material-symbols-outlined">close</span>
@@ -562,6 +661,13 @@ onBeforeUnmount(() => {
                 </label>
               </div>
             </div>
+          </div>
+        </div>
+        <div class="proxy-modal-footer">
+          <div></div>
+          <div class="proxy-footer-actions">
+            <button class="proxy-btn ghost" type="button" @click="closeModal">取消</button>
+            <button class="proxy-btn primary" type="button" @click="saveProxy">保存</button>
           </div>
         </div>
       </div>
