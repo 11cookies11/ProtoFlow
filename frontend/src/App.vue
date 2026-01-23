@@ -582,13 +582,13 @@ function mapCaptureFrame(payload) {
     warn: unknown,
     channel: payload.channel || '',
     baud: payload.baud || '',
-    protocolLabel: protocol.name || (unknown ? 'Unknown' : 'Protocol'),
+    protocolLabel: protocol.name || (unknown ? 'Unknown' : ''),
     protocolType: unknown
       ? 'unknown'
       : (protocol.name || '').toLowerCase().includes('modbus')
         ? 'modbus'
         : 'custom',
-    protocolTooltip: protocol.name ? `${protocol.name}${protocol.version ? ` ${protocol.version}` : ''}` : '未知协议',
+    protocolTooltip: protocol.name ? `${protocol.name}${protocol.version ? ` ${protocol.version}` : ''}` : '',
     hexDump: payload.hex_dump || null,
     tree: payload.tree || [],
   }

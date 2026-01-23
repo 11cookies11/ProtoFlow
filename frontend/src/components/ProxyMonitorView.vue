@@ -18,10 +18,7 @@ const confirmProxy = ref(null)
 const captureProxy = ref(null)
 const captureFilter = ref('all')
 const captureView = ref('parsed')
-const selectedProtocol = ref('Modbus RTU')
 const selectedFrame = ref(null)
-
-const protocolOptions = ['Modbus RTU', 'MQTT', 'Raw Hex', 'Custom Protocol A']
 
 const proxyName = ref('')
 const connectionMode = ref('透传模式')
@@ -186,119 +183,33 @@ const props = defineProps({
   },
 })
 
-const localCaptureFrames = ref([
-  {
-    id: 'frame-001',
-    direction: 'RX',
-    time: '14:20:01.2',
-    size: 64,
-    note: '01 03 00 00 00 02 C4 0B',
-    summary: 'Read Hold Regs',
-    summaryText: '请求: 读取保持寄存器 0x0000',
-    tone: 'green',
-    warn: false,
-    channel: 'COM5',
-    baud: '115200',
-    protocolLabel: 'Modbus RTU',
-    protocolType: 'modbus',
-    protocolTooltip: 'Modbus RTU v1.1',
-  },
-  {
-    id: 'frame-002',
-    direction: 'TX',
-    time: '14:20:01.5',
-    size: 128,
-    note: '01 03 04 01 F4 02 BC 9B 42',
-    summary: 'Resp: 50.0 / 70.0',
-    summaryText: '响应: 寄存器 0=500.0, 1=700.0',
-    tone: 'blue',
-    warn: false,
-    channel: 'COM3',
-    baud: '115200',
-    protocolLabel: 'Modbus RTU',
-    protocolType: 'modbus',
-    protocolTooltip: 'Modbus RTU v1.1',
-  },
-  {
-    id: 'frame-003',
-    direction: 'RX',
-    time: '14:20:02.8',
-    size: 1,
-    note: '01 83 02 FF FF',
-    summary: 'EXCEPTION: ILLEGAL_ADDR',
-    summaryText: '异常: 非法寄存器地址',
-    tone: 'red',
-    warn: true,
-    channel: 'COM5',
-    baud: '115200',
-    protocolLabel: 'Unknown',
-    protocolType: 'unknown',
-    protocolTooltip: '未知协议 - 点击配置',
-  },
-  {
-    id: 'frame-004',
-    direction: 'RX',
-    time: '14:20:03.2',
-    size: 0,
-    note: 'Waiting for next frame...',
-    summary: '',
-    summaryText: '等待下一帧...',
-    tone: 'amber',
-    warn: false,
-    channel: 'COM5',
-    baud: '115200',
-    protocolLabel: 'Modbus RTU',
-    protocolType: 'modbus',
-    protocolTooltip: 'Modbus RTU v1.1',
-  },
-])
+const captureFrames = computed(() => props.captureFrames || [])
 
-const localCaptureMeta = ref({
-  channel: 'Ethernet (TAP)',
-  engine: '通用动态解析 (Agnostic Engine)',
-  bufferUsed: 85,
-  rangeStart: 1,
-  rangeEnd: 50,
-  totalFrames: 50234,
+const captureMeta = computed(() => ({
+  bufferUsed: 0,
+  rangeStart: 0,
+  rangeEnd: 0,
+  totalFrames: 0,
   page: 1,
-  pageCount: 1005,
-})
+  pageCount: 1,
+  channel: '',
+  engine: '',
+  ...(props.captureMeta || {}),
+}))
 
-const localCaptureMetrics = ref({
-  rtt: '4.2 ms',
-  loss: '0.02 %',
-})
-
-const protocolTrees = {
-  modbus: [
-    { label: '报文标识 (Header)', raw: '01 03', value: '0x0103' },
-    { label: '数据长度 (Len)', raw: '08', value: '8 Bytes' },
-  ],
-  unknown: [
-    { label: '报文标识 (Header)', raw: 'FF EE', value: '65518' },
-    { label: '数据长度 (Len)', raw: '10', value: '16 Bytes' },
-  ],
-}
-
-const captureFrames = computed(() =>
-  props.captureFrames && props.captureFrames.length ? props.captureFrames : localCaptureFrames.value
-)
-
-const captureMeta = computed(() =>
-  props.captureMeta && Object.keys(props.captureMeta).length ? props.captureMeta : localCaptureMeta.value
-)
-
-const captureMetrics = computed(() =>
-  props.captureMetrics && Object.keys(props.captureMetrics).length ? props.captureMetrics : localCaptureMetrics.value
-)
+const captureMetrics = computed(() => ({
+  rtt: '',
+  loss: '',
+  ...(props.captureMetrics || {}),
+}))
 
 const activeFrame = computed(() => selectedFrame.value || captureFrames.value[0] || null)
 
 const isUnknownFrame = computed(() => activeFrame.value?.protocolType === 'unknown')
 
-const activeProtocolLabel = computed(() => activeFrame.value?.protocolLabel || selectedProtocol.value)
+const activeProtocolLabel = computed(() => activeFrame.value?.protocolLabel || '')
 
-const activeProtocolTooltip = computed(() => activeFrame.value?.protocolTooltip || '未知协议')
+const activeProtocolTooltip = computed(() => activeFrame.value?.protocolTooltip || '')
 
 const activeSummaryText = computed(() => activeFrame.value?.summaryText || activeFrame.value?.summary || '')
 
@@ -317,11 +228,13 @@ const activeHexBytes = computed(() => {
 
 const activeHexCells = computed(() => {
   const bytes = activeHexBytes.value.slice(0, 16)
+  if (!bytes.length) return []
   while (bytes.length < 16) bytes.push('--')
   return bytes
 })
 
 const activeHexAscii = computed(() => {
+  if (!activeHexCells.value.length) return ['', '']
   const bytes = activeHexCells.value.map((cell) => {
     if (cell === '--') return '.'
     const code = parseInt(cell, 16)
@@ -341,12 +254,12 @@ const activeTreeRows = computed(() => {
   const rows = activeFrame.value?.tree
   if (Array.isArray(rows) && rows.length) {
     return rows.map((row) => ({
-      label: row.label || row.name || '字段',
-      raw: row.raw || row.raw_hex || '--',
-      value: row.value || row.display || '--',
+      label: row.label || row.name || '',
+      raw: row.raw || row.raw_hex || '',
+      value: row.value || row.display || '',
     }))
   }
-  return isUnknownFrame.value ? protocolTrees.unknown : protocolTrees.modbus
+  return []
 })
 
 function hexCellClass(index, value) {
@@ -909,7 +822,9 @@ onBeforeUnmount(() => {
                     :class="{ 'bg-orange-50/40 border-l-4 border-l-orange-400': frame.tone === 'red' }"
                     @click="selectFrame(frame)"
                   >
-                    <td class="px-3 py-2 text-slate-400 font-mono">{{ 50234 - index }}</td>
+                    <td class="px-3 py-2 text-slate-400 font-mono">
+                      {{ frame.seq ?? (captureMeta.rangeStart ? captureMeta.rangeStart + index : index + 1) }}
+                    </td>
                     <td class="px-3 py-2 text-slate-500 font-mono">{{ frame.time }}</td>
                     <td class="px-3 py-2 text-center">
                       <span
@@ -935,17 +850,17 @@ onBeforeUnmount(() => {
                           >
                             {{ frame.tone === 'red' ? '?' : 'M' }}
                           </span>
-                          <span>{{ frame.protocolLabel || (frame.tone === 'red' ? 'Unknown' : selectedProtocol) }}</span>
+                          <span>{{ frame.protocolLabel || '' }}</span>
                         </div>
                         <div class="protocol-tooltip bg-slate-800 text-white text-[10px] px-2 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap border border-slate-700">
-                          {{ frame.protocolTooltip || (frame.tone === 'red' ? '未知协议 - 点击配置' : 'Modbus RTU v1.1') }}
+                          {{ frame.protocolTooltip || '' }}
                         </div>
                       </div>
                     </td>
                     <td class="px-3 py-2 text-slate-500">{{ frame.size }}B</td>
                     <td class="px-3 py-2 hex-font text-slate-400 truncate max-w-[240px]">{{ frame.note }}</td>
                     <td class="px-3 py-2 text-slate-600 italic">
-                      {{ frame.summaryText || frame.summary || ('HEX: ' + frame.note + ' | ASCII: ....') }}
+                      {{ frame.summaryText || frame.summary || '' }}
                     </td>
                   </tr>
                 </tbody>
@@ -968,90 +883,95 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <div class="flex-1 overflow-y-auto">
-              <div class="p-6 text-center space-y-4 border-b border-slate-200 bg-orange-50/20">
-                <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-100 text-orange-600 mb-1">
-                  <span class="material-symbols-outlined !text-3xl">question_mark</span>
-                </div>
-                <div>
-                  <h3 class="text-sm font-bold text-slate-800">
-                    {{ isUnknownFrame ? '未知协议报文 (Unknown Protocol)' : `${activeProtocolLabel} 报文` }}
-                  </h3>
-                  <p class="text-[11px] text-slate-500 mt-1 max-w-[280px] mx-auto leading-relaxed">
-                    {{
-                      isUnknownFrame
-                        ? '系统未能自动匹配已知的解析插件。您可以尝试手动配置解析规则，或使用万能解析脚本。'
-                        : '已匹配协议解析插件，当前展示该报文的解析详情。'
-                    }}
-                  </p>
-                </div>
-                <div class="flex justify-center gap-3">
-                  <button class="px-3 py-1.5 bg-white border border-slate-300 rounded text-[11px] font-bold hover:bg-slate-50 transition-colors shadow-sm">
-                    {{ isUnknownFrame ? '手动解析' : '查看详情' }}
-                  </button>
-                  <button class="px-3 py-1.5 bg-blue-600 text-white rounded text-[11px] font-bold hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-md">
-                    <span class="material-symbols-outlined !text-xs">schema</span>
-                    {{ isUnknownFrame ? '配置解析规则' : '调整解析规则' }}
-                  </button>
-                </div>
-              </div>
-              <div class="p-4 border-b border-slate-200">
-                <div class="flex items-center justify-between mb-3">
-                  <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">原始十六进制 (RAW HEX)</h3>
-                  <span class="text-[10px] font-mono bg-slate-200 px-1.5 py-0.5 rounded text-slate-600">
-                    {{ activeHexSize }} 字节
-                  </span>
-                </div>
-                <div class="bg-white border border-slate-200 rounded-lg overflow-hidden flex shadow-inner">
-                  <div class="bg-slate-50 border-r border-slate-200 p-2 text-[10px] font-mono text-slate-400 leading-6 text-right w-12 shrink-0">
-                    0000<br />0008
+              <div v-if="!activeFrame" class="p-6 text-center text-slate-400 text-sm">暂无报文数据</div>
+              <template v-else>
+                <div class="p-6 text-center space-y-4 border-b border-slate-200 bg-orange-50/20">
+                  <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-100 text-orange-600 mb-1">
+                    <span class="material-symbols-outlined !text-3xl">question_mark</span>
                   </div>
-                  <div class="flex-1 p-2 hex-font text-xs leading-6 grid grid-cols-8 gap-x-1 text-center font-medium">
-                    <span
-                      v-for="(cell, cellIndex) in activeHexCells"
-                      :key="`hex-${cellIndex}`"
-                      :class="hexCellClass(cellIndex, cell)"
-                    >
-                      {{ cell }}
+                  <div>
+                    <h3 class="text-sm font-bold text-slate-800">
+                      {{ isUnknownFrame ? '未知协议报文 (Unknown Protocol)' : `${activeProtocolLabel} 报文` }}
+                    </h3>
+                    <p class="text-[11px] text-slate-500 mt-1 max-w-[280px] mx-auto leading-relaxed">
+                      {{
+                        isUnknownFrame
+                          ? '系统未能自动匹配已知的解析插件。您可以尝试手动配置解析规则，或使用万能解析脚本。'
+                          : '已匹配协议解析插件，当前展示该报文的解析详情。'
+                      }}
+                    </p>
+                  </div>
+                  <div class="flex justify-center gap-3">
+                    <button class="px-3 py-1.5 bg-white border border-slate-300 rounded text-[11px] font-bold hover:bg-slate-50 transition-colors shadow-sm">
+                      {{ isUnknownFrame ? '手动解析' : '查看详情' }}
+                    </button>
+                    <button class="px-3 py-1.5 bg-blue-600 text-white rounded text-[11px] font-bold hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-md">
+                      <span class="material-symbols-outlined !text-xs">schema</span>
+                      {{ isUnknownFrame ? '配置解析规则' : '调整解析规则' }}
+                    </button>
+                  </div>
+                </div>
+                <div class="p-4 border-b border-slate-200">
+                  <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">原始十六进制 (RAW HEX)</h3>
+                    <span class="text-[10px] font-mono bg-slate-200 px-1.5 py-0.5 rounded text-slate-600">
+                      {{ activeHexSize }} 字节
                     </span>
                   </div>
-                  <div class="border-l border-slate-200 p-2 text-[10px] font-mono text-slate-500 leading-6 tracking-tight w-24 shrink-0 bg-slate-50/50">
-                    {{ activeHexAscii[0] }}<br />{{ activeHexAscii[1] }}
+                  <div v-if="activeHexCells.length" class="bg-white border border-slate-200 rounded-lg overflow-hidden flex shadow-inner">
+                    <div class="bg-slate-50 border-r border-slate-200 p-2 text-[10px] font-mono text-slate-400 leading-6 text-right w-12 shrink-0">
+                      0000<br />0008
+                    </div>
+                    <div class="flex-1 p-2 hex-font text-xs leading-6 grid grid-cols-8 gap-x-1 text-center font-medium">
+                      <span
+                        v-for="(cell, cellIndex) in activeHexCells"
+                        :key="`hex-${cellIndex}`"
+                        :class="hexCellClass(cellIndex, cell)"
+                      >
+                        {{ cell }}
+                      </span>
+                    </div>
+                    <div class="border-l border-slate-200 p-2 text-[10px] font-mono text-slate-500 leading-6 tracking-tight w-24 shrink-0 bg-slate-50/50">
+                      {{ activeHexAscii[0] }}<br />{{ activeHexAscii[1] }}
+                    </div>
+                  </div>
+                  <div v-else class="text-xs text-slate-400">暂无十六进制数据</div>
+                </div>
+                <div class="p-4 space-y-4">
+                  <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">协议层级解析 (PROTOCOL TREE)</h3>
+                  <div class="relative pl-4 space-y-1">
+                    <div class="flex items-center gap-2 -ml-4 cursor-pointer hover:bg-slate-100 p-1 rounded transition-colors group">
+                      <span class="material-symbols-outlined text-slate-400 group-open:rotate-90">arrow_right</span>
+                      <span class="text-[11px] font-bold text-slate-500 uppercase">链路层 (Data Link Layer)</span>
+                    </div>
+                    <div class="tree-line relative pl-2 space-y-1">
+                      <details class="group" open>
+                        <summary class="flex items-center gap-2 list-none cursor-pointer hover:bg-slate-100 p-1 rounded -ml-4 transition-colors">
+                          <span class="material-symbols-outlined text-blue-500 group-open:rotate-90 transition-transform">arrow_drop_down</span>
+                          <span class="text-[11px] font-bold text-slate-800 uppercase">{{ activeProtocolLabel }}</span>
+                        </summary>
+                        <div class="mt-2 space-y-0.5 pl-2">
+                          <div class="grid grid-cols-12 text-[9px] font-bold text-slate-400 px-2 py-1 uppercase tracking-tighter">
+                            <div class="col-span-3">原始值</div>
+                            <div class="col-span-4">字段</div>
+                            <div class="col-span-5 text-right">解析值</div>
+                          </div>
+                          <div
+                            v-for="(row, rowIndex) in activeTreeRows"
+                            :key="`tree-${rowIndex}`"
+                            class="grid grid-cols-12 items-center py-1.5 px-2 rounded hover:bg-blue-50 cursor-default transition-colors border-l-2 border-transparent hover:border-blue-500"
+                          >
+                            <div class="col-span-3 font-mono text-[11px] text-blue-600">{{ row.raw }}</div>
+                            <div class="col-span-4 text-[11px] text-slate-500">{{ row.label }}</div>
+                            <div class="col-span-5 text-[11px] text-right font-bold text-slate-700">{{ row.value }}</div>
+                          </div>
+                          <div v-if="!activeTreeRows.length" class="text-xs text-slate-400 px-2 py-2">暂无协议解析数据</div>
+                        </div>
+                      </details>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div class="p-4 space-y-4">
-                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">协议层级解析 (PROTOCOL TREE)</h3>
-                <div class="relative pl-4 space-y-1">
-                  <div class="flex items-center gap-2 -ml-4 cursor-pointer hover:bg-slate-100 p-1 rounded transition-colors group">
-                    <span class="material-symbols-outlined text-slate-400 group-open:rotate-90">arrow_right</span>
-                    <span class="text-[11px] font-bold text-slate-500 uppercase">链路层 (Data Link Layer)</span>
-                  </div>
-                  <div class="tree-line relative pl-2 space-y-1">
-                    <details class="group" open>
-                      <summary class="flex items-center gap-2 list-none cursor-pointer hover:bg-slate-100 p-1 rounded -ml-4 transition-colors">
-                        <span class="material-symbols-outlined text-blue-500 group-open:rotate-90 transition-transform">arrow_drop_down</span>
-                        <span class="text-[11px] font-bold text-slate-800 uppercase">Agnostic Data Frame</span>
-                      </summary>
-                      <div class="mt-2 space-y-0.5 pl-2">
-                        <div class="grid grid-cols-12 text-[9px] font-bold text-slate-400 px-2 py-1 uppercase tracking-tighter">
-                          <div class="col-span-3">原始值</div>
-                          <div class="col-span-4">字段</div>
-                          <div class="col-span-5 text-right">解析值</div>
-                        </div>
-                        <div
-                          v-for="(row, rowIndex) in activeTreeRows"
-                          :key="`tree-${rowIndex}`"
-                          class="grid grid-cols-12 items-center py-1.5 px-2 rounded hover:bg-blue-50 cursor-default transition-colors border-l-2 border-transparent hover:border-blue-500"
-                        >
-                          <div class="col-span-3 font-mono text-[11px] text-blue-600">{{ row.raw }}</div>
-                          <div class="col-span-4 text-[11px] text-slate-500">{{ row.label }}</div>
-                          <div class="col-span-5 text-[11px] text-right font-bold text-slate-700">{{ row.value }}</div>
-                        </div>
-                      </div>
-                    </details>
-                  </div>
-                </div>
-              </div>
+              </template>
             </div>
             <div class="p-4 bg-slate-100/50 border-t border-slate-200">
               <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">实时网络指标</p>
