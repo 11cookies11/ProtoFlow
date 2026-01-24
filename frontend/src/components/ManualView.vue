@@ -63,11 +63,10 @@ const {
 
 <template>
   <section class="page">
-          
-          <div class="terminal-config-panel page-header spaced">
+          <header class="page-header spaced">
             <div>
-              <h3 class="config-title">串口终端</h3>
-              <p class="config-description">传统串口调试工具：发送命令，监听 I/O 与日志回显。</p>
+              <h2>串口终端</h2>
+              <p>传统串口调试工具：发送命令，监听 I/O 与日志回显。</p>
             </div>
             <div class="header-actions terminal-config-actions">
               <div class="config-status">
@@ -110,7 +109,7 @@ const {
                 </button>
               </div>
             </div>
-          </div>
+          </header>
 
           <div class="manual-grid">
             <div class="manual-left">
