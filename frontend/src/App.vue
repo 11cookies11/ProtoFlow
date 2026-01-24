@@ -7,10 +7,11 @@ import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import ManualView from './components/ManualView.vue'
 import ScriptsView from './components/ScriptsView.vue'
-import YamlUiLab from './components/YamlUiLab.vue'
 import ProxyMonitorView from './components/ProxyMonitorView.vue'
 import DropdownSelect from './components/DropdownSelect.vue'
 import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
+import LayoutRenderer from './ui/LayoutRenderer.vue'
+import { useUiRuntimeStore } from './stores/uiRuntime'
 
 const bridge = ref(null)
 const sidebarRef = ref(null)
@@ -134,6 +135,8 @@ const settingsGeneralRef = ref(null)
 const settingsPluginsRef = ref(null)
 const settingsRuntimeRef = ref(null)
 const settingsLogsRef = ref(null)
+const uiRuntime = useUiRuntimeStore()
+const uiModalOpen = ref(false)
 
 const noPorts = computed(() => ports.value.length === 0)
 const portOptionsList = computed(() => ports.value.map((item) => ({ label: item, value: item, icon: 'usb' })))
@@ -1231,6 +1234,18 @@ function sendQuickCommand(cmd) {
   bridge.value.send_text(data)
 }
 
+async function openUiYamlModal() {
+  if (!uiModalOpen.value) {
+    uiModalOpen.value = true
+  }
+  uiRuntime.yamlText = yamlText.value
+  await uiRuntime._parseWithBridge()
+}
+
+function closeUiYamlModal() {
+  uiModalOpen.value = false
+}
+
 function runScript() {
   if (!bridge.value) return
   const payload = yamlText.value.trim()
@@ -1243,6 +1258,7 @@ function runScript() {
   scriptStartMs.value = Date.now()
   scriptElapsedMs.value = 0
   scriptProgress.value = 0
+  openUiYamlModal()
   bridge.value.run_script(payload)
 }
 
@@ -1537,9 +1553,24 @@ watch(
 )
 
 watch(
-  () => channelDialogOpen.value || quickDialogOpen.value || quickDeleteOpen.value || protocolDialogOpen.value || protocolDeleteOpen.value,
+  () =>
+    channelDialogOpen.value ||
+    quickDialogOpen.value ||
+    quickDeleteOpen.value ||
+    protocolDialogOpen.value ||
+    protocolDeleteOpen.value ||
+    uiModalOpen.value,
   (open) => {
     document.body.classList.toggle('modal-open', open)
+  }
+)
+
+watch(
+  () => scriptRunning.value,
+  (running) => {
+    if (running && !uiModalOpen.value) {
+      openUiYamlModal()
+    }
   }
 )
 
@@ -1951,10 +1982,6 @@ function unlockSidebarWidth() {
             <span class="material-symbols-outlined">smart_toy</span>
             <span>{{ uiLabels.scripts }}</span>
           </button>
-          <button class="nav-item" :class="{ active: currentView === 'ui-lab' }" @click="currentView = 'ui-lab'">
-            <span class="material-symbols-outlined">dashboard_customize</span>
-            <span>YAML UI</span>
-          </button>
           <button class="nav-item" :class="{ active: currentView === 'proxy' }" @click="currentView = 'proxy'">
             <span class="material-symbols-outlined">settings_input_hdmi</span>
             <span>{{ uiLabels.proxy }}</span>
@@ -1981,7 +2008,6 @@ function unlockSidebarWidth() {
       <main class="main">
         <ManualView v-if="currentView === 'manual'" />
         <ScriptsView v-else-if="currentView === 'scripts'" />
-        <YamlUiLab v-else-if="currentView === 'ui-lab'" />
         <ProxyMonitorView
           v-else-if="currentView === 'proxy'"
           :capture-frames="captureFrames"
@@ -2380,6 +2406,36 @@ function unlockSidebarWidth() {
             <div class="modal-footer">
               <button class="btn btn-outline" type="button" @click="closeProtocolDelete">取消</button>
               <button class="btn btn-danger" type="button" @click="confirmProtocolDelete">确认删除</button>
+            </div>
+          </div>
+        </div>
+      </teleport>
+
+      <teleport to="body">
+        <div v-if="uiModalOpen" class="modal-backdrop" @mousedown.self="closeUiYamlModal">
+          <div class="channel-modal ui-yaml-modal" @mousedown.stop @click.stop>
+            <div class="modal-header">
+              <div>
+                <h3>UI YAML 预览</h3>
+                <p>脚本运行中展示 UI 渲染结果</p>
+              </div>
+              <button class="icon-btn" type="button" @click="closeUiYamlModal">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div class="modal-body ui-yaml-body">
+              <div v-if="uiRuntime.parseError" class="ui-yaml-error">
+                <strong>解析失败</strong>
+                <div>{{ uiRuntime.parseError.message }}</div>
+                <div v-if="uiRuntime.parseError.path" class="muted">Path: {{ uiRuntime.parseError.path }}</div>
+                <div v-if="uiRuntime.parseError.line" class="muted">
+                  Line {{ uiRuntime.parseError.line }}, Column {{ uiRuntime.parseError.column || 0 }}
+                </div>
+              </div>
+              <div v-else-if="uiRuntime.lastGoodConfig">
+                <LayoutRenderer :config="uiRuntime.lastGoodConfig" :widgetsById="uiRuntime.widgetsById" />
+              </div>
+              <div v-else class="empty-state muted">暂无可渲染的 UI 配置</div>
             </div>
           </div>
         </div>
