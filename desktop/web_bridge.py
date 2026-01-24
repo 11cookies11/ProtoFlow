@@ -86,6 +86,22 @@ class WebBridge(QObject):
             self._bus.subscribe("protocol.frame", self._on_protocol_frame)
             self._bus.subscribe("capture.frame", self._on_capture_frame)
 
+    def _read_app_version(self) -> str:
+        env_version = os.environ.get("PROTOFLOW_VERSION")
+        if env_version:
+            return env_version.strip()
+        try:
+            version_path = Path(__file__).resolve().parents[1] / "VERSION"
+            if version_path.is_file():
+                return version_path.read_text(encoding="utf-8").strip()
+        except Exception:
+            return "v0.0.0"
+        return "v0.0.0"
+
+    @Slot(result=str)
+    def get_app_version(self) -> str:
+        return self._read_app_version()
+
     @Slot(str, result=str)
     def ping(self, message: str) -> str:
         return f"pong: {message}"

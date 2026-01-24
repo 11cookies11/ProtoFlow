@@ -137,6 +137,7 @@ const settingsRuntimeRef = ref(null)
 const settingsLogsRef = ref(null)
 const uiRuntime = useUiRuntimeStore()
 const uiModalOpen = ref(false)
+const appVersion = ref('')
 
 const noPorts = computed(() => ports.value.length === 0)
 const portOptionsList = computed(() => ports.value.map((item) => ({ label: item, value: item, icon: 'usb' })))
@@ -232,6 +233,7 @@ const scriptStatusLabel = computed(() => {
 })
 const scriptStatusClass = computed(() => (scriptRunning.value ? 'running' : 'idle'))
 const quickPayloadCount = computed(() => countQuickPayload(quickDraft.value.payload, quickDraft.value.mode))
+const appVersionLabel = computed(() => appVersion.value || 'v0.0.0')
 
 const filteredChannelCards = computed(() => {
   if (channelTab.value === 'all') return channelCards.value
@@ -1401,6 +1403,13 @@ function attachBridge(obj) {
   if (!obj || attachedBridge === obj) return
   attachedBridge = obj
   bridge.value = obj
+  if (obj.get_app_version) {
+    withResult(obj.get_app_version(), (value) => {
+      if (value) {
+        appVersion.value = String(value).trim()
+      }
+    })
+  }
   if (obj.comm_rx && obj.comm_tx) {
     obj.comm_rx.connect((payload) => {
       const parsed = parseBridgePayload(payload)
@@ -1969,8 +1978,8 @@ function unlockSidebarWidth() {
             <span class="material-symbols-outlined">hub</span>
           </div>
           <div>
-            <div class="brand-name">ProtoFlow</div>
-            <div class="brand-meta">v2.4.0-stable</div>
+          <div class="brand-name">ProtoFlow</div>
+            <div class="brand-meta">{{ appVersionLabel }}</div>
           </div>
         </div>
         <nav class="sidebar-nav">
