@@ -172,13 +172,14 @@ function loadProxyPairs() {
   if (!bridge || !bridge.value || !bridge.value.list_proxy_pairs) return
   withBridgeResult(bridge.value.list_proxy_pairs(), (items) => {
     if (!Array.isArray(items)) return
-    proxies.value = items.map((item) => mapProxyFromBackend(item))
+    proxies.value = items.filter(Boolean).map((item) => mapProxyFromBackend(item))
   })
 }
 
 const filteredProxies = computed(() => {
-  if (activeFilter.value === 'all') return proxies.value
-  return proxies.value.filter((proxy) => proxy.status === activeFilter.value)
+  const safeProxies = proxies.value.filter(Boolean)
+  if (activeFilter.value === 'all') return safeProxies
+  return safeProxies.filter((proxy) => proxy.status === activeFilter.value)
 })
 
 const props = defineProps({
@@ -305,11 +306,12 @@ function hexCellClass(index, value) {
 }
 
 const filteredFrames = computed(() => {
-  if (captureFilter.value === 'all') return captureFrames.value
+  const safeFrames = captureFrames.value.filter(Boolean)
+  if (captureFilter.value === 'all') return safeFrames
   if (captureFilter.value === 'error') {
-    return captureFrames.value.filter((frame) => frame.tone === 'red')
+    return safeFrames.filter((frame) => frame.tone === 'red')
   }
-  return captureFrames.value.filter((frame) => frame.direction === captureFilter.value)
+  return safeFrames.filter((frame) => frame.direction === captureFilter.value)
 })
 
 function openEditModal(proxy) {
@@ -835,7 +837,7 @@ onBeforeUnmount(() => {
                 <tbody class="text-xs">
                   <tr
                     v-for="(frame, index) in filteredFrames"
-                    :key="frame.id"
+                    :key="frame?.id ?? index"
                     class="hover:bg-slate-50 cursor-pointer border-b border-slate-100"
                     :class="{ 'bg-orange-50/40 border-l-4 border-l-orange-400': frame.tone === 'red' }"
                     @click="selectFrame(frame)"
