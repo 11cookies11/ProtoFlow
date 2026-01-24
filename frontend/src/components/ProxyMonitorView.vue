@@ -538,12 +538,11 @@ onBeforeUnmount(() => {
         </button>
       </div>
     </header>
-    <div class="proxy-dashboard-filters">
+    <div class="tab-strip secondary">
       <button
         v-for="tab in filterTabs"
         :key="tab.id"
         type="button"
-        class="proxy-filter-chip"
         :class="{ active: activeFilter === tab.id }"
         @click="activeFilter = tab.id"
       >
