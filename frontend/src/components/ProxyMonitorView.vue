@@ -12,7 +12,7 @@ const filterTabs = computed(() => [
   { id: 'stopped', label: t('filter.stopped') },
   { id: 'error', label: t('filter.error') },
 ])
-const activeFilter = ref(filterTabs[0].id)
+const activeFilter = ref(filterTabs.value[0]?.id ?? 'all')
 const modalOpen = ref(false)
 const modalProxy = ref(null)
 const modalMode = ref('edit')
