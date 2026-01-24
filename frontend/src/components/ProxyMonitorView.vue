@@ -522,36 +522,34 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="page proxy-page proxy-dashboard">
-    <header class="proxy-dashboard-hero">
-      <div class="proxy-hero-card">
-        <div>
-          <h2>代理监控</h2>
-          <p>管理转发链路并实时监控数据流状态。</p>
-        </div>
-        <div class="proxy-hero-actions">
-          <button class="proxy-hero-btn" type="button" @click="refreshProxies">
-            <span class="material-symbols-outlined">refresh</span>
-            刷新状态
-          </button>
-          <button class="proxy-hero-btn primary" type="button" @click="openCreateModal">
-            <span class="material-symbols-outlined">add</span>
-            新建转发对
-          </button>
-        </div>
+    <header class="page-header spaced">
+      <div>
+        <h2>代理监控</h2>
+        <p>管理转发链路并实时监控数据流状态。</p>
       </div>
-      <div class="proxy-dashboard-filters">
-        <button
-          v-for="tab in filterTabs"
-          :key="tab.id"
-          type="button"
-          class="proxy-filter-chip"
-          :class="{ active: activeFilter === tab.id }"
-          @click="activeFilter = tab.id"
-        >
-          {{ tab.label }}
+      <div class="header-actions">
+        <button class="btn btn-outline" type="button" @click="refreshProxies">
+          <span class="material-symbols-outlined">refresh</span>
+          刷新状态
+        </button>
+        <button class="btn btn-primary" type="button" @click="openCreateModal">
+          <span class="material-symbols-outlined">add</span>
+          新建转发对
         </button>
       </div>
     </header>
+    <div class="proxy-dashboard-filters">
+      <button
+        v-for="tab in filterTabs"
+        :key="tab.id"
+        type="button"
+        class="proxy-filter-chip"
+        :class="{ active: activeFilter === tab.id }"
+        @click="activeFilter = tab.id"
+      >
+        {{ tab.label }}
+      </button>
+    </div>
 
     <div class="proxy-dashboard-grid">
       <article
