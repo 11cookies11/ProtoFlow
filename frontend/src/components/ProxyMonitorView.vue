@@ -2,8 +2,8 @@
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import DropdownSelect from './DropdownSelect.vue'
 
-const t = inject('t', (key: string) => key)
-const tr = inject('tr', (text: string) => text)
+const t = inject('t', (key) => key)
+const tr = inject('tr', (text) => text)
 const bridge = inject('bridge', null)
 
 const filterTabs = computed(() => [

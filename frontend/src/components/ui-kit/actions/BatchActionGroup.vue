@@ -20,5 +20,5 @@ import { inject } from 'vue'
 
 defineEmits<{ (e: 'run'): void; (e: 'pause'): void; (e: 'reset'): void }>()
 
-const tr = inject('tr', (text: string) => text)
+const tr = inject('tr', (text) => text)
 </script>

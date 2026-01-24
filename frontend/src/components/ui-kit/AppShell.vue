@@ -29,5 +29,5 @@
 <script setup lang="ts">
 import { inject } from 'vue'
 
-const tr = inject('tr', (text: string) => text)
+const tr = inject('tr', (text) => text)
 </script>

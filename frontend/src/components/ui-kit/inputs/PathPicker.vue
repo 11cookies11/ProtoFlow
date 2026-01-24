@@ -22,5 +22,5 @@ import { inject } from 'vue'
 defineProps<{ label: string; modelValue: string; disabled?: boolean; hint?: string }>()
 defineEmits<{ (e: 'browse'): void }>()
 
-const tr = inject('tr', (text: string) => text)
+const tr = inject('tr', (text) => text)
 </script>

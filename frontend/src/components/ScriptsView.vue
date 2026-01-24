@@ -2,8 +2,8 @@
 import { inject } from 'vue'
 import LogStream from './LogStream.vue'
 
-const t = inject('t', (key: string) => key)
-const tr = inject('tr', (text: string) => text)
+const t = inject('t', (key) => key)
+const tr = inject('tr', (text) => text)
 const bindings = inject('scriptsView')
 if (!bindings) {
   throw new Error('scriptsView bindings not provided')
@@ -75,7 +75,11 @@ const {
             <div class="panel editor">
               <div class="panel-title bar">
                 <span class="material-symbols-outlined">code</span>{{ tr('DSL 编辑器') }}<div class="panel-actions">
-                  <button class="icon-btn" :title="yamlCollapsed ? tr('\u5c55\u5f00') : tr('\u6536\u8d77')"
+                  <button
+                    class="icon-btn"
+                    :title="yamlCollapsed ? tr('\u5c55\u5f00') : tr('\u6536\u8d77')"
+                    @click="toggleYamlCollapsed"
+                  >
                     <span class="material-symbols-outlined">
                       {{ yamlCollapsed ? 'unfold_more' : 'unfold_less' }}
                     </span>

@@ -14,7 +14,7 @@
 import { computed, inject } from 'vue'
 
 const props = defineProps<{ title: string; value: unknown }>()
-const tr = inject('tr', (text: string) => text)
+const tr = inject('tr', (text) => text)
 
 const formatted = computed(() => {
   if (props.value == null) return tr('未选择任何组件')

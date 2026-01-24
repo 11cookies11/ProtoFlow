@@ -13,5 +13,5 @@ import { inject } from 'vue'
 
 defineEmits<{ (e: 'open'): void }>()
 
-const tr = inject('tr', (text: string) => text)
+const tr = inject('tr', (text) => text)
 </script>

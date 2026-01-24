@@ -49,7 +49,7 @@ import EventLogPanel from '@/components/ui-kit/EventLogPanel.vue'
 import { useUiRuntimeStore } from '@/stores/uiRuntime'
 
 const store = useUiRuntimeStore()
-const tr = inject('tr', (text: string) => text)
+const tr = inject('tr', (text) => text)
 
 const selectedWidget = computed(() => {
   if (!store.selectedWidgetId) return null

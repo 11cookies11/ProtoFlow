@@ -31,5 +31,5 @@ import { inject } from 'vue'
 defineProps<{ title: string; subtitle: string; modeLabel: string }>()
 defineEmits<{ (e: 'publish'): void }>()
 
-const tr = inject('tr', (text: string) => text)
+const tr = inject('tr', (text) => text)
 </script>

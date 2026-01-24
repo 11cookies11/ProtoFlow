@@ -20,7 +20,7 @@ import { inject } from 'vue'
 
 const props = defineProps<{ label: string; modelValue: string[]; disabled?: boolean; hint?: string }>()
 const emit = defineEmits<{ (e: 'update:modelValue', value: string[]): void }>()
-const tr = inject('tr', (text: string) => text)
+const tr = inject('tr', (text) => text)
 
 function removeChip(chip: string) {
   if (props.disabled) return

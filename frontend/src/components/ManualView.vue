@@ -3,8 +3,8 @@ import { inject } from 'vue'
 import DropdownSelect from './DropdownSelect.vue'
 import LogStream from './LogStream.vue'
 
-const t = inject('t', (key: string) => key)
-const tr = inject('tr', (text: string) => text)
+const t = inject('t', (key) => key)
+const tr = inject('tr', (text) => text)
 const bindings = inject('manualView')
 if (!bindings) {
   throw new Error('manualView bindings not provided')

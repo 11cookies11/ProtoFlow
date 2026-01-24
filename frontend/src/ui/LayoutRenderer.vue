@@ -12,7 +12,7 @@ import { useUiRuntimeStore } from '@/stores/uiRuntime'
 
 const props = defineProps<{ config: UIConfig; widgetsById: Record<string, WidgetSpec> }>()
 const store = useUiRuntimeStore()
-const tr = inject('tr', (text: string) => text)
+const tr = inject('tr', (text) => text)
 
 const LayoutNodeRenderer = defineComponent({
   name: 'LayoutNodeRenderer',
