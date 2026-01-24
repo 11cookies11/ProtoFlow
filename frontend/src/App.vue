@@ -112,7 +112,7 @@ const uiLabels = {
   manual: '\u4e32\u53e3\u7ec8\u7aef',
   scripts: '\u81ea\u52a8\u811a\u672c',
   proxy: '\u4ee3\u7406\u76d1\u63a7',
-  protocols: '\u534f\u8bae',
+  protocols: '\u534f\u8bae\u7ba1\u7406',
   settings: '\u8bbe\u7f6e',
   workspace: '\u7ba1\u7406\u5458\u5de5\u4f5c\u533a',
 }
