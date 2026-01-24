@@ -1,0 +1,92 @@
+ui:
+  widgets:
+    - id: input_device
+      type: input.text
+      props:
+        label: "Device Name"
+        hint: "e.g. Sensor-A"
+        placeholder: "Enter device label"
+        default: "Sensor-A"
+    - id: input_baud
+      type: input.number
+      props:
+        label: "Baud Rate"
+        hint: "Serial port speed"
+        default: 115200
+    - id: input_enabled
+      type: input.switch
+      props:
+        label: "Enable Relay"
+        hint: "Toggle relay forwarding"
+        default: true
+    - id: input_notes
+      type: input.textarea
+      props:
+        label: "Notes"
+        placeholder: "Optional remarks"
+    - id: input_protocol
+      type: input.select
+      props:
+        label: "Protocol"
+        options:
+          - label: "Modbus RTU"
+            value: "modbus_rtu"
+          - label: "Modbus TCP"
+            value: "modbus_tcp"
+          - label: "Custom"
+            value: "custom"
+        default: "modbus_rtu"
+    - id: action_start
+      type: action.button
+      emit: "script.start"
+      props:
+        label: "Start"
+        payload:
+          mode: "run"
+    - id: action_stop
+      type: action.button
+      emit: "script.stop"
+      props:
+        label: "Stop"
+        payload:
+          mode: "stop"
+    - id: log_events
+      type: log.viewer
+      bind: "ui.events"
+      props:
+        title: "Event Log"
+    - id: inspector
+      type: inspector.json
+      props:
+        title: "Selected Widget"
+  layout:
+    type: split
+    orientation: horizontal
+    children:
+      - type: split
+        orientation: vertical
+        children:
+          - type: leaf
+            title: "Connection"
+            widgets:
+              - input_device
+              - input_baud
+              - input_enabled
+              - input_protocol
+          - type: leaf
+            title: "Notes"
+            widgets:
+              - input_notes
+      - type: split
+        orientation: vertical
+        children:
+          - type: leaf
+            title: "Controls"
+            widgets:
+              - action_start
+              - action_stop
+          - type: leaf
+            title: "Logs"
+            widgets:
+              - log_events
+              - inspector
