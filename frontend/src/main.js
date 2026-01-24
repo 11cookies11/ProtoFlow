@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import './style.css'
 import App from './App.vue'
 
@@ -25,7 +26,9 @@ async function bootstrap() {
     bridge.notify_ready()
     bridge.ping('frontend').then((resp) => console.log(resp))
   }
-  createApp(App).mount('#app')
+  const app = createApp(App)
+  app.use(createPinia())
+  app.mount('#app')
 }
 
 bootstrap()

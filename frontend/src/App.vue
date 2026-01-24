@@ -7,6 +7,7 @@ import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import ManualView from './components/ManualView.vue'
 import ScriptsView from './components/ScriptsView.vue'
+import YamlUiLab from './components/YamlUiLab.vue'
 import ProxyMonitorView from './components/ProxyMonitorView.vue'
 import DropdownSelect from './components/DropdownSelect.vue'
 import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
@@ -1936,24 +1937,28 @@ function unlockSidebarWidth() {
         <nav class="sidebar-nav">
           <button class="nav-item" :class="{ active: currentView === 'manual' }" @click="currentView = 'manual'">
             <span class="material-symbols-outlined">terminal</span>
-          <span>串口终端</span>
+            <span>????</span>
           </button>
           <button class="nav-item" :class="{ active: currentView === 'scripts' }" @click="currentView = 'scripts'">
             <span class="material-symbols-outlined">smart_toy</span>
-            <span>自动脚本</span>
+            <span>????</span>
+          </button>
+          <button class="nav-item" :class="{ active: currentView === 'ui-lab' }" @click="currentView = 'ui-lab'">
+            <span class="material-symbols-outlined">dashboard_customize</span>
+            <span>YAML UI</span>
           </button>
           <button class="nav-item" :class="{ active: currentView === 'proxy' }" @click="currentView = 'proxy'">
             <span class="material-symbols-outlined">settings_input_hdmi</span>
-            <span>代理监控</span>
+            <span>????</span>
           </button>
           <button class="nav-item" :class="{ active: currentView === 'protocols' }" @click="currentView = 'protocols'">
             <span class="material-symbols-outlined">cable</span>
-            <span>协议</span>
+            <span>??</span>
           </button>
           <div class="nav-divider"></div>
           <button class="nav-item" :class="{ active: currentView === 'settings' }" @click="currentView = 'settings'">
             <span class="material-symbols-outlined">settings</span>
-            <span>设置</span>
+            <span>??</span>
           </button>
         </nav>
         <div class="sidebar-footer">
@@ -1968,6 +1973,7 @@ function unlockSidebarWidth() {
       <main class="main">
         <ManualView v-if="currentView === 'manual'" />
         <ScriptsView v-else-if="currentView === 'scripts'" />
+        <YamlUiLab v-else-if="currentView === 'ui-lab'" />
         <ProxyMonitorView
           v-else-if="currentView === 'proxy'"
           :capture-frames="captureFrames"

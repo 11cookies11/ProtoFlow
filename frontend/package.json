@@ -15,7 +15,10 @@
     "@element-plus/icons-vue": "^2.3.2",
     "codemirror": "^6.0.2",
     "element-plus": "^2.13.0",
-    "vue": "^3.5.24"
+    "vue": "^3.5.24",
+    "pinia": "^2.2.2",
+    "js-yaml": "^4.1.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.1",
