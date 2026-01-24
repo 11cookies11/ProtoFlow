@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, inject } from 'vue'
 import PanelCard from '@/components/ui-kit/PanelCard.vue'
 import SplitContainer from '@/components/ui-kit/SplitContainer.vue'
 import { resolveWidget } from './registry'
@@ -12,6 +12,7 @@ import { useUiRuntimeStore } from '@/stores/uiRuntime'
 
 const props = defineProps<{ config: UIConfig; widgetsById: Record<string, WidgetSpec> }>()
 const store = useUiRuntimeStore()
+const tr = inject('tr', (text: string) => text)
 
 const LayoutNodeRenderer = defineComponent({
   name: 'LayoutNodeRenderer',
@@ -63,13 +64,20 @@ const LayoutNodeRenderer = defineComponent({
               const commonProps = {
                 ...(widget.props || {}),
               }
+              const localizedProps = {
+                ...commonProps,
+                label: commonProps.label ? tr(commonProps.label) : commonProps.label,
+                title: commonProps.title ? tr(commonProps.title) : commonProps.title,
+                hint: commonProps.hint ? tr(commonProps.hint) : commonProps.hint,
+                placeholder: commonProps.placeholder ? tr(commonProps.placeholder) : commonProps.placeholder,
+              }
 
               if (isLogViewer) {
                 const items = widget.bind ? store.dataBus[widget.bind] || [] : []
                 return h('div', { class: wrapperClass, onClick }, [
                   h(Comp, {
-                    ...commonProps,
-                    title: commonProps.title || widget.id,
+                    ...localizedProps,
+                    title: localizedProps.title || widget.id,
                     value: items.slice(-50),
                   }),
                 ])
@@ -80,7 +88,7 @@ const LayoutNodeRenderer = defineComponent({
                   h(
                     Comp,
                     {
-                      ...commonProps,
+                      ...localizedProps,
                       onClick: () => {
                         if (widget.type === 'action.button') {
                           const payload = widget.props?.payload || { source: widget.id }
@@ -89,7 +97,7 @@ const LayoutNodeRenderer = defineComponent({
                         }
                       },
                     },
-                    { default: () => commonProps.label || '动作' }
+                    { default: () => localizedProps.label || tr('动作') }
                   ),
                 ])
               }
@@ -97,7 +105,7 @@ const LayoutNodeRenderer = defineComponent({
               if (isInput) {
                 return h('div', { class: wrapperClass, onClick }, [
                   h(Comp, {
-                    ...commonProps,
+                    ...localizedProps,
                     modelValue,
                     'onUpdate:modelValue': (value: unknown) => store.setInputValue(widget.id, value, widget.bind),
                   }),
@@ -106,7 +114,7 @@ const LayoutNodeRenderer = defineComponent({
 
               return h('div', { class: wrapperClass, onClick }, [
                 h(Comp, {
-                  ...commonProps,
+                  ...localizedProps,
                   widgetId: widget.id,
                   widgetType: widget.type,
                 }),

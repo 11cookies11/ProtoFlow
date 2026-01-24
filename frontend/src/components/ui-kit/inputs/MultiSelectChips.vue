@@ -10,14 +10,17 @@
         {{ chip }}
         <span class="material-symbols-outlined !text-[12px] cursor-pointer" @click="removeChip(chip)">close</span>
       </span>
-      <span class="text-xs text-slate-300 ml-1 italic">输入搜索...</span>
+      <span class="text-xs text-slate-300 ml-1 italic">{{ tr('输入搜索...') }}</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { inject } from 'vue'
+
 const props = defineProps<{ label: string; modelValue: string[]; disabled?: boolean; hint?: string }>()
 const emit = defineEmits<{ (e: 'update:modelValue', value: string[]): void }>()
+const tr = inject('tr', (text: string) => text)
 
 function removeChip(chip: string) {
   if (props.disabled) return

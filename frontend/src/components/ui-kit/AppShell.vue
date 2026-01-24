@@ -14,14 +14,20 @@
         </div>
         <div class="h-4 w-px bg-slate-200"></div>
         <div class="flex items-center gap-4">
-          <span class="text-[11px] font-medium text-slate-400">版本: 1.0.3-beta</span>
-          <span class="text-[11px] font-medium text-slate-400">编译日期: 2024-05-20</span>
+          <span class="text-[11px] font-medium text-slate-400">{{ tr('版本') }}: 1.0.3-beta</span>
+          <span class="text-[11px] font-medium text-slate-400">{{ tr('编译日期') }}: 2024-05-20</span>
         </div>
       </div>
       <div class="flex gap-4">
-        <button class="text-[11px] font-bold text-primary hover:underline">文档中心</button>
-        <button class="text-[11px] font-bold text-slate-400">问题反馈</button>
+        <button class="text-[11px] font-bold text-primary hover:underline">{{ tr('文档中心') }}</button>
+        <button class="text-[11px] font-bold text-slate-400">{{ tr('问题反馈') }}</button>
       </div>
     </footer>
   </div>
 </template>
+
+<script setup lang="ts">
+import { inject } from 'vue'
+
+const tr = inject('tr', (text: string) => text)
+</script>

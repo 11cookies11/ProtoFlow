@@ -19,13 +19,17 @@
         @click="$emit('publish')"
       >
         <span class="material-symbols-outlined !text-sm">publish</span>
-        <span>发布规格页</span>
+        <span>{{ tr('发布规格页') }}</span>
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { inject } from 'vue'
+
 defineProps<{ title: string; subtitle: string; modeLabel: string }>()
 defineEmits<{ (e: 'publish'): void }>()
+
+const tr = inject('tr', (text: string) => text)
 </script>

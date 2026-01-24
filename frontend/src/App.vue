@@ -95,8 +95,8 @@ const channelWriteTimeout = ref(1000)
 const channelHost = ref('127.0.0.1')
 const channelTcpPort = ref(502)
 const channelAutoConnect = ref(true)
-const uiLanguage = ref('\u7b80\u4f53\u4e2d\u6587')
-const uiTheme = ref('\u6d45\u8272')
+const uiLanguage = ref('zh-CN')
+const uiTheme = ref('light')
 const defaultBaud = ref(115200)
 const defaultParity = ref('none')
 const defaultStopBits = ref('1')
@@ -108,14 +108,144 @@ const autoConnectOnStart = ref(true)
 const settingsSaving = ref(false)
 const settingsSnapshot = ref(null)
 const settingsTab = ref('general')
-const uiLabels = {
-  manual: '\u4e32\u53e3\u7ec8\u7aef',
-  scripts: '\u81ea\u52a8\u811a\u672c',
-  proxy: '\u4ee3\u7406\u76d1\u63a7',
-  protocols: '\u534f\u8bae\u7ba1\u7406',
-  settings: '\u8bbe\u7f6e',
-  workspace: '\u7ba1\u7406\u5458\u5de5\u4f5c\u533a',
+const translations = {
+  'zh-CN': {
+    'nav.manual': '串口终端',
+    'nav.scripts': '自动脚本',
+    'nav.proxy': '代理监控',
+    'nav.protocols': '协议管理',
+    'nav.settings': '设置',
+    'nav.workspace': '管理员工作区',
+    'header.manual.title': '串口终端',
+    'header.manual.desc': '传统串口调试工具：发送命令，监听 I/O 与日志回显。',
+    'header.scripts.title': '自动脚本',
+    'header.scripts.desc': '用于协议解析与测试脚本自动化执行。',
+    'header.proxy.title': '代理监控',
+    'header.proxy.desc': '管理转发链路并实时监控数据流状态。',
+    'header.protocols.title': '协议管理',
+    'header.protocols.desc': '配置通信协议定义，绑定通道并设置解析规则。',
+    'header.settings.title': '应用设置',
+    'header.settings.desc': '管理全局偏好、协议默认值和运行时环境配置。',
+    'action.refresh': '刷新',
+    'action.createProtocol': '新建协议',
+    'action.discardChanges': '放弃更改',
+    'action.saveChanges': '保存更改',
+    'action.loadScript': '加载脚本',
+    'action.save': '保存',
+    'badge.readOnly': '只读',
+    'action.refreshStatus': '刷新状态',
+    'action.newProxy': '新建转发对',
+    'filter.all': '全部',
+    'filter.running': '运行中',
+    'filter.stopped': '已停止',
+    'filter.error': '异常',
+    'status.connected': '已连接',
+    'status.disconnected': '未连接',
+    'status.error': '错误',
+    'status.connecting': '连接中',
+    'action.connect': '连接',
+    'action.disconnect': '断开',
+    'protocol.tab.all': '全部协议',
+    'protocol.tab.modbus': 'Modbus',
+    'protocol.tab.tcp': 'TCP/IP',
+    'protocol.tab.custom': '自定义',
+    'settings.tab.general': '通用',
+    'settings.tab.plugins': '插件',
+    'settings.tab.runtime': '运行时',
+    'settings.tab.logs': '日志',
+    'settings.language': '界面语言',
+    'settings.theme': '主题偏好',
+    'settings.autoConnect.title': '启动时自动连接',
+    'settings.autoConnect.desc': '自动尝试重连上次活动的通道。',
+    'settings.workspace': '工作目录',
+    'settings.chooseFolder': '选择目录',
+    'settings.plugins.title': '插件管理',
+    'settings.plugins.refresh': '刷新列表',
+    'lang.zhCN': '简体中文',
+    'lang.enUS': 'English (US)',
+    'theme.system': '系统默认',
+    'theme.dark': '深色 (工程模式)',
+    'theme.light': '浅色',
+  },
+  'en-US': {
+    'nav.manual': 'Serial Terminal',
+    'nav.scripts': 'Scripts',
+    'nav.proxy': 'Proxy Monitor',
+    'nav.protocols': 'Protocol Manager',
+    'nav.settings': 'Settings',
+    'nav.workspace': 'Admin Workspace',
+    'header.manual.title': 'Serial Terminal',
+    'header.manual.desc': 'Classic serial console for sending commands, monitoring I/O and logs.',
+    'header.scripts.title': 'Automation Scripts',
+    'header.scripts.desc': 'Run parsing and test automation scripts.',
+    'header.proxy.title': 'Proxy Monitor',
+    'header.proxy.desc': 'Manage forwarding links and monitor data streams.',
+    'header.protocols.title': 'Protocols',
+    'header.protocols.desc': 'Define protocols, bind channels, and configure parsing rules.',
+    'header.settings.title': 'App Settings',
+    'header.settings.desc': 'Manage global preferences, defaults, and runtime configuration.',
+    'action.refresh': 'Refresh',
+    'action.createProtocol': 'New Protocol',
+    'action.discardChanges': 'Discard',
+    'action.saveChanges': 'Save Changes',
+    'action.loadScript': 'Load Script',
+    'action.save': 'Save',
+    'badge.readOnly': 'Read-only',
+    'action.refreshStatus': 'Refresh Status',
+    'action.newProxy': 'New Forward Pair',
+    'filter.all': 'All',
+    'filter.running': 'Running',
+    'filter.stopped': 'Stopped',
+    'filter.error': 'Error',
+    'status.connected': 'Connected',
+    'status.disconnected': 'Disconnected',
+    'status.error': 'Error',
+    'status.connecting': 'Connecting',
+    'action.connect': 'Connect',
+    'action.disconnect': 'Disconnect',
+    'protocol.tab.all': 'All Protocols',
+    'protocol.tab.modbus': 'Modbus',
+    'protocol.tab.tcp': 'TCP/IP',
+    'protocol.tab.custom': 'Custom',
+    'settings.tab.general': 'General',
+    'settings.tab.plugins': 'Plugins',
+    'settings.tab.runtime': 'Runtime',
+    'settings.tab.logs': 'Logs',
+    'settings.language': 'Language',
+    'settings.theme': 'Theme',
+    'settings.autoConnect.title': 'Auto-connect on launch',
+    'settings.autoConnect.desc': 'Reconnect to the last active channel automatically.',
+    'settings.workspace': 'Workspace',
+    'settings.chooseFolder': 'Choose Folder',
+    'settings.plugins.title': 'Plugins',
+    'settings.plugins.refresh': 'Refresh List',
+    'lang.zhCN': '简体中文',
+    'lang.enUS': 'English (US)',
+    'theme.system': 'System',
+    'theme.dark': 'Dark (Engineer)',
+    'theme.light': 'Light',
+  },
 }
+
+const t = (key, fallback = '') => {
+  const lang = uiLanguage.value || 'zh-CN'
+  return translations[lang]?.[key] ?? translations['zh-CN']?.[key] ?? fallback ?? key
+}
+
+const tr = (text) => {
+  const lang = uiLanguage.value || 'zh-CN'
+  const key = String(text ?? '')
+  return translations[lang]?.[key] ?? translations['zh-CN']?.[key] ?? key
+}
+
+const uiLabels = computed(() => ({
+  manual: t('nav.manual'),
+  scripts: t('nav.scripts'),
+  proxy: t('nav.proxy'),
+  protocols: t('nav.protocols'),
+  settings: t('nav.settings'),
+  workspace: t('nav.workspace'),
+}))
 const channelTab = ref('all')
 const protocolTab = ref('all')
 const protocolDialogOpen = ref(false)
@@ -168,19 +298,19 @@ const channelCards = computed(() => {
     const type = channel.type || 'unknown'
     const status = channel.status || 'disconnected'
     const statusMap = {
-      connected: { text: '已连接', className: 'status-ok' },
-      connecting: { text: '连接中', className: 'status-warn' },
-      error: { text: '错误', className: 'status-error' },
-      disconnected: { text: '未连接', className: 'status-idle' },
-      idle: { text: '空闲', className: 'status-idle' },
+      connected: { text: t('status.connected'), className: 'status-ok' },
+      connecting: { text: t('status.connecting'), className: 'status-warn' },
+      error: { text: t('status.error'), className: 'status-error' },
+      disconnected: { text: t('status.disconnected'), className: 'status-idle' },
+      idle: { text: tr('空闲'), className: 'status-idle' },
     }
     const statusInfo = statusMap[status] || statusMap.disconnected
     const isSerial = type === 'serial'
     const isTcpClient = type === 'tcp-client'
-    const name = isSerial ? '串口通道' : isTcpClient ? 'TCP 客户端' : 'TCP 服务端'
+    const name = isSerial ? tr('串口通道') : isTcpClient ? tr('TCP 客户端') : tr('TCP 服务端')
     const details = isSerial
       ? [channel.port || '--', channel.baud ? `${channel.baud} bps` : '--']
-      : [channel.host || channel.address || '--', channel.port ? `端口: ${channel.port}` : '--']
+      : [channel.host || channel.address || '--', channel.port ? `${tr('端口')}: ${channel.port}` : '--']
     const traffic = `TX: ${formatBytes(channel.tx_bytes || 0)} / RX: ${formatBytes(channel.rx_bytes || 0)}`
     return {
       id: channel.id || `${type}:${details[0]}`,
@@ -227,12 +357,21 @@ const scriptCanRun = computed(() => !scriptRunning.value && yamlText.value.trim(
 const scriptCanStop = computed(() => scriptRunning.value)
 const scriptStatusLabel = computed(() => {
   if (scriptRunning.value) {
-    return scriptState.value ? '运行中 ' + scriptState.value : '运行中'
+    return scriptState.value ? `${tr('运行中')} ${scriptState.value}` : tr('运行中')
   }
-  return '空闲'
+  return tr('空闲')
 })
 const scriptStatusClass = computed(() => (scriptRunning.value ? 'running' : 'idle'))
 const quickPayloadCount = computed(() => countQuickPayload(quickDraft.value.payload, quickDraft.value.mode))
+const languageOptions = computed(() => [
+  { value: 'zh-CN', label: t('lang.zhCN') },
+  { value: 'en-US', label: t('lang.enUS') },
+])
+const themeOptions = computed(() => [
+  { value: 'system', label: t('theme.system') },
+  { value: 'dark', label: t('theme.dark') },
+  { value: 'light', label: t('theme.light') },
+])
 const appVersionLabel = computed(() => appVersion.value || 'v0.0.0')
 
 const filteredChannelCards = computed(() => {
@@ -336,6 +475,8 @@ const scriptsViewBindings = {
 provide('manualView', manualViewBindings)
 provide('scriptsView', scriptsViewBindings)
 provide('bridge', bridge)
+provide('t', t)
+provide('tr', tr)
 
 let scriptTimer = null
 let yamlEditor = null
@@ -820,7 +961,7 @@ function saveQuickCommand() {
   const name = String(quickDraft.value.name || '').trim()
   const payload = String(quickDraft.value.payload || '').trim()
   if (!name || !payload) {
-    window.alert('请输入指令名称和内容')
+    window.alert(tr('请输入指令名称和内容'))
     return
   }
   const record = {
@@ -952,7 +1093,7 @@ function protocolCategory(key) {
 
 function prettyProtocolName(key, fallback) {
   const value = String(key || "").trim()
-  if (!value) return fallback || "协议"
+  if (!value) return fallback || tr('协议')
   const parts = value.split("_").map((part) => {
     const upper = part.toUpperCase()
     if (["RTU", "TCP", "SCPI", "AT", "XMODEM", "YMODEM"].includes(upper)) return upper
@@ -964,15 +1105,15 @@ function prettyProtocolName(key, fallback) {
 
 function protocolStatusInfo(status) {
   if (status === "available") {
-    return { text: "可用", className: "badge-green" }
+    return { text: tr('可用'), className: 'badge-green' }
   }
   if (status === "custom") {
-    return { text: "自定义", className: "badge-blue" }
+    return { text: tr('自定义'), className: 'badge-blue' }
   }
   if (status === "disabled") {
-    return { text: "已禁用", className: "badge-gray" }
+    return { text: tr('已禁用'), className: 'badge-gray' }
   }
-  return { text: status || "未知", className: "badge-gray" }
+  return { text: status || tr('未知'), className: 'badge-gray' }
 }
 
 function setProtocols(items) {
@@ -998,9 +1139,9 @@ function setProtocols(items) {
       status,
       source,
       rows: [
-        { label: "键名", value: key || "--" },
-        { label: "驱动", value: driver || "--" },
-        { label: "分类", value: category || "--" },
+        { label: tr('键名'), value: key || '--' },
+        { label: tr('驱动'), value: driver || '--' },
+        { label: tr('分类'), value: category || '--' },
       ],
     }
   })
@@ -1356,7 +1497,7 @@ async function copyYaml() {
 }
 
 function searchYaml() {
-  const keyword = window.prompt('搜索关键词')
+  const keyword = window.prompt(tr('搜索关键词'))
   if (!keyword) return
   if (yamlEditor) {
     const doc = yamlEditor.state.doc.toString()
@@ -1700,10 +1841,27 @@ const settingsDirty = computed(() => {
   return JSON.stringify(buildSettingsPayload()) !== JSON.stringify(settingsSnapshot.value)
 })
 
+function normalizeLanguage(value) {
+  const raw = String(value || '')
+  const lowered = raw.toLowerCase()
+  if (raw === 'zh-CN' || lowered === 'zh-cn' || raw === '简体中文') return 'zh-CN'
+  if (raw === 'en-US' || lowered === 'en-us' || raw === 'English (US)') return 'en-US'
+  return 'zh-CN'
+}
+
+function normalizeTheme(value) {
+  const raw = String(value || '')
+  const lowered = raw.toLowerCase()
+  if (raw === 'system' || lowered === 'system' || raw === '系统默认') return 'system'
+  if (raw === 'dark' || lowered === 'dark' || raw === '深色 (工程模式)') return 'dark'
+  if (raw === 'light' || lowered === 'light' || raw === '浅色') return 'light'
+  return 'light'
+}
+
 function buildSettingsPayload() {
   return {
-    uiLanguage: '简体中文',
-    uiTheme: '浅色',
+    uiLanguage: uiLanguage.value,
+    uiTheme: uiTheme.value,
     autoConnectOnStart: !!autoConnectOnStart.value,
     dslWorkspacePath: dslWorkspacePath.value,
     quickCommands: quickCommands.value,
@@ -1722,8 +1880,8 @@ function buildSettingsPayload() {
 
 function normalizeSettings(payload) {
   const defaults = {
-    uiLanguage: '简体中文',
-    uiTheme: '浅色',
+    uiLanguage: 'zh-CN',
+    uiTheme: 'light',
     autoConnectOnStart: true,
     dslWorkspacePath: '/usr/local/protoflow/workflows',
     quickCommands: quickCommands.value,
@@ -1742,6 +1900,8 @@ function normalizeSettings(payload) {
   return {
     ...defaults,
     ...payload,
+    uiLanguage: normalizeLanguage(payload.uiLanguage),
+    uiTheme: normalizeTheme(payload.uiTheme),
     serial: {
       ...defaults.serial,
       ...(payload.serial || {}),
@@ -1805,7 +1965,7 @@ function discardSettings() {
 function chooseDslWorkspace() {
   if (!bridge.value || !bridge.value.select_directory) return
   withResult(
-    bridge.value.select_directory('选择工作区', dslWorkspacePath.value || ''),
+    bridge.value.select_directory(tr('选择工作区'), dslWorkspacePath.value || ''),
     (value) => {
       if (value) {
         dslWorkspacePath.value = value
@@ -2027,32 +2187,32 @@ function unlockSidebarWidth() {
         <section v-else-if="currentView === 'protocols'" class="page">
           <header class="page-header spaced">
             <div>
-              <h2>协议管理</h2>
-              <p>配置通信协议定义，绑定通道并设置解析规则。</p>
+              <h2>{{ t('header.protocols.title') }}</h2>
+              <p>{{ t('header.protocols.desc') }}</p>
             </div>
             <div class="header-actions">
               <button class="btn btn-outline" @click="refreshProtocols">
                 <span class="material-symbols-outlined">refresh</span>
-                刷新
+                {{ t('action.refresh') }}
               </button>
               <button class="btn btn-primary" @click="openCreateProtocol">
                 <span class="material-symbols-outlined">add</span>
-                新建协议
+                {{ t('action.createProtocol') }}
               </button>
             </div>
           </header>
           <div class="tab-strip secondary">
-            <button :class="{ active: protocolTab === 'all' }" @click="setProtocolTab('all')">全部协议</button>
+            <button :class="{ active: protocolTab === 'all' }" @click="setProtocolTab('all')">{{ t('protocol.tab.all') }}</button>
             <button :class="{ active: protocolTab === 'modbus' }" @click="setProtocolTab('modbus')">Modbus</button>
             <button :class="{ active: protocolTab === 'tcp' }" @click="setProtocolTab('tcp')">TCP/IP</button>
-            <button :class="{ active: protocolTab === 'custom' }" @click="setProtocolTab('custom')">自定义</button>
+            <button :class="{ active: protocolTab === 'custom' }" @click="setProtocolTab('custom')">{{ t('protocol.tab.custom') }}</button>
           </div>
           <div class="protocol-grid">
             <div v-for="card in filteredProtocolCards" :key="card.id" class="protocol-card">
               <div class="protocol-header">
                 <div>
                   <div class="protocol-title">{{ card.name }}</div>
-                  <div class="protocol-sub">{{ card.desc || '暂无描述' }}</div>
+                  <div class="protocol-sub">{{ card.desc || tr('暂无描述') }}</div>
                 </div>
                 <span class="badge" :class="card.statusClass">{{ card.statusText }}</span>
               </div>
@@ -2064,7 +2224,7 @@ function unlockSidebarWidth() {
               </div>
               <div class="protocol-actions">
                 <button class="btn btn-ghost" @click="openProtocolDetails(card)">
-                  {{ card.source === 'custom' ? '配置' : '查看' }}
+                  {{ card.source === 'custom' ? tr('配置') : tr('查看') }}
                 </button>
                 <button v-if="card.source === 'custom'" class="icon-btn" @click="openProtocolDelete(card)">
                   <span class="material-symbols-outlined">delete</span>
@@ -2075,11 +2235,11 @@ function unlockSidebarWidth() {
               <div class="empty-icon">
                 <span class="material-symbols-outlined">inventory_2</span>
               </div>
-              <h3>暂无协议</h3>
-              <p>暂无可用协议，可从内置模板创建或新增自定义协议。</p>
+              <h3>{{ tr('暂无协议') }}</h3>
+              <p>{{ tr('暂无可用协议，可从内置模板创建或新增自定义协议。') }}</p>
               <button class="btn btn-primary" @click="openCreateProtocol">
                 <span class="material-symbols-outlined">add</span>
-                新建协议
+                {{ t('action.createProtocol') }}
               </button>
             </div>
           </div>
@@ -2088,49 +2248,47 @@ function unlockSidebarWidth() {
 <section v-else class="page">
           <header class="page-header spaced">
             <div>
-              <h2>应用设置</h2>
-                  <p>管理全局偏好、协议默认值和运行时环境配置。</p>
+              <h2>{{ t('header.settings.title') }}</h2>
+                  <p>{{ t('header.settings.desc') }}</p>
             </div>
             <div class="header-actions">
-              <button class="btn btn-outline" :disabled="!settingsDirty" @click="discardSettings">放弃更改</button>
+              <button class="btn btn-outline" :disabled="!settingsDirty" @click="discardSettings">{{ t('action.discardChanges') }}</button>
               <button class="btn btn-primary" :disabled="!settingsDirty || settingsSaving" @click="saveSettings">
-                <span class="material-symbols-outlined">save</span>
-                保存更改
+                <span class="material-symbols-outlined">save</span>{{ t('action.saveChanges') }}
               </button>
             </div>
             </header>
             <div class="tab-strip secondary">
-              <button :class="{ active: settingsTab === 'general' }" @click="setSettingsTab('general')">通用</button>
-              <button :class="{ active: settingsTab === 'plugins' }" @click="setSettingsTab('plugins')">插件</button>
-              <button :class="{ active: settingsTab === 'runtime' }" @click="setSettingsTab('runtime')">运行时</button>
-              <button :class="{ active: settingsTab === 'logs' }" @click="setSettingsTab('logs')">日志</button>
+              <button :class="{ active: settingsTab === 'general' }" @click="setSettingsTab('general')">{{ t('settings.tab.general') }}</button>
+              <button :class="{ active: settingsTab === 'plugins' }" @click="setSettingsTab('plugins')">{{ t('settings.tab.plugins') }}</button>
+              <button :class="{ active: settingsTab === 'runtime' }" @click="setSettingsTab('runtime')">{{ t('settings.tab.runtime') }}</button>
+              <button :class="{ active: settingsTab === 'logs' }" @click="setSettingsTab('logs')">{{ t('settings.tab.logs') }}</button>
             </div>
             <div class="settings-stack">
               <div v-if="settingsTab === 'general'" class="panel" ref="settingsGeneralRef">
               <div class="panel-title simple">
-                <span class="material-symbols-outlined">tune</span>
-                通用
+                <span class="material-symbols-outlined">tune</span>{{ t('settings.tab.general') }}
               </div>
               <div class="form-grid">
                 <label>
-                  界面语言
+                  {{ t('settings.language') }}
                   <DropdownSelect
                     v-model="uiLanguage"
-                    :options="['简体中文', 'English (US)', 'Deutsch', '日本語']"
+                    :options="languageOptions"
                   />
                 </label>
                 <label>
-                  主题偏好
+                  {{ t('settings.theme') }}
                   <DropdownSelect
                     v-model="uiTheme"
-                    :options="['系统默认', '深色 (工程模式)', '浅色']"
+                    :options="themeOptions"
                   />
                 </label>
               </div>
               <div class="toggle-row spaced">
                 <div>
-                  <strong>启动时自动连接</strong>
-                  <p>自动尝试重连上次活动的通道。</p>
+                  <strong>{{ t('settings.autoConnect.title') }}</strong>
+                  <p>{{ t('settings.autoConnect.desc') }}</p>
                 </div>
                 <label class="switch">
                   <input v-model="autoConnectOnStart" type="checkbox" />
@@ -2140,45 +2298,44 @@ function unlockSidebarWidth() {
             </div>
               <div v-if="settingsTab === 'plugins'" class="panel" ref="settingsPluginsRef">
               <div class="panel-title simple">
-                <span class="material-symbols-outlined">extension</span>
-                插件
+                <span class="material-symbols-outlined">extension</span>{{ t('settings.tab.plugins') }}
               </div>
               <label class="file-row">
-                工作目录
+                {{ t('settings.workspace') }}
                 <div class="file-input">
                   <span class="material-symbols-outlined">folder_open</span>
                   <input v-model="dslWorkspacePath" type="text" readonly />
                 </div>
-                <button class="btn btn-outline" type="button" @click="chooseDslWorkspace">选择目录</button>
+                <button class="btn btn-outline" type="button" @click="chooseDslWorkspace">{{ t('settings.chooseFolder') }}</button>
               </label>
               <div class="divider"></div>
               <div class="panel-title simple inline">
-                插件管理
+                {{ t('settings.plugins.title') }}
                 <button class="link-btn">
                   <span class="material-symbols-outlined">refresh</span>
-                  刷新列表
+                  {{ t('settings.plugins.refresh') }}
                 </button>
               </div>
               <div class="plugin-list">
                 <div class="plugin-item">
                   <div>
                     <div class="plugin-title">Modbus TCP/RTU</div>
-                    <div class="plugin-meta">v1.2.4 - 已启用</div>
+                    <div class="plugin-meta">{{ tr('v1.2.4 - 已启用') }}</div>
                   </div>
-                  <span class="badge badge-green">已启用</span>
+                  <span class="badge badge-green">{{ tr('已启用') }}</span>
                 </div>
                 <div class="plugin-item muted">
                   <div>
-                    <div class="plugin-title">MQTT 适配器</div>
-                    <div class="plugin-meta">v0.9.8 - 未安装</div>
+                    <div class="plugin-title">{{ tr('MQTT 适配器') }}</div>
+                    <div class="plugin-meta">{{ tr('v0.9.8 - 未安装') }}</div>
                   </div>
-                  <span class="badge badge-gray">未安装</span>
+                  <span class="badge badge-gray">{{ tr('未安装') }}</span>
                 </div>
               </div>
               <div class="toggle-row spaced">
                 <div>
-                  <strong>启动时自动连接</strong>
-                  <p>自动尝试重连上次活动的通道。</p>
+                  <strong>{{ t('settings.autoConnect.title') }}</strong>
+                  <p>{{ t('settings.autoConnect.desc') }}</p>
                 </div>
                 <label class="switch">
                   <input v-model="autoConnectOnStart" type="checkbox" />
@@ -2189,21 +2346,19 @@ function unlockSidebarWidth() {
 
               <div v-if="settingsTab === 'runtime'" class="panel" ref="settingsRuntimeRef">
               <div class="panel-title simple">
-                <span class="material-symbols-outlined">tune</span>
-                运行时
+                <span class="material-symbols-outlined">tune</span>{{ t('settings.tab.runtime') }}
               </div>
               <div class="empty-state muted">
-                暂无可配置项，运行时设置将随着模块扩展开放。
+                {{ tr('暂无可配置项，运行时设置将随着模块扩展开放。') }}
               </div>
             </div>
 
               <div v-if="settingsTab === 'logs'" class="panel" ref="settingsLogsRef">
               <div class="panel-title simple">
-                <span class="material-symbols-outlined">folder_open</span>
-                日志
+                <span class="material-symbols-outlined">folder_open</span>{{ t('settings.tab.logs') }}
               </div>
               <div class="empty-state muted">
-                日志采集与归档策略将在后续版本中提供。
+                {{ tr('日志采集与归档策略将在后续版本中提供。') }}
               </div>
             </div>
           </div>
@@ -2213,8 +2368,8 @@ function unlockSidebarWidth() {
           <div class="channel-modal">
             <div class="modal-header">
               <div>
-                <h3>{{ channelDialogMode === 'serial' ? '串口配置' : '新建通道' }}</h3>
-                <p>{{ channelDialogMode === 'serial' ? '配置串口连接参数' : '配置新的通信连接参数' }}</p>
+                <h3>{{ channelDialogMode === 'serial' ? tr('串口配置') : tr('新建通道') }}</h3>
+                <p>{{ channelDialogMode === 'serial' ? tr('配置串口连接参数') : tr('配置新的通信连接参数') }}</p>
               </div>
               <button class="icon-btn" type="button" @click="closeChannelDialog">
                 <span class="material-symbols-outlined">close</span>
@@ -2229,7 +2384,7 @@ function unlockSidebarWidth() {
                   @click="channelType = 'serial'"
                 >
                   <span class="material-symbols-outlined">settings_input_hdmi</span>
-                  <span>串口 (Serial)</span>
+                  <span>{{ tr('串口 (Serial)') }}</span>
                 </button>
                 <button
                   class="channel-type-card"
@@ -2238,79 +2393,77 @@ function unlockSidebarWidth() {
                   @click="channelType = 'tcp'"
                 >
                   <span class="material-symbols-outlined">lan</span>
-                  <span>TCP / 网络</span>
+                  <span>{{ tr('TCP / 网络') }}</span>
                 </button>
               </div>
 
               <div class="modal-section" v-if="channelDialogMode !== 'serial'">
-                <div class="section-title">基本信息</div>
+                <div class="section-title">{{ tr('基本信息') }}</div>
                 <div class="form-grid">
-                  <label>
-                    通道名称
-                    <input v-model="channelName" type="text" placeholder="例如：传感器A接口" />
+                  <label>{{ tr('通道名称') }}<input v-model="channelName" type="text" :placeholder="tr('例如：传感器A接口')" />
                   </label>
                   <label v-if="channelType === 'serial'">
-                    串口端口
+                    {{ tr('串口端口') }}
                     <DropdownSelect
                       v-model="channelPort"
                       :options="portOptionsList"
-                      :placeholder="ports.length ? '选择串口' : '无可用串口'"
+                      :placeholder="ports.length ? tr('选择串口') : tr('无可用串口')"
                       :disabled="noPorts"
                       leading-icon="usb"
                     />
                   </label>
                   <label v-else>
-                    目标地址
-                    <input v-model="channelHost" type="text" placeholder="例如：192.168.1.10" />
+                    {{ tr('目标地址') }}
+                    <input v-model="channelHost" type="text" :placeholder="tr('例如：192.168.1.10')" />
                   </label>
                 </div>
               </div>
 
               <div class="modal-section first" v-if="channelType === 'serial'">
-                <div class="section-title">串口参数</div>
+                <div class="section-title">{{ tr('串口参数') }}</div>
                 <div class="form-grid triple">
                   <label>
-                    波特率
+                    {{ tr('波特率') }}
                     <DropdownSelect v-model="channelBaud" :options="[9600, 19200, 38400, 57600, 115200]" />
                   </label>
                   <label>
-                    数据位
+                    {{ tr('数据位') }}
                     <DropdownSelect v-model="channelDataBits" :options="['7', '8']" />
                   </label>
                   <label>
-                    停止位
+                    {{ tr('停止位') }}
                     <DropdownSelect v-model="channelStopBits" :options="['1', '1.5', '2']" />
                   </label>
                 </div>
                 <div class="form-grid quad">
                   <label>
-                    校验位
+                    {{ tr('校验位') }}
                     <DropdownSelect
                       v-model="channelParity"
                       :options="[
-                        { label: '无校验', value: 'none' },
-                        { label: '奇校验', value: 'odd' },
-                        { label: '偶校验', value: 'even' },
+                        { label: tr('无校验'), value: 'none' },
+                        { label: tr('奇校验'), value: 'odd' },
+                        { label: tr('偶校验'), value: 'even' },
                       ]"
                     />
                   </label>
                   <label>
-                    流控
+                    {{ tr('流控') }}
                     <DropdownSelect
                       v-model="channelFlowControl"
                       :options="[
-                        { label: '无', value: 'none' },
+                        { label: tr('无'), value: 'none' },
                         { label: 'RTS/CTS', value: 'rtscts' },
                         { label: 'XON/XOFF', value: 'xonxoff' },
                       ]"
                     />
                   </label>
                   <label>
-                    读超时 (ms)
+                    {{ tr('读超时 (ms)') }}
                     <input v-model.number="channelReadTimeout" type="number" min="0" placeholder="1000" />
                   </label>
                   <label>
-                    写超时 (ms)
+                    {{ tr('写超时 (ms)') }}
                     <input v-model.number="channelWriteTimeout" type="number" min="0" placeholder="1000" />
                   </label>
                 </div>
@@ -2319,7 +2472,7 @@ function unlockSidebarWidth() {
               <div class="modal-section" v-else>
                 <div class="form-grid">
                   <label>
-                    TCP 端口
+                    {{ tr('TCP 端口') }}
                     <input v-model.number="channelTcpPort" type="number" />
                   </label>
                 </div>
@@ -2327,13 +2480,13 @@ function unlockSidebarWidth() {
 
               <label class="channel-toggle">
                 <input v-model="channelAutoConnect" type="checkbox" />
-                <span>{{ channelDialogMode === 'serial' ? '保存后立即连接' : '创建后立即启动连接' }}</span>
+                <span>{{ channelDialogMode === 'serial' ? tr('保存后立即连接') : tr('创建后立即启动连接') }}</span>
               </label>
             </div>
             <div class="modal-footer">
-              <button class="btn btn-outline" type="button" @click="closeChannelDialog">取消</button>
+              <button class="btn btn-outline" type="button" @click="closeChannelDialog">{{ tr('取消') }}</button>
               <button class="btn btn-primary" type="button" @click="submitChannelDialog">
-                {{ channelDialogMode === 'serial' ? '保存配置' : '创建通道' }}
+                {{ channelDialogMode === 'serial' ? tr('保存配置') : tr('创建通道') }}
               </button>
             </div>
           </div>
@@ -2344,8 +2497,8 @@ function unlockSidebarWidth() {
           <div class="channel-modal protocol-modal" @mousedown.stop @click.stop>
             <div class="modal-header">
               <div>
-                <h3>{{ protocolDialogMode === 'create' ? '新建协议' : protocolDialogMode === 'edit' ? '配置协议' : '协议详情' }}</h3>
-                <p>{{ protocolDialogMode === 'create' ? '添加自定义协议元数据，供解析引擎识别。' : '查看或更新协议描述与分类。' }}</p>
+                <h3>{{ protocolDialogMode === 'create' ? tr('新建协议') : protocolDialogMode === 'edit' ? tr('配置协议') : tr('协议详情') }}</h3>
+                <p>{{ protocolDialogMode === 'create' ? tr('添加自定义协议元数据，供解析引擎识别。') : tr('查看或更新协议描述与分类。') }}</p>
               </div>
               <button class="icon-btn" type="button" @click="closeProtocolDialog">
                 <span class="material-symbols-outlined">close</span>
@@ -2354,49 +2507,49 @@ function unlockSidebarWidth() {
             <div class="modal-body protocol-modal-body">
               <div class="form-grid protocol-grid">
                 <label>
-                  协议名称
+                  {{ tr('协议名称') }}
                   <input v-model="protocolDraft.name" type="text" :disabled="protocolDialogMode === 'view'" />
                 </label>
                 <label>
-                  键名
+                  {{ tr('键名') }}
                   <input v-model="protocolDraft.key" type="text" :disabled="protocolDialogMode !== 'create'" />
                 </label>
               </div>
               <div class="form-grid protocol-grid">
                 <label>
-                  分类
+                  {{ tr('分类') }}
                   <select v-model="protocolDraft.category" :disabled="protocolDialogMode === 'view'">
                     <option value="modbus">Modbus</option>
                     <option value="tcp">TCP/IP</option>
-                    <option value="custom">自定义</option>
+                    <option value="custom">{{ t('protocol.tab.custom') }}</option>
                   </select>
                 </label>
                 <label>
-                  状态
+                  {{ tr('状态') }}
                   <select v-model="protocolDraft.status" :disabled="protocolDialogMode === 'view'">
-                    <option value="available">可用</option>
-                    <option value="custom">自定义</option>
-                    <option value="disabled">已禁用</option>
+                    <option value="available">{{ tr('可用') }}</option>
+                    <option value="custom">{{ t('protocol.tab.custom') }}</option>
+                    <option value="disabled">{{ tr('已禁用') }}</option>
                   </select>
                 </label>
               </div>
               <label class="protocol-textarea">
-                描述
+                {{ tr('描述') }}
                 <textarea v-model="protocolDraft.desc" rows="3" :disabled="protocolDialogMode === 'view'"></textarea>
               </label>
               <div class="modal-section protocol-driver" v-if="protocolEditing && protocolEditing.driver">
-                <div class="section-title">驱动</div>
+                <div class="section-title">{{ tr('驱动') }}</div>
                 <div class="form-grid protocol-grid">
                   <label>
-                    驱动类
+                    {{ tr('驱动类') }}
                     <input :value="protocolEditing.driver" type="text" disabled />
                   </label>
                 </div>
               </div>
             </div>
             <div class="modal-footer">
-              <button class="btn btn-outline" type="button" @click="closeProtocolDialog">取消</button>
-              <button v-if="protocolDialogMode !== 'view'" class="btn btn-primary" type="button" @click="saveProtocol">保存</button>
+              <button class="btn btn-outline" type="button" @click="closeProtocolDialog">{{ tr('取消') }}</button>
+              <button v-if="protocolDialogMode !== 'view'" class="btn btn-primary" type="button" @click="saveProtocol">{{ tr('保存') }}</button>
             </div>
           </div>
         </div>
@@ -2405,16 +2558,16 @@ function unlockSidebarWidth() {
           <div class="quick-modal quick-modal-sm" @mousedown.stop @click.stop>
             <div class="modal-header">
               <div>
-                <h3>删除协议</h3>
-                <p>确认删除自定义协议“{{ protocolDeleting?.name }}”吗？</p>
+                <h3>{{ tr('删除协议') }}</h3>
+                <p>{{ tr('确认删除自定义协议') }}“{{ protocolDeleting?.name }}”{{ tr('吗？') }}</p>
               </div>
               <button class="icon-btn" type="button" @click="closeProtocolDelete">
                 <span class="material-symbols-outlined">close</span>
               </button>
             </div>
             <div class="modal-footer">
-              <button class="btn btn-outline" type="button" @click="closeProtocolDelete">取消</button>
-              <button class="btn btn-danger" type="button" @click="confirmProtocolDelete">确认删除</button>
+              <button class="btn btn-outline" type="button" @click="closeProtocolDelete">{{ tr('取消') }}</button>
+              <button class="btn btn-danger" type="button" @click="confirmProtocolDelete">{{ tr('确认删除') }}</button>
             </div>
           </div>
         </div>
@@ -2425,8 +2578,8 @@ function unlockSidebarWidth() {
           <div class="channel-modal ui-yaml-modal" @mousedown.stop @click.stop>
             <div class="modal-header">
               <div>
-                <h3>UI YAML 预览</h3>
-                <p>脚本运行中展示 UI 渲染结果</p>
+                <h3>{{ tr('UI YAML 预览') }}</h3>
+                <p>{{ tr('脚本运行中展示 UI 渲染结果') }}</p>
               </div>
               <button class="icon-btn" type="button" @click="closeUiYamlModal">
                 <span class="material-symbols-outlined">close</span>
@@ -2434,7 +2587,7 @@ function unlockSidebarWidth() {
             </div>
             <div class="modal-body ui-yaml-body">
               <div v-if="uiRuntime.parseError" class="ui-yaml-error">
-                <strong>解析失败</strong>
+                <strong>{{ tr('解析失败') }}</strong>
                 <div>{{ uiRuntime.parseError.message }}</div>
                 <div v-if="uiRuntime.parseError.path" class="muted">Path: {{ uiRuntime.parseError.path }}</div>
                 <div v-if="uiRuntime.parseError.line" class="muted">
@@ -2444,7 +2597,7 @@ function unlockSidebarWidth() {
               <div v-else-if="uiRuntime.lastGoodConfig">
                 <LayoutRenderer :config="uiRuntime.lastGoodConfig" :widgetsById="uiRuntime.widgetsById" />
               </div>
-              <div v-else class="empty-state muted">暂无可渲染的 UI 配置</div>
+              <div v-else class="empty-state muted">{{ tr('暂无可渲染的 UI 配置') }}</div>
             </div>
           </div>
         </div>

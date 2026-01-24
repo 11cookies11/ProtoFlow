@@ -2,12 +2,16 @@
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import DropdownSelect from './DropdownSelect.vue'
 
-const filterTabs = [
-  { id: 'all', label: '全部' },
-  { id: 'running', label: '运行中' },
-  { id: 'stopped', label: '已停止' },
-  { id: 'error', label: '异常' },
-]
+const t = inject('t', (key: string) => key)
+const tr = inject('tr', (text: string) => text)
+const bridge = inject('bridge', null)
+
+const filterTabs = computed(() => [
+  { id: 'all', label: t('filter.all') },
+  { id: 'running', label: t('filter.running') },
+  { id: 'stopped', label: t('filter.stopped') },
+  { id: 'error', label: t('filter.error') },
+])
 const activeFilter = ref(filterTabs[0].id)
 const modalOpen = ref(false)
 const modalProxy = ref(null)
@@ -21,32 +25,41 @@ const captureView = ref('parsed')
 const selectedFrame = ref(null)
 
 const proxyName = ref('')
-const connectionMode = ref('透传模式')
+const connectionMode = ref(tr('透传模式'))
 const hostPort = ref('COM3')
 const devicePort = ref('COM5')
 const baudRate = ref('115200')
-const parity = ref('无')
+const parity = ref(tr('无'))
 const dataBits = ref('8')
 const stopBits = ref('1')
 const flowControl = ref('none')
 
-const connectionOptions = ['透传模式', '协议桥接', '映射模式']
+const connectionOptions = computed(() => [
+  { value: '透传模式', label: tr('透传模式') },
+  { value: '协议桥接', label: tr('协议桥接') },
+  { value: '映射模式', label: tr('映射模式') },
+])
 const portOptions = ['COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM10', 'COM12']
 const baudOptions = ['4800', '9600', '19200', '38400', '57600', '115200']
-const parityOptions = ['无', '偶校验', '奇校验', 'Mark', 'Space']
+const parityOptions = computed(() => [
+  { value: '无', label: tr('无') },
+  { value: '偶校验', label: tr('偶校验') },
+  { value: '奇校验', label: tr('奇校验') },
+  { value: 'Mark', label: 'Mark' },
+  { value: 'Space', label: 'Space' },
+])
 
-const bridge = inject('bridge', null)
 
 const proxies = ref([
   {
     id: 'proxy-com3',
-    name: '主控制器链路',
+    name: tr('主控制器链路'),
     meta: 'ID: PX-00124 · 8-N-1',
     status: 'running',
-    statusLabel: '运行中',
+    statusLabel: tr('运行中'),
     statusIcon: 'swap_horizontal_circle',
     routeIcon: 'keyboard_double_arrow_right',
-    routeLabel: '转发中',
+    routeLabel: tr('转发中'),
     routeTone: 'primary',
     hostPort: 'COM3',
     devicePort: 'COM5',
@@ -55,17 +68,17 @@ const proxies = ref([
     bandwidthUnit: 'KB/s',
     spark: 'M0 35 L10 20 L20 35 L30 10 L40 30 L50 5 L60 35 L70 20 L80 30 L90 10 L100 25',
     active: true,
-    toggleLabel: '运行中',
+    toggleLabel: tr('运行中'),
   },
   {
     id: 'proxy-com7',
-    name: '电机反馈继电器',
+    name: tr('电机反馈继电器'),
     meta: 'ID: PX-00992 · 8-E-1',
     status: 'stopped',
-    statusLabel: '已停止',
+    statusLabel: tr('已停止'),
     statusIcon: 'pause_circle',
     routeIcon: 'more_horiz',
-    routeLabel: '离线',
+    routeLabel: tr('离线'),
     routeTone: 'muted',
     hostPort: 'COM7',
     devicePort: 'COM10',
@@ -74,17 +87,17 @@ const proxies = ref([
     bandwidthUnit: 'KB/s',
     spark: '',
     active: false,
-    toggleLabel: '已停止',
+    toggleLabel: tr('已停止'),
   },
   {
     id: 'proxy-com1',
-    name: 'GPS 模块数据流',
+    name: tr('GPS 模块数据流'),
     meta: 'ID: PX-00219 · 7-N-2',
     status: 'error',
-    statusLabel: '异常',
+    statusLabel: tr('异常'),
     statusIcon: 'report',
     routeIcon: 'sync_problem',
-    routeLabel: '连接失败',
+    routeLabel: tr('连接失败'),
     routeTone: 'danger',
     hostPort: 'COM1',
     devicePort: 'COM12',
@@ -93,7 +106,7 @@ const proxies = ref([
     bandwidthUnit: 'KB/s',
     spark: 'M0 38 L40 38 L42 10 L48 10 L50 38 L90 38 L92 10 L98 10 L100 38',
     active: true,
-    toggleLabel: '异常',
+    toggleLabel: tr('异常'),
   },
 ])
 
@@ -123,8 +136,8 @@ function withBridgeResult(result, onSuccess) {
 function mapProxyFromBackend(payload) {
   const status = payload.status || 'stopped'
   const active = status === 'running'
-  const statusLabel = active ? '运行中' : '已停止'
-  const routeLabel = active ? '转发中' : '离线'
+  const statusLabel = active ? tr('运行中') : tr('已停止')
+  const routeLabel = active ? tr('转发中') : tr('离线')
   const routeTone = active ? 'primary' : 'muted'
   const statusIcon = active ? 'swap_horizontal_circle' : 'pause_circle'
   const routeIcon = active ? 'keyboard_double_arrow_right' : 'more_horiz'
@@ -132,7 +145,7 @@ function mapProxyFromBackend(payload) {
   proxySeq = Math.max(proxySeq, Number(String(payload.id || '').replace(/\D/g, '')) || proxySeq)
   return {
     id: payload.id || `proxy-${Date.now()}`,
-    name: payload.name || '未命名转发对',
+    name: payload.name || tr('未命名转发对'),
     meta: payload.meta || buildProxyMeta(payload.hostPort, baud),
     status,
     statusLabel,
@@ -210,6 +223,27 @@ const isUnknownFrame = computed(() => activeFrame.value?.protocolType === 'unkno
 const activeProtocolLabel = computed(() => activeFrame.value?.protocolLabel || '')
 
 const activeProtocolTooltip = computed(() => activeFrame.value?.protocolTooltip || '')
+
+const proxyStatusLabel = (status) => {
+  if (status === 'running') return tr('运行中')
+  if (status === 'stopped') return tr('已停止')
+  if (status === 'error') return tr('异常')
+  return tr('未知')
+}
+
+const proxyRouteLabel = (status) => {
+  if (status === 'running') return tr('转发中')
+  if (status === 'stopped') return tr('离线')
+  if (status === 'error') return tr('连接失败')
+  return tr('未知')
+}
+
+const proxyToggleLabel = (status) => {
+  if (status === 'running') return tr('运行中')
+  if (status === 'stopped') return tr('已停止')
+  if (status === 'error') return tr('异常')
+  return tr('未知')
+}
 
 const activeSummaryText = computed(() => activeFrame.value?.summaryText || activeFrame.value?.summary || '')
 
@@ -348,8 +382,8 @@ function refreshProxies() {
 
 function setProxyStatus(proxy, active) {
   const nextStatus = active ? 'running' : 'stopped'
-  const statusLabel = active ? '运行中' : '已停止'
-  const routeLabel = active ? '转发中' : '离线'
+  const statusLabel = active ? tr('运行中') : tr('已停止')
+  const routeLabel = active ? tr('转发中') : tr('离线')
   const routeTone = active ? 'primary' : 'muted'
   const statusIcon = active ? 'swap_horizontal_circle' : 'pause_circle'
   const routeIcon = active ? 'keyboard_double_arrow_right' : 'more_horiz'
@@ -373,7 +407,7 @@ function setProxyStatus(proxy, active) {
 
 function saveProxy() {
   const payload = {
-    name: proxyName.value || '未命名转发对',
+    name: proxyName.value || tr('未命名转发对'),
     hostPort: hostPort.value,
     devicePort: devicePort.value,
     baud: baudRate.value,
@@ -410,10 +444,10 @@ function saveProxy() {
           name: payload.name,
           meta: buildProxyMeta(payload.hostPort, payload.baud),
           status: 'stopped',
-          statusLabel: '已停止',
+          statusLabel: tr('已停止'),
           statusIcon: 'pause_circle',
           routeIcon: 'more_horiz',
-          routeLabel: '离线',
+          routeLabel: tr('离线'),
           routeTone: 'muted',
           hostPort: payload.hostPort,
           devicePort: payload.devicePort,
@@ -426,7 +460,7 @@ function saveProxy() {
           bandwidthUnit: 'KB/s',
           spark: '',
           active: false,
-          toggleLabel: '已停止',
+          toggleLabel: tr('已停止'),
         },
         {}
       )
@@ -524,17 +558,17 @@ onBeforeUnmount(() => {
   <section class="page proxy-page proxy-dashboard">
     <header class="page-header spaced">
       <div>
-        <h2>代理监控</h2>
-        <p>管理转发链路并实时监控数据流状态。</p>
+        <h2>{{ t('header.proxy.title') }}</h2>
+        <p>{{ t('header.proxy.desc') }}</p>
       </div>
       <div class="header-actions">
         <button class="btn btn-outline" type="button" @click="refreshProxies">
           <span class="material-symbols-outlined">refresh</span>
-          刷新状态
+          {{ t('action.refreshStatus') }}
         </button>
         <button class="btn btn-primary" type="button" @click="openCreateModal">
           <span class="material-symbols-outlined">add</span>
-          新建转发对
+          {{ t('action.newProxy') }}
         </button>
       </div>
     </header>
@@ -563,39 +597,39 @@ onBeforeUnmount(() => {
               <span class="material-symbols-outlined">{{ proxy.statusIcon }}</span>
             </div>
             <div>
-              <h3>{{ proxy.name }}</h3>
+            <h3>{{ tr(proxy.name) }}</h3>
               <p>{{ proxy.meta }}</p>
             </div>
           </div>
           <span class="proxy-status-pill" :class="`status-${proxy.status}`">
             <span class="dot"></span>
-            {{ proxy.statusLabel }}
+            {{ proxyStatusLabel(proxy.status) }}
           </span>
         </div>
 
         <div class="proxy-route-card" :class="`status-${proxy.status}`">
           <div class="proxy-route-col">
-            <p>主机源端口</p>
+            <p>{{ tr('主机源端口') }}</p>
             <span class="proxy-route-chip proxy-mono">{{ proxy.hostPort }}</span>
           </div>
           <div class="proxy-route-state" :class="proxy.routeTone">
             <span class="material-symbols-outlined">{{ proxy.routeIcon }}</span>
-            <span>{{ proxy.routeLabel }}</span>
+            <span>{{ proxyRouteLabel(proxy.status) }}</span>
           </div>
           <div class="proxy-route-col">
-            <p>设备代理端口</p>
+            <p>{{ tr('设备代理端口') }}</p>
             <span class="proxy-route-chip proxy-mono">{{ proxy.devicePort }}</span>
           </div>
         </div>
 
         <div class="proxy-metrics">
           <div>
-            <p>波特率</p>
+            <p>{{ tr('波特率') }}</p>
             <strong class="proxy-mono">{{ proxy.baud }}</strong>
           </div>
           <div class="proxy-metric-bandwidth">
             <div>
-              <p :class="{ danger: proxy.status === 'error' }">实时带宽</p>
+              <p :class="{ danger: proxy.status === 'error' }">{{ tr('实时带宽') }}</p>
               <strong class="proxy-mono">
                 {{ proxy.bandwidth }}
                 <span>{{ proxy.bandwidthUnit }}</span>
@@ -615,16 +649,16 @@ onBeforeUnmount(() => {
             <span class="proxy-toggle" :class="{ active: proxy.active }" @click="setProxyStatus(proxy, !proxy.active)">
               <span class="proxy-toggle-track"></span>
             </span>
-            <span class="proxy-toggle-text">{{ proxy.toggleLabel }}</span>
+            <span class="proxy-toggle-text">{{ proxyToggleLabel(proxy.status) }}</span>
           </label>
           <div class="proxy-footer-actions">
-            <button class="icon-btn" type="button" title="抓包" @click="openCaptureModal(proxy)">
+            <button class="icon-btn" type="button" :title="tr('抓包')" @click="openCaptureModal(proxy)">
               <span class="material-symbols-outlined">terminal</span>
             </button>
-            <button class="icon-btn" type="button" title="编辑" @click="openEditModal(proxy)">
+            <button class="icon-btn" type="button" :title="tr('编辑')" @click="openEditModal(proxy)">
               <span class="material-symbols-outlined">edit</span>
             </button>
-            <button class="icon-btn danger" type="button" title="删除" @click="confirmDeleteProxy(proxy)">
+            <button class="icon-btn danger" type="button" :title="tr('删除')" @click="confirmDeleteProxy(proxy)">
               <span class="material-symbols-outlined">delete</span>
             </button>
           </div>
@@ -641,7 +675,7 @@ onBeforeUnmount(() => {
             <div class="proxy-modal-icon">
               <span class="material-symbols-outlined">edit_square</span>
             </div>
-            <h2>{{ modalMode === 'create' ? '新建转发对' : '编辑转发代理' }}</h2>
+            <h2>{{ modalMode === 'create' ? tr('新建转发对') : tr('编辑转发代理') }}</h2>
           </div>
           <button class="proxy-modal-close" type="button" @click="closeModal">
             <span class="material-symbols-outlined">close</span>
@@ -651,43 +685,37 @@ onBeforeUnmount(() => {
           <div class="proxy-modal-stack">
             <div class="proxy-modal-grid">
               <div class="proxy-field">
-                <label>代理名称</label>
+                <label>{{ tr('代理名称') }}</label>
                 <input type="text" v-model="proxyName" />
               </div>
               <div class="proxy-field">
-                <label>连接模式</label>
+                <label>{{ tr('连接模式') }}</label>
                 <DropdownSelect v-model="connectionMode" class="proxy-select" :options="connectionOptions" />
               </div>
             </div>
             <div class="proxy-port-map">
               <div class="proxy-field">
                 <label>
-                  <span class="material-symbols-outlined">computer</span>
-                  主机端口
-                </label>
+                <span class="material-symbols-outlined">computer</span>{{ tr('主机端口') }}</label>
                 <DropdownSelect v-model="hostPort" class="proxy-select" :options="portOptions" />
               </div>
               <div class="proxy-field">
                 <label>
-                  <span class="material-symbols-outlined">settings_input_component</span>
-                  设备端口
-                </label>
+                  <span class="material-symbols-outlined">settings_input_component</span>{{ tr('设备端口') }}</label>
                 <DropdownSelect v-model="devicePort" class="proxy-select" :options="portOptions" />
               </div>
             </div>
             <div class="proxy-section">
               <div class="proxy-section-title">
-                <span class="material-symbols-outlined">settings_ethernet</span>
-                串口参数配置
-                <span>（两端需一致）</span>
+                <span class="material-symbols-outlined">settings_ethernet</span>{{ tr('串口参数配置') }}<span>{{ tr('（两端需一致）') }}</span>
               </div>
               <div class="proxy-section-grid">
                 <div class="proxy-field">
-                  <label>波特率</label>
+                  <label>{{ tr('波特率') }}</label>
                   <DropdownSelect v-model="baudRate" class="proxy-select" :options="baudOptions" />
                 </div>
                 <div class="proxy-field">
-                  <label>数据位</label>
+                  <label>{{ tr('数据位') }}</label>
                   <div class="proxy-segmented">
                     <button type="button" :class="{ active: dataBits === '5' }" @click="dataBits = '5'">5</button>
                     <button type="button" :class="{ active: dataBits === '6' }" @click="dataBits = '6'">6</button>
@@ -696,11 +724,11 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
                 <div class="proxy-field">
-                  <label>校验位</label>
+                  <label>{{ tr('校验位') }}</label>
                   <DropdownSelect v-model="parity" class="proxy-select" :options="parityOptions" />
                 </div>
                 <div class="proxy-field">
-                  <label>停止位</label>
+                  <label>{{ tr('停止位') }}</label>
                   <div class="proxy-segmented">
                     <button type="button" :class="{ active: stopBits === '1' }" @click="stopBits = '1'">1</button>
                     <button type="button" :class="{ active: stopBits === '1.5' }" @click="stopBits = '1.5'">1.5</button>
@@ -708,7 +736,7 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
                 <div class="proxy-field proxy-span-2">
-                  <label>流控</label>
+                  <label>{{ tr('流控') }}</label>
                   <div class="proxy-segmented">
                     <button type="button" :class="{ active: flowControl === 'none' }" @click="flowControl = 'none'">None</button>
                     <button type="button" :class="{ active: flowControl === 'rtscts' }" @click="flowControl = 'rtscts'">RTS/CTS</button>
@@ -719,24 +747,18 @@ onBeforeUnmount(() => {
             </div>
             <div class="proxy-section proxy-modal-advanced">
               <div class="proxy-section-title muted">
-                <span class="material-symbols-outlined">settings_suggest</span>
-                高级选项
-              </div>
+                <span class="material-symbols-outlined">settings_suggest</span>{{ tr('高级选项') }}</div>
               <div class="proxy-toggle-row">
                 <label>
                   <span class="proxy-toggle">
                     <input type="checkbox" checked />
                     <span></span>
-                  </span>
-                  自动重连
-                </label>
+                  </span>{{ tr('自动重连') }}</label>
                 <label>
                   <span class="proxy-toggle">
                     <input type="checkbox" />
                     <span></span>
-                  </span>
-                  详细日志
-                </label>
+                  </span>{{ tr('详细日志') }}</label>
               </div>
             </div>
           </div>
@@ -744,8 +766,8 @@ onBeforeUnmount(() => {
         <div class="proxy-modal-footer">
           <div></div>
           <div class="proxy-footer-actions">
-            <button class="proxy-btn ghost" type="button" @click="closeModal">取消</button>
-            <button class="proxy-btn primary" type="button" @click="saveProxy">保存</button>
+            <button class="proxy-btn ghost" type="button" @click="closeModal">{{ tr('取消') }}</button>
+            <button class="proxy-btn primary" type="button" @click="saveProxy">{{ tr('保存') }}</button>
           </div>
         </div>
       </div>
@@ -763,11 +785,11 @@ onBeforeUnmount(() => {
               <span class="material-symbols-outlined">analytics</span>
             </div>
             <div>
-              <h1 class="text-sm font-bold text-slate-900 leading-none">多协议通用报文分析引擎</h1>
+              <h1 class="text-sm font-bold text-slate-900 leading-none">{{ tr('多协议通用报文分析引擎') }}</h1>
               <div class="flex items-center gap-2 mt-1">
                 <span class="flex h-2 w-2 rounded-full bg-emerald-500"></span>
                 <p class="text-[10px] font-medium text-slate-500">
-                  活动通道: {{ captureProxy ? captureProxy.hostPort : captureMeta.channel }} | 引擎状态: {{ captureMeta.engine }}
+                  {{ tr('活动通道') }}: {{ captureProxy ? captureProxy.hostPort : captureMeta.channel }} | {{ tr('引擎状态') }}: {{ tr(captureMeta.engine) }}
                 </p>
               </div>
             </div>
@@ -777,14 +799,13 @@ onBeforeUnmount(() => {
               <span class="material-symbols-outlined text-slate-400">search</span>
               <input
                 class="bg-transparent border-none text-xs w-64 lg:w-96 focus:ring-0 text-slate-900 placeholder-slate-500"
-                placeholder="搜索标识、十六进制、协议、原始数据..."
+                :placeholder="tr('搜索标识、十六进制、协议、原始数据...')"
                 type="text"
               />
             </div>
             <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
             <button class="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition-colors shadow-sm">
-              <span class="material-symbols-outlined !text-sm">play_arrow</span> 继续捕获
-            </button>
+              <span class="material-symbols-outlined !text-sm">play_arrow</span>{{ tr('继续捕获') }}</button>
             <button class="p-1.5 hover:bg-slate-100 rounded text-slate-400">
               <span class="material-symbols-outlined">settings</span>
             </button>
@@ -802,13 +823,13 @@ onBeforeUnmount(() => {
               <table class="w-full text-left border-separate border-spacing-0">
                 <thead class="sticky top-0 z-10 bg-slate-50 shadow-sm">
                   <tr class="text-[10px] uppercase tracking-wider font-bold text-slate-500">
-                    <th class="px-3 py-2 border-b border-slate-200 w-16">序号</th>
-                    <th class="px-3 py-2 border-b border-slate-200 w-28">时间戳</th>
-                    <th class="px-3 py-2 border-b border-slate-200 w-12 text-center">方向</th>
-                    <th class="px-3 py-2 border-b border-slate-200 w-32">协议</th>
-                    <th class="px-3 py-2 border-b border-slate-200 w-16">长度</th>
-                    <th class="px-3 py-2 border-b border-slate-200 w-72">原始数据</th>
-                    <th class="px-3 py-2 border-b border-slate-200">摘要 (解析结果/HEX/ASCII)</th>
+                    <th class="px-3 py-2 border-b border-slate-200 w-16">{{ tr('序号') }}</th>
+                    <th class="px-3 py-2 border-b border-slate-200 w-28">{{ tr('时间戳') }}</th>
+                    <th class="px-3 py-2 border-b border-slate-200 w-12 text-center">{{ tr('方向') }}</th>
+                    <th class="px-3 py-2 border-b border-slate-200 w-32">{{ tr('协议') }}</th>
+                    <th class="px-3 py-2 border-b border-slate-200 w-16">{{ tr('长度') }}</th>
+                    <th class="px-3 py-2 border-b border-slate-200 w-72">{{ tr('原始数据') }}</th>
+                    <th class="px-3 py-2 border-b border-slate-200">{{ tr('摘要 (解析结果/HEX/ASCII)') }}</th>
                   </tr>
                 </thead>
                 <tbody class="text-xs">
@@ -868,10 +889,9 @@ onBeforeUnmount(() => {
           <aside class="flex-1 w-[450px] flex flex-col border-l border-slate-200 bg-slate-50">
             <div class="px-4 py-3 border-b border-slate-200 flex justify-between items-center bg-white shadow-sm">
               <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                <span class="material-symbols-outlined !text-sm text-blue-500">info</span> 报文解析详情
-              </h2>
+                <span class="material-symbols-outlined !text-sm text-blue-500">info</span>{{ tr('报文解析详情') }}</h2>
               <div class="flex gap-2">
-                <button class="p-1 hover:bg-slate-100 rounded" title="复制原始十六进制">
+                <button class="p-1 hover:bg-slate-100 rounded" :title="tr('复制原始十六进制')">
                   <span class="material-symbols-outlined !text-sm">content_copy</span>
                 </button>
                 <button class="p-1 hover:bg-slate-100 rounded" @click="closeCaptureModal">
@@ -880,7 +900,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <div class="flex-1 overflow-y-auto">
-              <div v-if="!activeFrame" class="p-6 text-center text-slate-400 text-sm">暂无报文数据</div>
+              <div v-if="!activeFrame" class="p-6 text-center text-slate-400 text-sm">{{ tr('暂无报文数据') }}</div>
               <template v-else>
                 <div class="p-6 text-center space-y-4 border-b border-slate-200 bg-orange-50/20">
                   <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-100 text-orange-600 mb-1">
@@ -888,31 +908,31 @@ onBeforeUnmount(() => {
                   </div>
                   <div>
                     <h3 class="text-sm font-bold text-slate-800">
-                      {{ isUnknownFrame ? '未知协议报文 (Unknown Protocol)' : `${activeProtocolLabel} 报文` }}
+                      {{ isUnknownFrame ? tr('未知协议报文 (Unknown Protocol)') : `${activeProtocolLabel} ${tr('报文')}` }}
                     </h3>
                     <p class="text-[11px] text-slate-500 mt-1 max-w-[280px] mx-auto leading-relaxed">
                       {{
                         isUnknownFrame
-                          ? '系统未能自动匹配已知的解析插件。您可以尝试手动配置解析规则，或使用万能解析脚本。'
-                          : '已匹配协议解析插件，当前展示该报文的解析详情。'
+                          ? tr('系统未能自动匹配已知的解析插件。您可以尝试手动配置解析规则，或使用万能解析脚本。')
+                          : tr('已匹配协议解析插件，当前展示该报文的解析详情。')
                       }}
                     </p>
                   </div>
                   <div class="flex justify-center gap-3">
                     <button class="px-3 py-1.5 bg-white border border-slate-300 rounded text-[11px] font-bold hover:bg-slate-50 transition-colors shadow-sm">
-                      {{ isUnknownFrame ? '手动解析' : '查看详情' }}
+                      {{ isUnknownFrame ? tr('手动解析') : tr('查看详情') }}
                     </button>
                     <button class="px-3 py-1.5 bg-blue-600 text-white rounded text-[11px] font-bold hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-md">
                       <span class="material-symbols-outlined !text-xs">schema</span>
-                      {{ isUnknownFrame ? '配置解析规则' : '调整解析规则' }}
+                      {{ isUnknownFrame ? tr('配置解析规则') : tr('调整解析规则') }}
                     </button>
                   </div>
                 </div>
                 <div class="p-4 border-b border-slate-200">
                   <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">原始十六进制 (RAW HEX)</h3>
+                    <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{{ tr('原始十六进制 (RAW HEX)') }}</h3>
                     <span class="text-[10px] font-mono bg-slate-200 px-1.5 py-0.5 rounded text-slate-600">
-                      {{ activeHexSize }} 字节
+                      {{ activeHexSize }} {{ tr('字节') }}
                     </span>
                   </div>
                   <div v-if="activeHexCells.length" class="bg-white border border-slate-200 rounded-lg overflow-hidden flex shadow-inner">
@@ -932,14 +952,14 @@ onBeforeUnmount(() => {
                       {{ activeHexAscii[0] }}<br />{{ activeHexAscii[1] }}
                     </div>
                   </div>
-                  <div v-else class="text-xs text-slate-400">暂无十六进制数据</div>
+                  <div v-else class="text-xs text-slate-400">{{ tr('暂无十六进制数据') }}</div>
                 </div>
                 <div class="p-4 space-y-4">
-                  <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">协议层级解析 (PROTOCOL TREE)</h3>
+                  <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">{{ tr('协议层级解析 (PROTOCOL TREE)') }}</h3>
                   <div class="relative pl-4 space-y-1">
                     <div class="flex items-center gap-2 -ml-4 cursor-pointer hover:bg-slate-100 p-1 rounded transition-colors group">
                       <span class="material-symbols-outlined text-slate-400 group-open:rotate-90">arrow_right</span>
-                      <span class="text-[11px] font-bold text-slate-500 uppercase">链路层 (Data Link Layer)</span>
+                      <span class="text-[11px] font-bold text-slate-500 uppercase">{{ tr('链路层 (Data Link Layer)') }}</span>
                     </div>
                     <div class="tree-line relative pl-2 space-y-1">
                       <details class="group" open>
@@ -949,9 +969,9 @@ onBeforeUnmount(() => {
                         </summary>
                         <div class="mt-2 space-y-0.5 pl-2">
                           <div class="grid grid-cols-12 text-[9px] font-bold text-slate-400 px-2 py-1 uppercase tracking-tighter">
-                            <div class="col-span-3">原始值</div>
-                            <div class="col-span-4">字段</div>
-                            <div class="col-span-5 text-right">解析值</div>
+                            <div class="col-span-3">{{ tr('原始值') }}</div>
+                            <div class="col-span-4">{{ tr('字段') }}</div>
+                            <div class="col-span-5 text-right">{{ tr('解析值') }}</div>
                           </div>
                           <div
                             v-for="(row, rowIndex) in activeTreeRows"
@@ -962,7 +982,7 @@ onBeforeUnmount(() => {
                             <div class="col-span-4 text-[11px] text-slate-500">{{ row.label }}</div>
                             <div class="col-span-5 text-[11px] text-right font-bold text-slate-700">{{ row.value }}</div>
                           </div>
-                          <div v-if="!activeTreeRows.length" class="text-xs text-slate-400 px-2 py-2">暂无协议解析数据</div>
+                          <div v-if="!activeTreeRows.length" class="text-xs text-slate-400 px-2 py-2">{{ tr('暂无协议解析数据') }}</div>
                         </div>
                       </details>
                     </div>
@@ -971,14 +991,14 @@ onBeforeUnmount(() => {
               </template>
             </div>
             <div class="p-4 bg-slate-100/50 border-t border-slate-200">
-              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">实时网络指标</p>
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">{{ tr('实时网络指标') }}</p>
               <div class="grid grid-cols-2 gap-4">
                 <div class="bg-white p-2 rounded border border-slate-200 shadow-sm">
-                  <p class="text-[9px] text-slate-500">往返延时 (RTT)</p>
+                  <p class="text-[9px] text-slate-500">{{ tr('往返延时 (RTT)') }}</p>
                   <p class="text-sm font-bold text-emerald-500">{{ captureMetrics.rtt }}</p>
                 </div>
                 <div class="bg-white p-2 rounded border border-slate-200 shadow-sm">
-                  <p class="text-[9px] text-slate-500">丢包率 (Packet Loss)</p>
+                  <p class="text-[9px] text-slate-500">{{ tr('丢包率 (Packet Loss)') }}</p>
                   <p class="text-sm font-bold text-slate-900">{{ captureMetrics.loss }}</p>
                 </div>
               </div>
@@ -988,7 +1008,7 @@ onBeforeUnmount(() => {
         <footer class="px-4 py-2 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
           <div class="flex items-center gap-6">
             <div class="flex items-center gap-2">
-              <span class="text-[10px] font-bold text-slate-500 uppercase">接收缓冲区</span>
+              <span class="text-[10px] font-bold text-slate-500 uppercase">{{ tr('接收缓冲区') }}</span>
               <div class="w-32 h-2 bg-slate-200 rounded-full overflow-hidden border border-slate-300">
                 <div class="h-full bg-amber-500" :style="{ width: `${captureMeta.bufferUsed}%` }"></div>
               </div>
@@ -996,7 +1016,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="h-4 w-[1px] bg-slate-300"></div>
             <p class="text-[10px] font-medium text-slate-500 uppercase">
-              显示 {{ captureMeta.rangeStart }}-{{ captureMeta.rangeEnd }} / 共 {{ captureMeta.totalFrames }} 报文
+              {{ tr('显示') }} {{ captureMeta.rangeStart }}-{{ captureMeta.rangeEnd }} / {{ tr('共') }} {{ captureMeta.totalFrames }} {{ tr('报文') }}
             </p>
           </div>
           <div class="flex items-center gap-4">
@@ -1007,7 +1027,7 @@ onBeforeUnmount(() => {
               <button class="p-1 hover:bg-slate-100 rounded">
                 <span class="material-symbols-outlined !text-sm">chevron_left</span>
               </button>
-              <div class="px-3 text-[10px] font-bold text-slate-700">第 {{ captureMeta.page }} / {{ captureMeta.pageCount }} 页</div>
+              <div class="px-3 text-[10px] font-bold text-slate-700">{{ tr('第') }} {{ captureMeta.page }} / {{ captureMeta.pageCount }} {{ tr('页') }}</div>
               <button class="p-1 hover:bg-slate-100 rounded">
                 <span class="material-symbols-outlined !text-sm">chevron_right</span>
               </button>
@@ -1016,8 +1036,7 @@ onBeforeUnmount(() => {
               </button>
             </div>
             <button class="flex items-center gap-1 px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[10px] font-bold transition-colors">
-              <span class="material-symbols-outlined !text-sm">download</span> 导出分析结果
-            </button>
+              <span class="material-symbols-outlined !text-sm">download</span>{{ tr('导出分析结果') }}</button>
           </div>
         </footer>
       </div>
@@ -1030,7 +1049,7 @@ onBeforeUnmount(() => {
             <div class="proxy-modal-icon">
               <span class="material-symbols-outlined">warning</span>
             </div>
-            <h2>确认删除</h2>
+            <h2>{{ tr('确认删除') }}</h2>
           </div>
           <button class="proxy-modal-close" type="button" @click="closeConfirm">
             <span class="material-symbols-outlined">close</span>
@@ -1038,14 +1057,14 @@ onBeforeUnmount(() => {
         </div>
         <div class="proxy-modal-body">
           <p class="proxy-confirm-text">
-            确认删除转发对「{{ confirmProxy?.name || '未命名转发对' }}」吗？删除前将停止转发。
+            {{ tr('确认删除转发对') }}「{{ confirmProxy?.name || tr('未命名转发对') }}」{{ tr('吗？') }}{{ tr('删除前将停止转发。') }}
           </p>
         </div>
         <div class="proxy-modal-footer">
           <div></div>
           <div class="proxy-footer-actions">
-            <button class="proxy-btn ghost" type="button" @click="closeConfirm">取消</button>
-            <button class="proxy-btn warning" type="button" @click="applyConfirmDelete">确认删除</button>
+            <button class="proxy-btn ghost" type="button" @click="closeConfirm">{{ tr('取消') }}</button>
+            <button class="proxy-btn warning" type="button" @click="applyConfirmDelete">{{ tr('确认删除') }}</button>
           </div>
         </div>
       </div>

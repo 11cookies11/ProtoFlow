@@ -3,6 +3,8 @@ import { inject } from 'vue'
 import DropdownSelect from './DropdownSelect.vue'
 import LogStream from './LogStream.vue'
 
+const t = inject('t', (key: string) => key)
+const tr = inject('tr', (text: string) => text)
 const bindings = inject('manualView')
 if (!bindings) {
   throw new Error('manualView bindings not provided')
@@ -65,14 +67,14 @@ const {
   <section class="page">
           <header class="page-header spaced">
             <div>
-              <h2>串口终端</h2>
-              <p>传统串口调试工具：发送命令，监听 I/O 与日志回显。</p>
+              <h2>{{ t('header.manual.title') }}</h2>
+              <p>{{ t('header.manual.desc') }}</p>
             </div>
             <div class="header-actions terminal-config-actions">
               <div class="config-status">
                 <div class="status-pill" :class="connectionInfo.state">
                   <span class="dot"></span>
-                  {{ isConnected ? '已连接' : connectionInfo.state === 'error' ? '错误' : '未连接' }}
+                  {{ isConnected ? t('status.connected') : connectionInfo.state === 'error' ? t('status.error') : t('status.disconnected') }}
                 </div>
               </div>
               <div class="port-picker terminal-port-picker">
@@ -84,13 +86,13 @@ const {
                   leading-icon="usb"
                   @change="selectPort"
                 />
-                <button class="icon-btn" type="button" title="串口设置" @click="openChannelSettings">
+                <button class="icon-btn" type="button" :title="tr('串口设置')" @click="openChannelSettings">
                   <span class="material-symbols-outlined">settings</span>
                 </button>
                 <button
                   class="icon-btn refresh-icon"
                   type="button"
-                  title="刷新串口"
+                  :title="tr('刷新串口')"
                   :disabled="isConnected || isConnecting"
                   @click="refreshPorts"
                 >
@@ -105,7 +107,7 @@ const {
                   @click="isConnected ? disconnect() : connectSerial()"
                 >
                   <span class="material-symbols-outlined">link</span>
-                  {{ isConnected ? '断开' : isConnecting ? '连接中' : '连接' }}
+                  {{ isConnected ? t('action.disconnect') : isConnecting ? t('status.connecting') : t('action.connect') }}
                 </button>
               </div>
             </div>
@@ -115,10 +117,8 @@ const {
             <div class="manual-left">
               <div class="panel stack manual-send">
                 <div class="panel-title">
-                  <span class="material-symbols-outlined">send</span>
-                  发送数据
-                  <div class="segmented">
-                    <button :class="{ active: sendMode === 'text' }" @click="sendMode = 'text'">文本</button>
+                  <span class="material-symbols-outlined">send</span>{{ tr('发送数据') }}<div class="segmented">
+                    <button :class="{ active: sendMode === 'text' }" @click="sendMode = 'text'">{{ tr('文本') }}</button>
                     <button :class="{ active: sendMode === 'hex' }" @click="sendMode = 'hex'">HEX</button>
                   </div>
                 </div>
@@ -126,7 +126,7 @@ const {
                   v-if="sendMode === 'text'"
                   v-model="sendText"
                   class="text-area"
-                  placeholder="输入要发送的数据..."
+                  :placeholder="tr('输入要发送的数据...')"
                 ></textarea>
                 <textarea
                   v-else
@@ -145,19 +145,15 @@ const {
                   </label>
                   <label class="check">
                     <input v-model="loopSend" type="checkbox" />
-                    <span>循环发送</span>
+                    <span>{{ tr('循环发送') }}</span>
                   </label>
                 </div>
                 <button class="btn btn-primary" @click="sendPayload">
-                  <span class="material-symbols-outlined">send</span>
-                  发送数据
-                </button>
+                  <span class="material-symbols-outlined">send</span>{{ tr('发送数据') }}</button>
               </div>
 
               <div class="panel stack manual-quick">
-                <div class="panel-title simple">
-                  快捷指令
-                  <button class="icon-btn" type="button" title="新增快捷指令" @click="addQuickCommand">
+                <div class="panel-title simple">{{ tr('快捷指令') }}<button class="icon-btn" type="button" :title="tr('新增快捷指令')" @click="addQuickCommand">
                     <span class="material-symbols-outlined">add</span>
                   </button>
                 </div>
@@ -170,13 +166,13 @@ const {
                   >
                     <div class="quick-info">
                       <span class="quick-title">{{ cmd.name }}</span>
-                      <span class="quick-meta">{{ cmd.mode === 'hex' ? 'HEX' : '文本' }}</span>
+                      <span class="quick-meta">{{ cmd.mode === 'hex' ? 'HEX' : tr('文本') }}</span>
                     </div>
                     <div class="quick-item-actions">
-                      <button class="icon-btn small" type="button" title="编辑" @click.stop="editQuickCommand(cmd)">
+                      <button class="icon-btn small" type="button" :title="tr('编辑')" @click.stop="editQuickCommand(cmd)">
                         <span class="material-symbols-outlined">edit</span>
                       </button>
-                      <button class="icon-btn small" type="button" title="删除" @click.stop="openQuickDeleteDialog(cmd)">
+                      <button class="icon-btn small" type="button" :title="tr('删除')" @click.stop="openQuickDeleteDialog(cmd)">
                         <span class="material-symbols-outlined">delete</span>
                       </button>
                       <span class="material-symbols-outlined">play_arrow</span>
@@ -190,9 +186,7 @@ const {
               <div class="panel monitor manual-monitor">
                 <div class="panel-title bar">
                   <div class="panel-title-left">
-                    <span class="material-symbols-outlined">swap_horiz</span>
-                    IO 监控
-                    <span class="pill live">LIVE</span>
+                    <span class="material-symbols-outlined">swap_horiz</span>{{ tr('IO 监控') }}<span class="pill live">LIVE</span>
                   </div>
                   <div class="panel-actions">
                     <div class="segmented small">
@@ -200,19 +194,19 @@ const {
                       <button :class="{ active: displayMode === 'hex' }" @click="displayMode = 'hex'">HEX</button>
                     </div>
                     <span class="divider"></span>
-                    <button class="icon-btn" type="button" title="清除" @click="clearCommLogs">
+                    <button class="icon-btn" type="button" :title="tr('清除')" @click="clearCommLogs">
                       <span class="material-symbols-outlined">delete</span>
                     </button>
                     <button
                       class="icon-btn"
                       type="button"
-                      title="暂停"
+                      :title="tr('暂停')"
                       :class="{ active: commPaused }"
                       @click="toggleCommPaused"
                     >
                       <span class="material-symbols-outlined">pause_circle</span>
                     </button>
-                    <button class="icon-btn" type="button" title="导出" @click="exportCommLogs">
+                    <button class="icon-btn" type="button" :title="tr('导出')" @click="exportCommLogs">
                       <span class="material-symbols-outlined">download</span>
                     </button>
                   </div>
@@ -226,12 +220,12 @@ const {
 
               <div class="panel console manual-console">
                 <div class="tab-strip">
-                  <button :class="{ active: logTab === 'all' }" @click="logTab = 'all'">全部日志</button>
-                  <button :class="{ active: logTab === 'uart' }" @click="logTab = 'uart'">串口 (UART)</button>
-                  <button :class="{ active: logTab === 'tcp' }" @click="logTab = 'tcp'">网络 (TCP)</button>
+                  <button :class="{ active: logTab === 'all' }" @click="logTab = 'all'">{{ tr('全部日志') }}</button>
+                  <button :class="{ active: logTab === 'uart' }" @click="logTab = 'uart'">{{ tr('串口 (UART)') }}</button>
+                  <button :class="{ active: logTab === 'tcp' }" @click="logTab = 'tcp'">{{ tr('网络 (TCP)') }}</button>
                   <div class="search">
                     <span class="material-symbols-outlined">search</span>
-                    <input v-model="logKeyword" type="text" placeholder="过滤日志..." />
+                    <input v-model="logKeyword" type="text" :placeholder="tr('过滤日志...')" />
                   </div>
                 </div>
                 <LogStream
@@ -241,8 +235,8 @@ const {
                   :formatPayload="formatPayload"
                 />
                 <div class="panel-footer">
-                  <span>{{ visibleCommLogs.length }} 条日志记录</span>
-                  <button class="link-btn" type="button" @click="clearCommLogs">清除日志</button>
+                  <span>{{ visibleCommLogs.length }} {{ tr('条日志记录') }}</span>
+                  <button class="link-btn" type="button" @click="clearCommLogs">{{ tr('清除日志') }}</button>
                 </div>
               </div>
             </div>
@@ -252,8 +246,8 @@ const {
             <div class="quick-modal">
               <div class="modal-header">
                 <div>
-                  <h3>{{ quickDialogMode === 'edit' ? '快捷指令编辑' : '新增快捷指令' }}</h3>
-                  <p>{{ quickDialogMode === 'edit' ? '编辑或更新现有的快捷调试指令' : '创建新的快捷调试指令' }}</p>
+                  <h3>{{ quickDialogMode === 'edit' ? tr('快捷指令编辑') : tr('新增快捷指令') }}</h3>
+                  <p>{{ quickDialogMode === 'edit' ? tr('编辑或更新现有的快捷调试指令') : tr('创建新的快捷调试指令') }}</p>
                 </div>
                 <button class="icon-btn" type="button" @click="closeQuickCommandDialog">
                   <span class="material-symbols-outlined">close</span>
@@ -261,19 +255,17 @@ const {
               </div>
               <div class="modal-body">
                 <div class="quick-field">
-                  <label>指令名称</label>
-                  <input v-model="quickDraft.name" type="text" placeholder="例如：CMD PING" />
+                  <label>{{ tr('指令名称') }}</label>
+                  <input v-model="quickDraft.name" type="text" :placeholder="tr('例如：CMD PING')" />
                 </div>
 
                 <div class="quick-field">
                   <div class="quick-field-header">
-                    <label>指令内容</label>
+                    <label>{{ tr('指令内容') }}</label>
                     <div class="quick-mode">
-                      <span class="quick-mode-label">格式:</span>
+                      <span class="quick-mode-label">{{ tr('格式:') }}</span>
                       <div class="segmented small">
-                        <button :class="{ active: quickDraft.mode === 'text' }" @click="quickDraft.mode = 'text'">
-                          文本
-                        </button>
+                        <button :class="{ active: quickDraft.mode === 'text' }" @click="quickDraft.mode = 'text'">{{ tr('文本') }}</button>
                         <button :class="{ active: quickDraft.mode === 'hex' }" @click="quickDraft.mode = 'hex'">
                           HEX
                         </button>
@@ -284,29 +276,29 @@ const {
                     v-model="quickDraft.payload"
                     class="quick-textarea"
                     rows="4"
-                    placeholder="输入要发送的指令内容"
+                    :placeholder="tr('输入要发送的指令内容')"
                   ></textarea>
                   <p class="quick-counter">{{ quickPayloadCount }} / {{ quickPayloadLimit }}</p>
                 </div>
 
                 <div class="modal-section quick-options">
-                  <div class="section-title">发送选项</div>
+                  <div class="section-title">{{ tr('发送选项') }}</div>
                   <div class="toggle-row">
                     <label class="check">
                       <input v-model="quickDraft.appendCR" type="checkbox" />
-                      <span>添加 CR (\r)</span>
+                      <span>{{ tr('添加 CR (\r)') }}</span>
                     </label>
                     <label class="check">
                       <input v-model="quickDraft.appendLF" type="checkbox" />
-                      <span>添加 LF (\n)</span>
+                      <span>{{ tr('添加 LF (\n)') }}</span>
                     </label>
                   </div>
                 </div>
               </div>
               <div class="modal-footer">
-                <button class="btn btn-outline" type="button" @click="closeQuickCommandDialog">取消</button>
+                <button class="btn btn-outline" type="button" @click="closeQuickCommandDialog">{{ tr('取消') }}</button>
                 <button class="btn btn-primary" type="button" @click="saveQuickCommand">
-                  {{ quickDialogMode === 'edit' ? '保存修改' : '创建指令' }}
+                  {{ quickDialogMode === 'edit' ? tr('保存修改') : tr('创建指令') }}
                 </button>
               </div>
             </div>
@@ -316,8 +308,8 @@ const {
             <div class="quick-modal quick-modal-sm">
               <div class="modal-header">
                 <div>
-                  <h3>删除快捷指令</h3>
-                  <p>确认删除该快捷指令，删除后无法恢复。</p>
+                  <h3>{{ tr('删除快捷指令') }}</h3>
+                  <p>{{ tr('确认删除该快捷指令，删除后无法恢复。') }}</p>
                 </div>
                 <button class="icon-btn" type="button" @click="closeQuickDeleteDialog">
                   <span class="material-symbols-outlined">close</span>
@@ -327,14 +319,14 @@ const {
                 <div class="quick-delete-summary">
                   <span class="material-symbols-outlined">warning</span>
                   <div>
-                    <p class="quick-delete-title">{{ quickDeleting?.name || '未命名指令' }}</p>
-                    <p class="quick-delete-meta">{{ quickDeleting?.mode === 'hex' ? 'HEX' : '文本' }}</p>
+                    <p class="quick-delete-title">{{ quickDeleting?.name || tr('未命名指令') }}</p>
+                    <p class="quick-delete-meta">{{ quickDeleting?.mode === 'hex' ? 'HEX' : tr('文本') }}</p>
                   </div>
                 </div>
               </div>
               <div class="modal-footer">
-                <button class="btn btn-outline" type="button" @click="closeQuickDeleteDialog">取消</button>
-                <button class="btn btn-danger" type="button" @click="confirmQuickDelete">确认删除</button>
+                <button class="btn btn-outline" type="button" @click="closeQuickDeleteDialog">{{ tr('取消') }}</button>
+                <button class="btn btn-danger" type="button" @click="confirmQuickDelete">{{ tr('确认删除') }}</button>
               </div>
             </div>
           </div>
