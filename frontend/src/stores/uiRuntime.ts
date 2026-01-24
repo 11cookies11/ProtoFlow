@@ -1,5 +1,4 @@
 ﻿import { defineStore } from 'pinia'
-import { parseYamlUI } from '@/ui/yaml'
 import { validateUIConfig, type UIConfig, type WidgetSpec } from '@/ui/schema'
 
 export type ParseError = {
@@ -69,25 +68,42 @@ export const useUiRuntimeStore = defineStore('uiRuntime', {
         clearTimeout(this._debounceTimer)
       }
       this._debounceTimer = window.setTimeout(() => {
-        const parsed = parseYamlUI(this.yamlText)
-        if (!parsed.ok) {
-          this.parseError = { message: parsed.error.message, line: parsed.error.line, column: parsed.error.column }
-          return
-        }
-        const validated = validateUIConfig(parsed.value)
-        if (!validated.ok) {
-          this.parseError = { message: validated.error.message, path: validated.error.path }
-          return
-        }
-        const config = validated.value
-        const widgetsById: Record<string, WidgetSpec> = {}
-        config.ui.widgets.forEach((widget) => {
-          widgetsById[widget.id] = { ...widget, props: widget.props || {} }
-        })
-        this.widgetsById = widgetsById
-        this.lastGoodConfig = config
-        this.parseError = null
+        this._parseWithBridge()
       }, 300)
+    },
+    async _parseWithBridge() {
+      const bridge = (window as unknown as { bridge?: any }).bridge
+      if (bridge && bridge.parse_ui_yaml) {
+        try {
+          const result = await Promise.resolve(bridge.parse_ui_yaml(this.yamlText))
+          this._handleParseResult(result)
+          return
+        } catch (error) {
+          this.parseError = { message: String(error || 'bridge parse error') }
+          return
+        }
+      }
+      this.parseError = { message: 'WebBridge unavailable for YAML parsing' }
+    },
+    _handleParseResult(result: { ok: boolean; value?: unknown; error?: { message: string; line?: number; column?: number } }) {
+      if (!result.ok) {
+        const err = result.error || { message: 'YAML parse error' }
+        this.parseError = { message: err.message, line: err.line, column: err.column }
+        return
+      }
+      const validated = validateUIConfig(result.value)
+      if (!validated.ok) {
+        this.parseError = { message: validated.error.message, path: validated.error.path }
+        return
+      }
+      const config = validated.value
+      const widgetsById: Record<string, WidgetSpec> = {}
+      config.ui.widgets.forEach((widget) => {
+        widgetsById[widget.id] = { ...widget, props: widget.props || {} }
+      })
+      this.widgetsById = widgetsById
+      this.lastGoodConfig = config
+      this.parseError = null
     },
     selectWidget(id: string) {
       this.selectedWidgetId = id
@@ -106,6 +122,10 @@ export const useUiRuntimeStore = defineStore('uiRuntime', {
     },
     dispatchEvent(event: { emit: string; payload?: unknown; source?: string }) {
       this.eventLog.push({ ts: Date.now(), ...event })
+      const bridge = (window as unknown as { bridge?: any }).bridge
+      if (bridge && bridge.dispatch_ui_event) {
+        bridge.dispatch_ui_event({ ts: Date.now(), ...event })
+      }
     },
     pushData(bindKey: string, value: unknown) {
       if (!this.dataBus[bindKey]) {
@@ -115,6 +135,18 @@ export const useUiRuntimeStore = defineStore('uiRuntime', {
       if (this.dataBus[bindKey].length > 200) {
         this.dataBus[bindKey] = this.dataBus[bindKey].slice(-200)
       }
+    },
+    bindBridge(bridge: any) {
+      if (!bridge || !bridge.ui_event_log) return
+      bridge.ui_event_log.connect((payload: any) => {
+        if (!payload) return
+        this.eventLog.push({
+          ts: payload.ts ? Number(payload.ts) : Date.now(),
+          emit: payload.emit || '',
+          payload: payload.payload,
+          source: payload.source,
+        })
+      })
     },
   },
 })

@@ -62,6 +62,10 @@ function handleInput(event: Event) {
 }
 
 onMounted(() => {
+  const bridge = (window as unknown as { bridge?: any }).bridge
+  if (bridge) {
+    store.bindBridge(bridge)
+  }
   store.tryParseAndValidate()
 })
 </script>

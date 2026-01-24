@@ -89,7 +89,7 @@ const LayoutNodeRenderer = defineComponent({
                         }
                       },
                     },
-                    { default: () => commonProps.label || '??' }
+                    { default: () => commonProps.label || '动作' }
                   ),
                 ])
               }

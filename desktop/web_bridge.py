@@ -10,6 +10,7 @@ from pathlib import Path
 import logging
 import os
 from typing import Any, Dict, List, Optional
+import yaml
 
 try:
     from PySide6.QtCore import QObject, Q_ARG, QMetaObject, QTimer, Qt, Signal, Slot
@@ -38,6 +39,7 @@ class WebBridge(QObject):
     script_state = Signal(str)
     script_progress = Signal(int)
     channel_update = Signal(object)
+    ui_event_log = Signal(object)
 
     def __init__(self, bus=None, comm=None, window=None) -> None:
         super().__init__()
@@ -141,6 +143,31 @@ class WebBridge(QObject):
             }
             items.append(merged)
         return items
+
+    @Slot(str, result="QVariant")
+    def parse_ui_yaml(self, yaml_text: str) -> Dict[str, Any]:
+        try:
+            data = yaml.safe_load(yaml_text) if yaml_text else {}
+            return {"ok": True, "value": data}
+        except yaml.YAMLError as exc:
+            error: Dict[str, Any] = {"message": str(exc)}
+            mark = getattr(exc, "problem_mark", None)
+            if mark is not None:
+                error["line"] = getattr(mark, "line", None) + 1 if hasattr(mark, "line") else None
+                error["column"] = getattr(mark, "column", None) + 1 if hasattr(mark, "column") else None
+            return {"ok": False, "error": error}
+
+    @Slot("QVariant")
+    def dispatch_ui_event(self, payload: Dict[str, Any]) -> None:
+        if not isinstance(payload, dict):
+            return
+        event = {
+            "ts": payload.get("ts") or time.time(),
+            "emit": payload.get("emit") or "",
+            "payload": payload.get("payload"),
+            "source": payload.get("source"),
+        }
+        self.ui_event_log.emit(event)
 
     @Slot("QVariant", result="QVariant")
     def create_protocol(self, payload: Dict[str, Any]) -> Dict[str, Any]:

@@ -94,8 +94,8 @@ const channelWriteTimeout = ref(1000)
 const channelHost = ref('127.0.0.1')
 const channelTcpPort = ref(502)
 const channelAutoConnect = ref(true)
-const uiLanguage = ref('????')
-const uiTheme = ref('娴呰壊')
+const uiLanguage = ref('\u7b80\u4f53\u4e2d\u6587')
+const uiTheme = ref('\u6d45\u8272')
 const defaultBaud = ref(115200)
 const defaultParity = ref('none')
 const defaultStopBits = ref('1')
@@ -107,6 +107,14 @@ const autoConnectOnStart = ref(true)
 const settingsSaving = ref(false)
 const settingsSnapshot = ref(null)
 const settingsTab = ref('general')
+const uiLabels = {
+  manual: '\u4e32\u53e3\u7ec8\u7aef',
+  scripts: '\u81ea\u52a8\u811a\u672c',
+  proxy: '\u4ee3\u7406\u76d1\u63a7',
+  protocols: '\u534f\u8bae',
+  settings: '\u8bbe\u7f6e',
+  workspace: '\u7ba1\u7406\u5458\u5de5\u4f5c\u533a',
+}
 const channelTab = ref('all')
 const protocolTab = ref('all')
 const protocolDialogOpen = ref(false)
@@ -1654,8 +1662,8 @@ const settingsDirty = computed(() => {
 
 function buildSettingsPayload() {
   return {
-    uiLanguage: uiLanguage.value,
-    uiTheme: uiTheme.value,
+    uiLanguage: '简体中文',
+    uiTheme: '浅色',
     autoConnectOnStart: !!autoConnectOnStart.value,
     dslWorkspacePath: dslWorkspacePath.value,
     quickCommands: quickCommands.value,
@@ -1674,8 +1682,8 @@ function buildSettingsPayload() {
 
 function normalizeSettings(payload) {
   const defaults = {
-    uiLanguage: '????',
-    uiTheme: '????',
+    uiLanguage: '简体中文',
+    uiTheme: '浅色',
     autoConnectOnStart: true,
     dslWorkspacePath: '/usr/local/protoflow/workflows',
     quickCommands: quickCommands.value,
@@ -1757,7 +1765,7 @@ function discardSettings() {
 function chooseDslWorkspace() {
   if (!bridge.value || !bridge.value.select_directory) return
   withResult(
-    bridge.value.select_directory('????', dslWorkspacePath.value || ''),
+    bridge.value.select_directory('选择工作区', dslWorkspacePath.value || ''),
     (value) => {
       if (value) {
         dslWorkspacePath.value = value
@@ -1937,11 +1945,11 @@ function unlockSidebarWidth() {
         <nav class="sidebar-nav">
           <button class="nav-item" :class="{ active: currentView === 'manual' }" @click="currentView = 'manual'">
             <span class="material-symbols-outlined">terminal</span>
-            <span>????</span>
+            <span>{{ uiLabels.manual }}</span>
           </button>
           <button class="nav-item" :class="{ active: currentView === 'scripts' }" @click="currentView = 'scripts'">
             <span class="material-symbols-outlined">smart_toy</span>
-            <span>????</span>
+            <span>{{ uiLabels.scripts }}</span>
           </button>
           <button class="nav-item" :class="{ active: currentView === 'ui-lab' }" @click="currentView = 'ui-lab'">
             <span class="material-symbols-outlined">dashboard_customize</span>
@@ -1949,23 +1957,23 @@ function unlockSidebarWidth() {
           </button>
           <button class="nav-item" :class="{ active: currentView === 'proxy' }" @click="currentView = 'proxy'">
             <span class="material-symbols-outlined">settings_input_hdmi</span>
-            <span>????</span>
+            <span>{{ uiLabels.proxy }}</span>
           </button>
           <button class="nav-item" :class="{ active: currentView === 'protocols' }" @click="currentView = 'protocols'">
             <span class="material-symbols-outlined">cable</span>
-            <span>??</span>
+            <span>{{ uiLabels.protocols }}</span>
           </button>
           <div class="nav-divider"></div>
           <button class="nav-item" :class="{ active: currentView === 'settings' }" @click="currentView = 'settings'">
             <span class="material-symbols-outlined">settings</span>
-            <span>??</span>
+            <span>{{ uiLabels.settings }}</span>
           </button>
         </nav>
         <div class="sidebar-footer">
           <div class="user-avatar"></div>
           <div>
             <div class="user-name">DevUser_01</div>
-            <div class="user-meta">管理员工作区</div>
+            <div class="user-meta">{{ uiLabels.workspace }}</div>
           </div>
         </div>
       </aside>
@@ -2383,3 +2391,5 @@ function unlockSidebarWidth() {
     <div v-if="snapPreview" class="snap-overlay" :class="`snap-${snapPreview}`"></div>
   </div>
 </template>
+
+
