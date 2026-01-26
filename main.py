@@ -1,4 +1,4 @@
-"""应用入口：使用 Qt WebEngine + Vue Web UI。"""
+﻿"""Entry point: Qt WebEngine host for the Vue frontend."""
 
 from __future__ import annotations
 
