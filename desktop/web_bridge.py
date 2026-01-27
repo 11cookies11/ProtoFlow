@@ -183,6 +183,15 @@ class WebBridge(QObject):
             "payload": payload.get("payload"),
             "source": payload.get("source"),
         }
+        # Bridge UI events into the shared EventBus so DSL can react.
+        if self._bus:
+            try:
+                if event["emit"]:
+                    self._bus.publish(str(event["emit"]), event["payload"])
+                # Also publish a generic UI event for simpler subscriptions.
+                self._bus.publish("ui.event", event)
+            except Exception:
+                pass
         self.ui_event_log.emit(event)
 
     @Slot("QVariant", result="QVariant")
@@ -424,7 +433,8 @@ class WebBridge(QObject):
         if self._script_runner and self._script_runner.isRunning():
             self._script_runner.stop()
             self._script_runner.wait(1000)
-        runner = ScriptRunnerQt(yaml_text, bus=self._bus)
+        # Subscribe to a generic UI event channel by default.
+        runner = ScriptRunnerQt(yaml_text, bus=self._bus, external_events=["ui.event"])
         runner.sig_log.connect(self.script_log.emit)
         runner.sig_state.connect(self.script_state.emit)
         runner.sig_progress.connect(self.script_progress.emit)
