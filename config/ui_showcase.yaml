@@ -1,0 +1,303 @@
+﻿ui:
+  widgets:
+    # ===== Status band (typical HMI header) =====
+    - id: status-band
+      type: inspector.json
+      props:
+        title: Line Status
+        value:
+          line: LINE-A
+          station: ST-03
+          recipe: RECIPE-2026-01
+          shift: DAY
+          operator: demo_user
+          comm: ONLINE
+          alarm: NONE
+          last_event: "$event_payload.emit"
+      bind: hmi.status
+
+    # ===== Device / comm panel =====
+    - id: dev-port
+      type: input.text
+      props:
+        label: Device Port
+        hint: COM3 / COM7
+        default: COM3
+      bind: dev.port
+
+    - id: dev-baud
+      type: input.number
+      props:
+        label: Baudrate
+        default: 115200
+        min: 9600
+        max: 2000000
+        step: 100
+      bind: dev.baud
+
+    - id: dev-protocol
+      type: input.select
+      props:
+        label: Protocol
+        default: modbus-rtu
+        options:
+          - { label: Modbus RTU, value: modbus-rtu }
+          - { label: SCPI, value: scpi }
+          - { label: Custom Binary, value: custom-bin }
+          - { label: ProtoFlow Demo, value: protoflow-demo }
+      bind: dev.protocol
+
+    - id: dev-unit
+      type: input.number
+      props:
+        label: Unit ID
+        default: 1
+        min: 1
+        max: 247
+        step: 1
+      bind: dev.unit_id
+
+    - id: dev-autoretry
+      type: input.switch
+      props:
+        label: Auto Reconnect
+        default: true
+      bind: dev.autoretry
+
+    - id: btn-dev-connect
+      type: action.button
+      props:
+        label: Connect
+        payload:
+          action: connect
+          scope: device
+      emit: action.device.connect
+
+    - id: btn-dev-disconnect
+      type: action.button
+      props:
+        label: Disconnect
+        payload:
+          action: disconnect
+          scope: device
+      emit: action.device.disconnect
+
+    # ===== Process / recipe panel =====
+    - id: proc-recipe
+      type: input.text
+      props:
+        label: Recipe Name
+        default: RECIPE-2026-01
+      bind: proc.recipe
+
+    - id: proc-batch
+      type: input.text
+      props:
+        label: Batch ID
+        default: BATCH-0007
+      bind: proc.batch
+
+    - id: proc-mode
+      type: input.select
+      props:
+        label: Run Mode
+        default: auto
+        options:
+          - { label: Auto, value: auto }
+          - { label: Manual, value: manual }
+          - { label: Service, value: service }
+      bind: proc.mode
+
+    - id: proc-cycles
+      type: input.number
+      props:
+        label: Target Cycles
+        default: 12
+        min: 1
+        max: 9999
+        step: 1
+      bind: proc.cycles
+
+    - id: proc-interval
+      type: input.number
+      props:
+        label: Step Interval (ms)
+        default: 200
+        min: 10
+        max: 10000
+        step: 10
+      bind: proc.interval_ms
+
+    - id: proc-safety
+      type: input.switch
+      props:
+        label: Safety Interlock
+        default: true
+      bind: proc.safety_ok
+
+    - id: proc-note
+      type: input.textarea
+      props:
+        label: Work Instructions
+        rows: 7
+        default: |
+          Typical HMI flow:
+          1) Connect device
+          2) Confirm recipe/batch
+          3) Arm system
+          4) Start run
+      bind: proc.instructions
+
+    # ===== Operation / control console =====
+    - id: btn-arm
+      type: action.button
+      props:
+        label: Arm System
+        payload:
+          action: arm
+          scope: process
+      emit: action.process.arm
+
+    - id: btn-start
+      type: action.button
+      props:
+        label: Start
+        payload:
+          action: start
+          scope: process
+      emit: action.process.start
+
+    - id: btn-hold
+      type: action.button
+      props:
+        label: Hold
+        payload:
+          action: hold
+          scope: process
+      emit: action.process.hold
+
+    - id: btn-resume
+      type: action.button
+      props:
+        label: Resume
+        payload:
+          action: resume
+          scope: process
+      emit: action.process.resume
+
+    - id: btn-stop
+      type: action.button
+      props:
+        label: Stop
+        payload:
+          action: stop
+          scope: process
+          severity: high
+      emit: action.process.stop
+
+    - id: btn-reset
+      type: action.button
+      props:
+        label: Reset Faults
+        payload:
+          action: reset
+          scope: process
+      emit: action.process.reset
+
+    # ===== Runtime logs / diagnostics =====
+    - id: log-events
+      type: log.viewer
+      props:
+        title: Events / Operator Actions
+      bind: log.events
+
+    - id: log-alarms
+      type: log.viewer
+      props:
+        title: Alarms / Warnings
+      bind: log.alarms
+
+    - id: diag-device
+      type: inspector.json
+      props:
+        title: Device Snapshot
+        value:
+          port: "$dev.port"
+          baud: "$dev.baud"
+          protocol: "$dev.protocol"
+          unit_id: "$dev.unit_id"
+          autoretry: "$dev.autoretry"
+      bind: diag.device
+
+    - id: diag-process
+      type: inspector.json
+      props:
+        title: Process Snapshot
+        value:
+          recipe: "$proc.recipe"
+          batch: "$proc.batch"
+          mode: "$proc.mode"
+          cycles: "$proc.cycles"
+          interval_ms: "$proc.interval_ms"
+          safety_ok: "$proc.safety_ok"
+      bind: diag.process
+
+    - id: diag-context
+      type: inspector.json
+      props:
+        title: Event Context
+        value:
+          last_emit: "$event_payload.emit"
+          last_payload: "$event_payload.payload"
+          status_band: "$hmi.status"
+      bind: diag.context
+
+  layout:
+    type: split
+    orientation: vertical
+    children:
+      - type: leaf
+        title: Line Overview
+        widgets: [status-band]
+
+      - type: split
+        orientation: horizontal
+        children:
+          - type: split
+            orientation: vertical
+            children:
+              - type: leaf
+                title: Device & Comms
+                widgets: [dev-port, dev-baud, dev-protocol, dev-unit, dev-autoretry, btn-dev-connect, btn-dev-disconnect]
+              - type: leaf
+                title: Recipe & Process Setup
+                widgets: [proc-recipe, proc-batch, proc-mode, proc-cycles, proc-interval, proc-safety, proc-note]
+
+          - type: split
+            orientation: vertical
+            children:
+              - type: leaf
+                title: Control Console
+                widgets: [btn-arm, btn-start, btn-hold, btn-resume, btn-stop, btn-reset]
+              - type: split
+                orientation: horizontal
+                children:
+                  - type: leaf
+                    title: Events
+                    widgets: [log-events]
+                  - type: leaf
+                    title: Alarms
+                    widgets: [log-alarms]
+
+      - type: split
+        orientation: horizontal
+        children:
+          - type: leaf
+            title: Device Snapshot
+            widgets: [diag-device]
+          - type: leaf
+            title: Process Snapshot
+            widgets: [diag-process]
+          - type: leaf
+            title: Event Context
+            widgets: [diag-context]
