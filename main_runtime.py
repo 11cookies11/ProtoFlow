@@ -9,7 +9,7 @@ from typing import Any, Dict
 
 import yaml
 
-from actions import protocol_at_actions, protocol_modbus_actions, protocol_scpi_actions, protocol_xmodem_actions, protocol_ymodem_actions
+from actions.runtime import runtime_protocol_at_actions, runtime_protocol_modbus_actions, runtime_protocol_scpi_actions, runtime_protocol_xmodem_actions, runtime_protocol_ymodem_actions
 from protocols import at, modbus_ascii, modbus_rtu, modbus_tcp, scpi, xmodem, ymodem  # noqa: F401 触发注册
 from utils.path_utils import resolve_resource_path
 
@@ -103,11 +103,11 @@ class TcpChannel(BaseChannel):
 
 
 ACTIONS = {
-    "at_command": protocol_at_actions.run,
-    "modbus_request": protocol_modbus_actions.run,
-    "scpi_command": protocol_scpi_actions.run,
-    "xmodem_send": protocol_xmodem_actions.run,
-    "ymodem_send": protocol_ymodem_actions.run,
+    "at_command": runtime_protocol_at_actions.run,
+    "modbus_request": runtime_protocol_modbus_actions.run,
+    "scpi_command": runtime_protocol_scpi_actions.run,
+    "xmodem_send": runtime_protocol_xmodem_actions.run,
+    "ymodem_send": runtime_protocol_ymodem_actions.run,
 }
 
 
