@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from runtime.runner import run_dsl
+from dsl_runtime.engine.runner import run_dsl
 
 
 def main(argv=None) -> int:

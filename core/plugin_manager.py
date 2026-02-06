@@ -10,7 +10,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Dict, List, Optional
 
-from core.event_bus import EventBus
+from infra.common.event_bus import EventBus
 from utils.path_utils import resolve_resource_path
 
 

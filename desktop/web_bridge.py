@@ -19,8 +19,8 @@ except ImportError:  # pragma: no cover
     from PyQt6.QtCore import QObject, Q_ARG, QMetaObject, QTimer, Qt, pyqtSignal as Signal, pyqtSlot as Slot  # type: ignore
     from PyQt6.QtWidgets import QFileDialog  # type: ignore
 
-from protocols.registry import ProtocolRegistry
-import protocols as protocols_pkg
+from infra.protocol.registry import ProtocolRegistry
+import infra.protocol as protocols_pkg
 from desktop.script_runner_qt import ScriptRunnerQt
 
 

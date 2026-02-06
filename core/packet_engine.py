@@ -11,8 +11,8 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from core.event_bus import EventBus
-from core.protocol_loader import crc16_modbus
+from infra.common.event_bus import EventBus
+from infra.protocol.protocol_loader import crc16_modbus
 
 
 @dataclass

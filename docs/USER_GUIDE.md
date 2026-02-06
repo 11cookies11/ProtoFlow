@@ -118,7 +118,7 @@ stateDiagram-v2
 - 预留动作：`modbus_read` / `modbus_write`（当前 DSL Runner 未实现，仅文档占位）
   - 参数：`protocol: rtu|ascii|tcp`，`function`，`address`，`quantity`，`values`（写），`unit_id`。
 - 差异：RTU（CRC16，二进制）；ASCII（LRC，文本帧）；TCP（MBAP，无 CRC）。
-说明：仓库中已实现 Modbus 协议驱动（`protocols/modbus_*.py`），可在 DSL 动作中调用（已注册 `modbus_read/modbus_write`）。
+说明：仓库中已实现 Modbus 协议驱动（`infra/protocol/modbus_*.py`），可在 DSL 动作中调用（已注册 `modbus_read/modbus_write`）。
 
 ## 12. 事件系统（Events）
 - 来源：通道 `read_event`（UART/TCP 读取到的字节，默认字符；无法解码则 HEX 字符串）。
@@ -267,8 +267,8 @@ state_machine:
 ## 15. 扩展指南
 - 添加新动作：
   ```python
-  from actions.dsl.base import DslActionBase
-  from actions.registry import ActionRegistry
+  from dsl_runtime.actions.base import DslActionBase
+  from dsl_runtime.actions.registry import ActionRegistry
 
   class MyAction(DslActionBase):
       def __init__(self) -> None:
@@ -289,9 +289,9 @@ state_machine:
 
   ActionRegistry.register("my_action", MyAction())
   ```
-- 添加新协议动作：在 `actions/*.py` 中封装协议逻辑，调用协议封包构造器（如 XMODEM/Modbus）。
+- 添加新协议动作：在 `dsl_runtime/actions/*.py` 中封装协议逻辑，调用协议封包构造器（如 XMODEM/Modbus）。
 - 添加新协议适配：实现协议封包/解析，供动作调用。
-- 扩展 DSL：修改 `dsl/parser.py` / `dsl/ast_nodes.py` / `dsl/executor.py` 增加新语法字段，保持向后兼容。
+- 扩展 DSL：修改 `dsl_runtime/lang/parser.py` / `dsl_runtime/lang/ast_nodes.py` / `dsl_runtime/lang/executor.py` 增加新语法字段，保持向后兼容。
 - 让 AI 编写 DSL：提供章节 7/8 模板，明确事件名、超时、变量命名，AI 可按样例生成 YAML。
 
 ## 16. 附录

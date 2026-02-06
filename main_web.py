@@ -17,11 +17,11 @@ try:
 except ImportError:  # pragma: no cover
     from PyQt6.QtWidgets import QApplication  # type: ignore
 
-from core.communication_manager import CommunicationManager
-from core.event_bus import EventBus
+from infra.comm.communication_manager import CommunicationManager
+from infra.common.event_bus import EventBus
 from core.packet_engine import PacketAnalysisEngine
 from core.plugin_manager import PluginManager
-from core.protocol_loader import ProtocolLoader
+from infra.protocol.protocol_loader import ProtocolLoader
 from desktop.web_window import WebWindow
 
 

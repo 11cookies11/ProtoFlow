@@ -160,8 +160,8 @@ do:
    - `expect_frame`: reads by tail or fixed length, parses, stores result in `save_as` (default `last_frame_rx`), raw hex in `last_frame_rx_raw`.
 3) Register more custom actions (also applied at startup):
    ```python
-   from actions.dsl.base import DslActionBase
-   from actions.registry import ActionRegistry
+   from dsl_runtime.actions.base import DslActionBase
+   from dsl_runtime.actions.registry import ActionRegistry
 
    class MyAction(DslActionBase):
        def __init__(self) -> None:
@@ -187,7 +187,7 @@ Currently examples are XMODEM-focused; YMODEM can be added similarly with action
 - Reserved actions: `modbus_read` / `modbus_write` (not implemented in current DSL runner; docs placeholder)
   - Args: `protocol: rtu|ascii|tcp`, `function`, `address`, `quantity`, `values` (for write), `unit_id`.
 - Differences: RTU (CRC16, binary); ASCII (LRC, text frame); TCP (MBAP, no CRC).
-- Note: Modbus protocol drivers exist under `protocols/modbus_*.py` and are available via DSL actions (`modbus_read/modbus_write`).
+- Note: Modbus protocol drivers exist under `infra/protocol/modbus_*.py` and are available via DSL actions (`modbus_read/modbus_write`).
 
 ## 12. Event System
 - Sources: channel `read_event` (UART/TCP bytes; default decoded to text, fallback HEX string).
@@ -336,15 +336,15 @@ state_machine:
 ## 15. Extension Guide
 - Add new action:
   ```python
-  from actions.registry import ActionRegistry
+  from dsl_runtime.actions.registry import ActionRegistry
   def my_action(ctx, args):
       # ctx.channel_write / ctx.set_var / ctx.vars_snapshot()
       ...
   ActionRegistry.register("my_action", MyAction())
   ```
-- Add new protocol actions: encapsulate protocol logic in `actions/*.py`, call protocol pack/unpack helpers (e.g., XMODEM/Modbus).
+- Add new protocol actions: encapsulate protocol logic in `dsl_runtime/actions/*.py`, call protocol pack/unpack helpers (e.g., XMODEM/Modbus).
 - Add new protocol adapter: implement packet build/parse for actions to call.
-- Extend DSL: edit `dsl/parser.py` / `dsl/ast_nodes.py` / `dsl/executor.py` to add syntax (keep backward compatibility).
+- Extend DSL: edit `dsl_runtime/lang/parser.py` / `dsl_runtime/lang/ast_nodes.py` / `dsl_runtime/lang/executor.py` to add syntax (keep backward compatibility).
 - Let an AI draft DSL: provide templates from sections 7/8 with event names, timeouts, variable names; an AI can generate YAML by example.
 
 ## 16. Appendix
