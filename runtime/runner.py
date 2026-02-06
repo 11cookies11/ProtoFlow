@@ -4,7 +4,7 @@ import logging
 
 from actions.builtin_actions import register_builtin_actions
 from actions.protocol_actions import register_protocol_actions
-from actions.schema_protocol import register_schema_protocol_actions
+from actions.protocol_schema_actions import register_schema_protocol_actions
 from actions.chart_actions import register_chart_actions
 from actions.record_actions import register_record_actions
 from actions.data_actions import register_data_actions
