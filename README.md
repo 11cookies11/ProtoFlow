@@ -1,5 +1,5 @@
 ﻿<p align="center">
-  <img src="./assets/icons/logo.svg" width="200" alt="ProtoFlow logo"/>
+  <img src="./ui/assets/icons/logo.svg" width="200" alt="ProtoFlow logo"/>
 </p>
 
 <p align="center">

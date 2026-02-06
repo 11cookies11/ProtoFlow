@@ -19,10 +19,10 @@ except ImportError:  # pragma: no cover
 
 from infra.comm.communication_manager import CommunicationManager
 from infra.common.event_bus import EventBus
-from core.packet_engine import PacketAnalysisEngine
-from core.plugin_manager import PluginManager
+from app.packet_engine import PacketAnalysisEngine
+from app.plugin_manager import PluginManager
 from infra.protocol.protocol_loader import ProtocolLoader
-from desktop.web_window import WebWindow
+from ui.desktop.web_window import WebWindow
 
 
 class _TeeStream:
@@ -64,8 +64,8 @@ class _TeeStream:
 
 
 def _setup_run_logging() -> Path:
-    base_dir = Path(__file__).resolve().parent
-    user_root = Path(os.environ.get("LOCALAPPDATA", base_dir))
+    root_dir = Path(__file__).resolve().parents[1]
+    user_root = Path(os.environ.get("LOCALAPPDATA", root_dir))
     log_dir = user_root / "ProtoFlow" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -97,7 +97,7 @@ def _setup_run_logging() -> Path:
 
 
 def _ensure_repo_cwd() -> None:
-    base_dir = Path(__file__).resolve().parent
+    base_dir = Path(__file__).resolve().parents[1]
     try:
         os.chdir(base_dir)
     except OSError:

@@ -8,7 +8,7 @@ ProtoFlow 是面向嵌入式/工控/自动化测试的通信自动化运行时�
 
 ## 2. 安装与运行
 - 依赖：`pip install pyyaml`，使用串口需 `pip install pyserial`。
-- 入口：`python dsl_main.py <your_script.yaml>`
+- 入口：`python app/dsl_main.py <your_script.yaml>`
 - 输入：符合 DSL 规范的 YAML 脚本。
 - 输出：日志（INFO/DEBUG），状态机执行的事件流；动作可产生下行数据，通道可回传事件。
 

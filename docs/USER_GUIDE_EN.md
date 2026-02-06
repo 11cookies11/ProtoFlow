@@ -6,7 +6,7 @@ Pipeline: `YAML DSL → state machine → actions → protocol adapter → chann
 
 ## 2. Installation & Run
 - Dependencies: `pip install pyyaml`; for serial use `pip install pyserial`.
-- Entry point: `python dsl_main.py <your_script.yaml>`
+- Entry point: `python app/dsl_main.py <your_script.yaml>`
 - Input: YAML script that follows the DSL spec.
 - Output: logs (INFO/DEBUG), state-machine event trace; actions can emit outbound data, channels can raise events.
 

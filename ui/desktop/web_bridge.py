@@ -21,7 +21,7 @@ except ImportError:  # pragma: no cover
 
 from infra.protocol.registry import ProtocolRegistry
 import infra.protocol as protocols_pkg
-from desktop.script_runner_qt import ScriptRunnerQt
+from ui.desktop.script_runner_qt import ScriptRunnerQt
 
 
 class WebBridge(QObject):

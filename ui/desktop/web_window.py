@@ -20,8 +20,8 @@ except ImportError:  # pragma: no cover
     from PyQt6.QtWidgets import QFileDialog, QMainWindow, QMenu  # type: ignore
     from PyQt6.QtWebEngineWidgets import QWebEngineView  # type: ignore
 
-from desktop.web_bridge import WebBridge
-from desktop.win_snap import apply_snap_styles
+from ui.desktop.web_bridge import WebBridge
+from ui.desktop.win_snap import apply_snap_styles
 
 class LoggingWebPage(QWebEnginePage):
     def javaScriptConsoleMessage(self, level, message, line_number, source_id):  # type: ignore[override]
