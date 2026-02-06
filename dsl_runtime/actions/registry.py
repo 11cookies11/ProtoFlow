@@ -17,5 +17,5 @@ class ActionRegistry:
     @classmethod
     def get(cls, name: str) -> DslActionBase:
         if name not in cls.actions:
-            raise KeyError(f"¶¯×÷Î´×¢²á: {name}")
+            raise KeyError(f"action not registered: {name}")
         return cls.actions[name]
