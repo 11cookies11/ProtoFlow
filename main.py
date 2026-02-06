@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from main_web import main
+from app.main_web import main
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ Pipeline: `YAML DSL → state machine → actions → protocol adapter → chann
 
 ## 2. Installation & Run
 - Dependencies: `pip install pyyaml`; for serial use `pip install pyserial`.
-- Entry point: `python dsl_main.py <your_script.yaml>`
+- Entry point: `python app/dsl_main.py <your_script.yaml>`
 - Input: YAML script that follows the DSL spec.
 - Output: logs (INFO/DEBUG), state-machine event trace; actions can emit outbound data, channels can raise events.
 
@@ -97,7 +97,7 @@ stateDiagram-v2
   - `list_filter`: filter a list into a new list (`src`, `where`, optional `dst`).
   - `list_map`: map a list into a new list (`src`, `expr`, optional `dst`, optional `where`).
 - Protocol actions: XMODEM/Modbus etc. (see below).
-- Custom actions: in Python `ActionRegistry.register("name", fn)`, where `fn(ctx, args)` can use `ctx.channel_write` / `ctx.set_var` / `ctx.vars_snapshot`.
+- Custom actions: subclass `DslActionBase`, implement `execute(ctx, args)` with a parameter `schema`, then register the instance via `ActionRegistry.register("name", MyAction())`.
 
 ### 8.2 Data Processing (filter/transform)
 `if` (recommended to reduce extra states when you only need to filter/branch inside `do`):
@@ -160,13 +160,18 @@ do:
    - `expect_frame`: reads by tail or fixed length, parses, stores result in `save_as` (default `last_frame_rx`), raw hex in `last_frame_rx_raw`.
 3) Register more custom actions (also applied at startup):
    ```python
-   from actions.registry import ActionRegistry
+   from dsl_runtime.actions.base import DslActionBase
+   from dsl_runtime.actions.registry import ActionRegistry
 
-   def my_action(ctx, args):
-       # e.g., write custom bytes or combine multiple steps
-       ctx.channel_write(b"hello")
+   class MyAction(DslActionBase):
+       def __init__(self) -> None:
+           super().__init__(name="my_action", schema={"allow_extra": False})
 
-   ActionRegistry.register("my_action", my_action)
+       def execute(self, ctx, args):
+           # e.g., write custom bytes or combine multiple steps
+           ctx.channel_write(b"hello")
+
+   ActionRegistry.register("my_action", MyAction())
    ```
    Then call in DSL: `- action: my_action`.
 
@@ -182,7 +187,7 @@ Currently examples are XMODEM-focused; YMODEM can be added similarly with action
 - Reserved actions: `modbus_read` / `modbus_write` (not implemented in current DSL runner; docs placeholder)
   - Args: `protocol: rtu|ascii|tcp`, `function`, `address`, `quantity`, `values` (for write), `unit_id`.
 - Differences: RTU (CRC16, binary); ASCII (LRC, text frame); TCP (MBAP, no CRC).
-- Note: Modbus protocol drivers exist under `protocols/modbus_*.py` and are callable from `main_runtime.py` tasks mode; adding DSL actions requires registering them.
+- Note: Modbus protocol drivers exist under `infra/protocol/modbus_*.py` and are available via DSL actions (`modbus_read/modbus_write`).
 
 ## 12. Event System
 - Sources: channel `read_event` (UART/TCP bytes; default decoded to text, fallback HEX string).
@@ -331,15 +336,15 @@ state_machine:
 ## 15. Extension Guide
 - Add new action:
   ```python
-  from actions.registry import ActionRegistry
+  from dsl_runtime.actions.registry import ActionRegistry
   def my_action(ctx, args):
       # ctx.channel_write / ctx.set_var / ctx.vars_snapshot()
       ...
-  ActionRegistry.register("my_action", my_action)
+  ActionRegistry.register("my_action", MyAction())
   ```
-- Add new protocol actions: encapsulate protocol logic in `actions/*.py`, call protocol pack/unpack helpers (e.g., XMODEM/Modbus).
+- Add new protocol actions: encapsulate protocol logic in `dsl_runtime/actions/*.py`, call protocol pack/unpack helpers (e.g., XMODEM/Modbus).
 - Add new protocol adapter: implement packet build/parse for actions to call.
-- Extend DSL: edit `dsl/parser.py` / `dsl/ast_nodes.py` / `dsl/executor.py` to add syntax (keep backward compatibility).
+- Extend DSL: edit `dsl_runtime/lang/parser.py` / `dsl_runtime/lang/ast_nodes.py` / `dsl_runtime/lang/executor.py` to add syntax (keep backward compatibility).
 - Let an AI draft DSL: provide templates from sections 7/8 with event names, timeouts, variable names; an AI can generate YAML by example.
 
 ## 16. Appendix

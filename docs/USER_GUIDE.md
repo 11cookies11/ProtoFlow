@@ -8,7 +8,7 @@ ProtoFlow 是面向嵌入式/工控/自动化测试的通信自动化运行时�
 
 ## 2. 安装与运行
 - 依赖：`pip install pyyaml`，使用串口需 `pip install pyserial`。
-- 入口：`python dsl_main.py <your_script.yaml>`
+- 入口：`python app/dsl_main.py <your_script.yaml>`
 - 输入：符合 DSL 规范的 YAML 脚本。
 - 输出：日志（INFO/DEBUG），状态机执行的事件流；动作可产生下行数据，通道可回传事件。
 
@@ -104,7 +104,7 @@ stateDiagram-v2
   - `list_filter`: 列表过滤（`src`/`where`，可选 `dst`）。
   - `list_map`: 列表映射（`src`/`expr`，可选 `dst`，可选 `where`）。
 - 协议动作：XMODEM/Modbus 等（下文详述）。
-- 自定义动作：在 Python 中 `ActionRegistry.register("name", fn)` 注册，`fn(ctx, args)` 使用 `ctx.channel_write` / `ctx.set_var` / `ctx.vars_snapshot`。
+- 自定义动作：继承 `DslActionBase`，实现 `execute(ctx, args)` 并定义参数 `schema`，使用 `ActionRegistry.register("name", MyAction())` 注册。
 
 ## 9. XMODEM 动作
 - `send_xmodem_block`：发送指定块号（128B，自动 0x1A 填充），参数 `block: "$block"`。
@@ -118,7 +118,7 @@ stateDiagram-v2
 - 预留动作：`modbus_read` / `modbus_write`（当前 DSL Runner 未实现，仅文档占位）
   - 参数：`protocol: rtu|ascii|tcp`，`function`，`address`，`quantity`，`values`（写），`unit_id`。
 - 差异：RTU（CRC16，二进制）；ASCII（LRC，文本帧）；TCP（MBAP，无 CRC）。
-说明：仓库中已实现 Modbus 协议驱动（`protocols/modbus_*.py`），并可在 `main_runtime.py` 的 tasks 模式中调用；若要在 DSL 中使用需新增对应动作注册。
+说明：仓库中已实现 Modbus 协议驱动（`infra/protocol/modbus_*.py`），可在 DSL 动作中调用（已注册 `modbus_read/modbus_write`）。
 
 ## 12. 事件系统（Events）
 - 来源：通道 `read_event`（UART/TCP 读取到的字节，默认字符；无法解码则 HEX 字符串）。
@@ -267,15 +267,31 @@ state_machine:
 ## 15. 扩展指南
 - 添加新动作：
   ```python
-  from actions.registry import ActionRegistry
-  def my_action(ctx, args):
-      # ctx.channel_write / ctx.set_var / ctx.vars_snapshot()
-      ...
-  ActionRegistry.register("my_action", my_action)
+  from dsl_runtime.actions.base import DslActionBase
+  from dsl_runtime.actions.registry import ActionRegistry
+
+  class MyAction(DslActionBase):
+      def __init__(self) -> None:
+          super().__init__(
+              name="my_action",
+              schema={
+                  "required": ["foo"],
+                  "optional": {"bar": 1},
+                  "types": {"foo": "string", "bar": "number"},
+                  "aliases": {"baz": "foo"},
+                  "allow_extra": False,
+              },
+          )
+
+      def execute(self, ctx, args):
+          # ctx.channel_write / ctx.set_var / ctx.vars_snapshot()
+          ...
+
+  ActionRegistry.register("my_action", MyAction())
   ```
-- 添加新协议动作：在 `actions/*.py` 中封装协议逻辑，调用协议封包构造器（如 XMODEM/Modbus）。
+- 添加新协议动作：在 `dsl_runtime/actions/*.py` 中封装协议逻辑，调用协议封包构造器（如 XMODEM/Modbus）。
 - 添加新协议适配：实现协议封包/解析，供动作调用。
-- 扩展 DSL：修改 `dsl/parser.py` / `dsl/ast_nodes.py` / `dsl/executor.py` 增加新语法字段，保持向后兼容。
+- 扩展 DSL：修改 `dsl_runtime/lang/parser.py` / `dsl_runtime/lang/ast_nodes.py` / `dsl_runtime/lang/executor.py` 增加新语法字段，保持向后兼容。
 - 让 AI 编写 DSL：提供章节 7/8 模板，明确事件名、超时、变量命名，AI 可按样例生成 YAML。
 
 ## 16. 附录

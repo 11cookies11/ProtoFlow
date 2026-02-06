@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host "==> Build web UI"
-Push-Location "frontend"
+Push-Location "ui\\frontend"
 & $Node ci
 & $Node run build
 Pop-Location
@@ -17,13 +17,13 @@ Write-Host "==> Install Python deps"
 
 Write-Host "==> Build app (PyInstaller)"
 & $Python -m PyInstaller --name ProtoFlow --windowed --onedir --noconfirm --icon "installer\ProtoFlow.ico" `
-  --add-data "frontend\dist;frontend\dist" `
+  --add-data "ui\\frontend\\dist;ui\\frontend\\dist" `
   --add-data "config;config" `
   --add-data "plugins;plugins" `
-  --add-data "assets;assets" `
+  --add-data "ui\\assets;ui\\assets" `
   main.py
 
 Write-Host "==> Generate installer icon"
 if (-not (Test-Path -LiteralPath "installer\\ProtoFlow.ico")) {
-  & powershell -File scripts\generate_icon.ps1 -Source assets\\icons\\logo.png -Output installer\\ProtoFlow.ico -Size 256
+  & powershell -File scripts\generate_icon.ps1 -Source ui\\assets\\icons\\logo.png -Output installer\\ProtoFlow.ico -Size 256
 }
