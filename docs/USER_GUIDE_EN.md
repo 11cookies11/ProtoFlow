@@ -187,7 +187,7 @@ Currently examples are XMODEM-focused; YMODEM can be added similarly with action
 - Reserved actions: `modbus_read` / `modbus_write` (not implemented in current DSL runner; docs placeholder)
   - Args: `protocol: rtu|ascii|tcp`, `function`, `address`, `quantity`, `values` (for write), `unit_id`.
 - Differences: RTU (CRC16, binary); ASCII (LRC, text frame); TCP (MBAP, no CRC).
-- Note: Modbus protocol drivers exist under `protocols/modbus_*.py` and are callable from `main_runtime.py` tasks mode; adding DSL actions requires registering them.
+- Note: Modbus protocol drivers exist under `protocols/modbus_*.py` and are available via DSL actions (`modbus_read/modbus_write`).
 
 ## 12. Event System
 - Sources: channel `read_event` (UART/TCP bytes; default decoded to text, fallback HEX string).

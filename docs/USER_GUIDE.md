@@ -118,7 +118,7 @@ stateDiagram-v2
 - 预留动作：`modbus_read` / `modbus_write`（当前 DSL Runner 未实现，仅文档占位）
   - 参数：`protocol: rtu|ascii|tcp`，`function`，`address`，`quantity`，`values`（写），`unit_id`。
 - 差异：RTU（CRC16，二进制）；ASCII（LRC，文本帧）；TCP（MBAP，无 CRC）。
-说明：仓库中已实现 Modbus 协议驱动（`protocols/modbus_*.py`），并可在 `main_runtime.py` 的 tasks 模式中调用；若要在 DSL 中使用需新增对应动作注册。
+说明：仓库中已实现 Modbus 协议驱动（`protocols/modbus_*.py`），可在 DSL 动作中调用（已注册 `modbus_read/modbus_write`）。
 
 ## 12. 事件系统（Events）
 - 来源：通道 `read_event`（UART/TCP 读取到的字节，默认字符；无法解码则 HEX 字符串）。
