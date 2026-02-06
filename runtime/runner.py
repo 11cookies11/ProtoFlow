@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import logging
 
-from actions.builtin_actions import register_builtin_actions
-from actions.protocol_actions import register_protocol_actions
-from actions.protocol_schema_actions import register_schema_protocol_actions
-from actions.chart_actions import register_chart_actions
-from actions.record_actions import register_record_actions
-from actions.data_actions import register_data_actions
+from actions.dsl.dsl_builtin_actions import register_builtin_actions
+from actions.dsl.dsl_protocol_actions import register_protocol_actions
+from actions.dsl.dsl_protocol_schema_actions import register_schema_protocol_actions
+from actions.dsl.dsl_chart_actions import register_chart_actions
+from actions.dsl.dsl_record_actions import register_record_actions
+from actions.dsl.dsl_data_actions import register_data_actions
 from dsl.executor import StateMachineExecutor
 from dsl.parser import parse_script
 from runtime.channels import build_channels
