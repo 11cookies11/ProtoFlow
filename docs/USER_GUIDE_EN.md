@@ -97,7 +97,7 @@ stateDiagram-v2
   - `list_filter`: filter a list into a new list (`src`, `where`, optional `dst`).
   - `list_map`: map a list into a new list (`src`, `expr`, optional `dst`, optional `where`).
 - Protocol actions: XMODEM/Modbus etc. (see below).
-- Custom actions: in Python `ActionRegistry.register("name", fn)`, where `fn(ctx, args)` can use `ctx.channel_write` / `ctx.set_var` / `ctx.vars_snapshot`.
+- Custom actions: subclass `ActionBase`, implement `execute(ctx, args)` with a parameter `schema`, then register the instance via `ActionRegistry.register("name", MyAction())`.
 
 ### 8.2 Data Processing (filter/transform)
 `if` (recommended to reduce extra states when you only need to filter/branch inside `do`):
@@ -160,13 +160,18 @@ do:
    - `expect_frame`: reads by tail or fixed length, parses, stores result in `save_as` (default `last_frame_rx`), raw hex in `last_frame_rx_raw`.
 3) Register more custom actions (also applied at startup):
    ```python
+   from actions.base import ActionBase
    from actions.registry import ActionRegistry
 
-   def my_action(ctx, args):
-       # e.g., write custom bytes or combine multiple steps
-       ctx.channel_write(b"hello")
+   class MyAction(ActionBase):
+       def __init__(self) -> None:
+           super().__init__(name="my_action", schema={"allow_extra": False})
 
-   ActionRegistry.register("my_action", my_action)
+       def execute(self, ctx, args):
+           # e.g., write custom bytes or combine multiple steps
+           ctx.channel_write(b"hello")
+
+   ActionRegistry.register("my_action", MyAction())
    ```
    Then call in DSL: `- action: my_action`.
 
@@ -335,7 +340,7 @@ state_machine:
   def my_action(ctx, args):
       # ctx.channel_write / ctx.set_var / ctx.vars_snapshot()
       ...
-  ActionRegistry.register("my_action", my_action)
+  ActionRegistry.register("my_action", MyAction())
   ```
 - Add new protocol actions: encapsulate protocol logic in `actions/*.py`, call protocol pack/unpack helpers (e.g., XMODEM/Modbus).
 - Add new protocol adapter: implement packet build/parse for actions to call.

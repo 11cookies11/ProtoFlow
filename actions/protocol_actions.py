@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Dict
 
+from actions.base import ActionBase
 from actions.registry import ActionRegistry
 from protocols.registry import ProtocolRegistry
 from protocols import modbus_ascii, modbus_rtu, modbus_tcp  # noqa: F401
@@ -25,24 +26,42 @@ class XMODEMPacketBuilder:
         return bytes([0x04])
 
 
-def send_xmodem_block(ctx, args: Dict[str, object]):
-    meta = get_file_meta(ctx)
-    # Cache file metadata so DSL can reference $file.size / $file.block_count in transitions.
-    ctx.set_var("file", meta)
-    # Also flatten for both dot and underscore style access
-    ctx.set_var("file.block_count", meta.get("block_count"))
-    ctx.set_var("file.size", meta.get("size"))
-    ctx.set_var("file_block_count", meta.get("block_count"))
-    ctx.set_var("file_size", meta.get("size"))
-    block = int(ctx.eval_value(args.get("block", 1)))
-    data = read_block(meta["path"], block, 128)
-    packet = XMODEMPacketBuilder.build_block(block, data)
-    ctx.channel_write(packet)
-    ctx.set_var("last_sent_block", block)
+class SendXmodemBlockAction(ActionBase):
+    def __init__(self) -> None:
+        super().__init__(
+            name="send_xmodem_block",
+            schema={
+                "optional": {"block": 1},
+                "types": {"block": "number"},
+                "allow_extra": False,
+            },
+        )
+
+    def execute(self, ctx, args: Dict[str, object]):
+        meta = get_file_meta(ctx)
+        ctx.set_var("file", meta)
+        ctx.set_var("file.block_count", meta.get("block_count"))
+        ctx.set_var("file.size", meta.get("size"))
+        ctx.set_var("file_block_count", meta.get("block_count"))
+        ctx.set_var("file_size", meta.get("size"))
+        block = int(ctx.eval_value(args.get("block", 1)))
+        data = read_block(meta["path"], block, 128)
+        packet = XMODEMPacketBuilder.build_block(block, data)
+        ctx.channel_write(packet)
+        ctx.set_var("last_sent_block", block)
 
 
-def send_eot(ctx, args: Dict[str, object]):
-    ctx.channel_write(XMODEMPacketBuilder.build_eot())
+class SendEotAction(ActionBase):
+    def __init__(self) -> None:
+        super().__init__(
+            name="send_eot",
+            schema={
+                "allow_extra": False,
+            },
+        )
+
+    def execute(self, ctx, args: Dict[str, object]):
+        ctx.channel_write(XMODEMPacketBuilder.build_eot())
 
 
 _MODBUS_MAP = {
@@ -131,16 +150,58 @@ def _run_modbus(ctx, args: Dict[str, object]):
     return result
 
 
-def modbus_read(ctx, args: Dict[str, object]):
-    return _run_modbus(ctx, args)
+class ModbusReadAction(ActionBase):
+    def __init__(self) -> None:
+        super().__init__(
+            name="modbus_read",
+            schema={
+                "required": ["function", "address"],
+                "optional": {
+                    "protocol": "rtu",
+                    "channel": None,
+                    "quantity": None,
+                    "values": None,
+                    "value": None,
+                    "unit_id": 1,
+                    "timeout": None,
+                    "retries": 3,
+                    "save_as": None,
+                },
+                "allow_extra": False,
+            },
+        )
+
+    def execute(self, ctx, args: Dict[str, object]):
+        return _run_modbus(ctx, args)
 
 
-def modbus_write(ctx, args: Dict[str, object]):
-    return _run_modbus(ctx, args)
+class ModbusWriteAction(ActionBase):
+    def __init__(self) -> None:
+        super().__init__(
+            name="modbus_write",
+            schema={
+                "required": ["function", "address"],
+                "optional": {
+                    "protocol": "rtu",
+                    "channel": None,
+                    "quantity": None,
+                    "values": None,
+                    "value": None,
+                    "unit_id": 1,
+                    "timeout": None,
+                    "retries": 3,
+                    "save_as": None,
+                },
+                "allow_extra": False,
+            },
+        )
+
+    def execute(self, ctx, args: Dict[str, object]):
+        return _run_modbus(ctx, args)
 
 
 def register_protocol_actions():
-    ActionRegistry.register("send_xmodem_block", send_xmodem_block)
-    ActionRegistry.register("send_eot", send_eot)
-    ActionRegistry.register("modbus_read", modbus_read)
-    ActionRegistry.register("modbus_write", modbus_write)
+    ActionRegistry.register("send_xmodem_block", SendXmodemBlockAction())
+    ActionRegistry.register("send_eot", SendEotAction())
+    ActionRegistry.register("modbus_read", ModbusReadAction())
+    ActionRegistry.register("modbus_write", ModbusWriteAction())

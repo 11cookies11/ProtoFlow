@@ -64,7 +64,8 @@ class RuntimeContext:
         return value
 
     def run_action(self, name: str, args: Dict[str, Any]) -> Any:
-        fn = ActionRegistry.get(name)
+        action = ActionRegistry.get(name)
+        runner = action.run
         recorder_before = self._recorder
         if recorder_before:
             if name == "record_stop":
@@ -72,9 +73,9 @@ class RuntimeContext:
                     recorder_before.record_action(name=name, args=args or {}, result={"event": "stop"})
                 except Exception:
                     pass
-                return fn(self, args or {})
+                return runner(self, args or {})
             try:
-                result = fn(self, args or {})
+                result = runner(self, args or {})
                 recorder_before.record_action(name=name, args=args or {}, result=result)
                 return result
             except Exception as exc:
@@ -83,7 +84,7 @@ class RuntimeContext:
 
         # Allow record_start to be tracked after it attaches a recorder.
         try:
-            result = fn(self, args or {})
+            result = runner(self, args or {})
         except Exception as exc:
             recorder_after = self._recorder
             if recorder_after:

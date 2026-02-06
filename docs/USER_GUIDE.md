@@ -104,7 +104,7 @@ stateDiagram-v2
   - `list_filter`: 列表过滤（`src`/`where`，可选 `dst`）。
   - `list_map`: 列表映射（`src`/`expr`，可选 `dst`，可选 `where`）。
 - 协议动作：XMODEM/Modbus 等（下文详述）。
-- 自定义动作：在 Python 中 `ActionRegistry.register("name", fn)` 注册，`fn(ctx, args)` 使用 `ctx.channel_write` / `ctx.set_var` / `ctx.vars_snapshot`。
+- 自定义动作：继承 `ActionBase`，实现 `execute(ctx, args)` 并定义参数 `schema`，使用 `ActionRegistry.register("name", MyAction())` 注册。
 
 ## 9. XMODEM 动作
 - `send_xmodem_block`：发送指定块号（128B，自动 0x1A 填充），参数 `block: "$block"`。
@@ -267,11 +267,27 @@ state_machine:
 ## 15. 扩展指南
 - 添加新动作：
   ```python
+  from actions.base import ActionBase
   from actions.registry import ActionRegistry
-  def my_action(ctx, args):
-      # ctx.channel_write / ctx.set_var / ctx.vars_snapshot()
-      ...
-  ActionRegistry.register("my_action", my_action)
+
+  class MyAction(ActionBase):
+      def __init__(self) -> None:
+          super().__init__(
+              name="my_action",
+              schema={
+                  "required": ["foo"],
+                  "optional": {"bar": 1},
+                  "types": {"foo": "string", "bar": "number"},
+                  "aliases": {"baz": "foo"},
+                  "allow_extra": False,
+              },
+          )
+
+      def execute(self, ctx, args):
+          # ctx.channel_write / ctx.set_var / ctx.vars_snapshot()
+          ...
+
+  ActionRegistry.register("my_action", MyAction())
   ```
 - 添加新协议动作：在 `actions/*.py` 中封装协议逻辑，调用协议封包构造器（如 XMODEM/Modbus）。
 - 添加新协议适配：实现协议封包/解析，供动作调用。
