@@ -5,7 +5,7 @@ from typing import Optional
 
 from infra.protocol.modbus_base import ModbusBase
 from infra.protocol.registry import ProtocolRegistry
-from utils.crc16 import crc16_modbus
+from infra.common.utils.crc16 import crc16_modbus
 
 
 class ModbusRTU(ModbusBase):

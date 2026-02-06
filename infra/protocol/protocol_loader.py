@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 import yaml
 
 from infra.common.event_bus import EventBus
-from utils.path_utils import resolve_resource_path
+from infra.common.utils.path_utils import resolve_resource_path
 
 
 def crc16_modbus(data: bytes) -> int:

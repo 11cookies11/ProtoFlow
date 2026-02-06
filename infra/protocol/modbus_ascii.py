@@ -4,7 +4,7 @@ import time
 
 from infra.protocol.modbus_base import ModbusBase
 from infra.protocol.registry import ProtocolRegistry
-from utils.lrc import lrc_modbus_ascii
+from infra.common.utils.lrc import lrc_modbus_ascii
 
 
 class ModbusASCII(ModbusBase):

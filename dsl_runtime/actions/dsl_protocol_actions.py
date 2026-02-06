@@ -6,8 +6,8 @@ from dsl_runtime.actions.base import DslActionBase
 from dsl_runtime.actions.registry import ActionRegistry
 from infra.protocol.registry import ProtocolRegistry
 from protocols import modbus_ascii, modbus_rtu, modbus_tcp  # noqa: F401
-from utils.crc16 import crc16_xmodem
-from utils.file_utils import get_file_meta, read_block
+from infra.common.utils.crc16 import crc16_xmodem
+from infra.common.utils.file_utils import get_file_meta, read_block
 
 
 class XMODEMPacketBuilder:

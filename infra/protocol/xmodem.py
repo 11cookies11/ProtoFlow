@@ -5,7 +5,7 @@ from pathlib import Path
 
 from infra.protocol.base import BaseProtocol
 from infra.protocol.registry import ProtocolRegistry
-from utils.crc16 import crc16_xmodem
+from infra.common.utils.crc16 import crc16_xmodem
 
 
 SOH = 0x01

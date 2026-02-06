@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
-from utils.crc16 import crc16_modbus
-from utils.path_utils import resolve_resource_path
+from infra.common.utils.crc16 import crc16_modbus
+from infra.common.utils.path_utils import resolve_resource_path
 
 
 def _hex_to_bytes(value: str | bytes | None) -> bytes:
