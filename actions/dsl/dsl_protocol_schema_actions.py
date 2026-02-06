@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Any, Dict
 
-from actions.base import ActionBase
+from actions.dsl.base import DslActionBase
 from actions.registry import ActionRegistry
 from protocols.schema_runtime import ProtocolSchema
 
@@ -13,7 +13,7 @@ def _load_schema(path: str) -> ProtocolSchema:
     return ProtocolSchema.load(path)
 
 
-class SendFrameAction(ActionBase):
+class SendFrameAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="send_frame",
@@ -36,7 +36,7 @@ class SendFrameAction(ActionBase):
         return packet
 
 
-class ExpectFrameAction(ActionBase):
+class ExpectFrameAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="expect_frame",

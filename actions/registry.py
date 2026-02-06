@@ -2,20 +2,20 @@ from __future__ import annotations
 
 from typing import Dict
 
-from actions.base import ActionBase
+from actions.dsl.base import DslActionBase
 
 
 class ActionRegistry:
-    actions: Dict[str, ActionBase] = {}
+    actions: Dict[str, DslActionBase] = {}
 
     @classmethod
-    def register(cls, name: str, action: ActionBase) -> None:
-        if not isinstance(action, ActionBase):
-            raise TypeError("action must be an ActionBase")
+    def register(cls, name: str, action: DslActionBase) -> None:
+        if not isinstance(action, DslActionBase):
+            raise TypeError("action must be a DslActionBase")
         cls.actions[name] = action
 
     @classmethod
-    def get(cls, name: str) -> ActionBase:
+    def get(cls, name: str) -> DslActionBase:
         if name not in cls.actions:
             raise KeyError(f"¶¯×÷Î´×¢²á: {name}")
         return cls.actions[name]

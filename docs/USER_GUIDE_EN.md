@@ -97,7 +97,7 @@ stateDiagram-v2
   - `list_filter`: filter a list into a new list (`src`, `where`, optional `dst`).
   - `list_map`: map a list into a new list (`src`, `expr`, optional `dst`, optional `where`).
 - Protocol actions: XMODEM/Modbus etc. (see below).
-- Custom actions: subclass `ActionBase`, implement `execute(ctx, args)` with a parameter `schema`, then register the instance via `ActionRegistry.register("name", MyAction())`.
+- Custom actions: subclass `DslActionBase`, implement `execute(ctx, args)` with a parameter `schema`, then register the instance via `ActionRegistry.register("name", MyAction())`.
 
 ### 8.2 Data Processing (filter/transform)
 `if` (recommended to reduce extra states when you only need to filter/branch inside `do`):
@@ -160,10 +160,10 @@ do:
    - `expect_frame`: reads by tail or fixed length, parses, stores result in `save_as` (default `last_frame_rx`), raw hex in `last_frame_rx_raw`.
 3) Register more custom actions (also applied at startup):
    ```python
-   from actions.base import ActionBase
+   from actions.dsl.base import DslActionBase
    from actions.registry import ActionRegistry
 
-   class MyAction(ActionBase):
+   class MyAction(DslActionBase):
        def __init__(self) -> None:
            super().__init__(name="my_action", schema={"allow_extra": False})
 

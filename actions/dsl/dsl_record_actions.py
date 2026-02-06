@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from actions.base import ActionBase
+from actions.dsl.base import DslActionBase
 from actions.registry import ActionRegistry
 from runtime.experiment_recorder import ExperimentRecorder
 
@@ -12,7 +12,7 @@ def _eval_str(ctx, value: Any) -> str:
     return str(v) if v is not None else ""
 
 
-class RecordStartAction(ActionBase):
+class RecordStartAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="record_start",
@@ -61,7 +61,7 @@ class RecordStartAction(ActionBase):
         return str(root)
 
 
-class RecordStopAction(ActionBase):
+class RecordStopAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="record_stop",

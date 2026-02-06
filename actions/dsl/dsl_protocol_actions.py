@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict
 
-from actions.base import ActionBase
+from actions.dsl.base import DslActionBase
 from actions.registry import ActionRegistry
 from protocols.registry import ProtocolRegistry
 from protocols import modbus_ascii, modbus_rtu, modbus_tcp  # noqa: F401
@@ -26,7 +26,7 @@ class XMODEMPacketBuilder:
         return bytes([0x04])
 
 
-class SendXmodemBlockAction(ActionBase):
+class SendXmodemBlockAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="send_xmodem_block",
@@ -51,7 +51,7 @@ class SendXmodemBlockAction(ActionBase):
         ctx.set_var("last_sent_block", block)
 
 
-class SendEotAction(ActionBase):
+class SendEotAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="send_eot",
@@ -150,7 +150,7 @@ def _run_modbus(ctx, args: Dict[str, object]):
     return result
 
 
-class ModbusReadAction(ActionBase):
+class ModbusReadAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="modbus_read",
@@ -175,7 +175,7 @@ class ModbusReadAction(ActionBase):
         return _run_modbus(ctx, args)
 
 
-class ModbusWriteAction(ActionBase):
+class ModbusWriteAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="modbus_write",

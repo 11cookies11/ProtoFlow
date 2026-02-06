@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import Any, Dict
 
-from actions.base import ActionBase
+from actions.dsl.base import DslActionBase
 from actions.registry import ActionRegistry
 from dsl.expression import eval_expr
 
@@ -14,7 +14,7 @@ def _eval(ctx, val):
     return val
 
 
-class SetAction(ActionBase):
+class SetAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="set",
@@ -29,7 +29,7 @@ class SetAction(ActionBase):
         return ctx.vars_snapshot()
 
 
-class LogAction(ActionBase):
+class LogAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="log",
@@ -48,7 +48,7 @@ class LogAction(ActionBase):
         ctx.logger.info(str(msg))
 
 
-class WaitAction(ActionBase):
+class WaitAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="wait",
@@ -64,7 +64,7 @@ class WaitAction(ActionBase):
         time.sleep(ms / 1000.0)
 
 
-class WaitForEventAction(ActionBase):
+class WaitForEventAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="wait_for_event",
@@ -89,7 +89,7 @@ class WaitForEventAction(ActionBase):
         return None
 
 
-class SendTextAction(ActionBase):
+class SendTextAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="send_text",
@@ -117,7 +117,7 @@ class SendTextAction(ActionBase):
         return {"text": text, "append_cr": append_cr, "append_lf": append_lf}
 
 
-class ReadLineAction(ActionBase):
+class ReadLineAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="read_line",
@@ -141,7 +141,7 @@ class ReadLineAction(ActionBase):
         return {"text": text, "hex": raw.hex().upper()}
 
 
-class ReadStreamAction(ActionBase):
+class ReadStreamAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="read_stream",

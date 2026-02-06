@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Tuple
 
-from actions.base import ActionBase
+from actions.dsl.base import DslActionBase
 from actions.registry import ActionRegistry
 from dsl.expression import eval_expr
 
@@ -60,7 +60,7 @@ def _parse_inline_actions(items: Any) -> List[Tuple[str, Dict[str, Any]]]:
     return parsed
 
 
-class IfAction(ActionBase):
+class IfAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="if",
@@ -99,7 +99,7 @@ def _item_env(item: Any, index: int) -> Dict[str, Any]:
     return env
 
 
-class ListFilterAction(ActionBase):
+class ListFilterAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="list_filter",
@@ -133,7 +133,7 @@ class ListFilterAction(ActionBase):
         return out
 
 
-class ListMapAction(ActionBase):
+class ListMapAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="list_map",

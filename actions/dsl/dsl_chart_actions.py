@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import Any, Dict
 
-from actions.base import ActionBase
+from actions.dsl.base import DslActionBase
 from actions.chart_bridge import chart_bridge
 from actions.registry import ActionRegistry
 
@@ -14,7 +14,7 @@ def _eval(ctx, val: Any) -> Any:
     return val
 
 
-class ChartAddAction(ActionBase):
+class ChartAddAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="chart_add",
@@ -49,7 +49,7 @@ class ChartAddAction(ActionBase):
         return {"ts": ts, "bind": str(bind), "value": val}
 
 
-class ChartAdd3dAction(ActionBase):
+class ChartAdd3dAction(DslActionBase):
     def __init__(self) -> None:
         super().__init__(
             name="chart_add3d",

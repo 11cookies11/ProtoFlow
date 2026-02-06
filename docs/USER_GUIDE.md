@@ -104,7 +104,7 @@ stateDiagram-v2
   - `list_filter`: 列表过滤（`src`/`where`，可选 `dst`）。
   - `list_map`: 列表映射（`src`/`expr`，可选 `dst`，可选 `where`）。
 - 协议动作：XMODEM/Modbus 等（下文详述）。
-- 自定义动作：继承 `ActionBase`，实现 `execute(ctx, args)` 并定义参数 `schema`，使用 `ActionRegistry.register("name", MyAction())` 注册。
+- 自定义动作：继承 `DslActionBase`，实现 `execute(ctx, args)` 并定义参数 `schema`，使用 `ActionRegistry.register("name", MyAction())` 注册。
 
 ## 9. XMODEM 动作
 - `send_xmodem_block`：发送指定块号（128B，自动 0x1A 填充），参数 `block: "$block"`。
@@ -267,10 +267,10 @@ state_machine:
 ## 15. 扩展指南
 - 添加新动作：
   ```python
-  from actions.base import ActionBase
+  from actions.dsl.base import DslActionBase
   from actions.registry import ActionRegistry
 
-  class MyAction(ActionBase):
+  class MyAction(DslActionBase):
       def __init__(self) -> None:
           super().__init__(
               name="my_action",

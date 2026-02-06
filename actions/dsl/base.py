@@ -18,7 +18,7 @@ _TYPE_ALIASES: Dict[str, Tuple[Type[Any], ...]] = {
 
 
 @dataclass
-class ActionBase:
+class DslActionBase:
     name: str
     schema: Dict[str, Any] | None = None
 
