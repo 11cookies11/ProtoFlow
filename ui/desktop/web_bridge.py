@@ -41,12 +41,13 @@ class WebBridge(QObject):
     channel_update = Signal(object)
     ui_event_log = Signal(object)
 
-    def __init__(self, bus=None, comm=None, window=None) -> None:
+    def __init__(self, bus=None, comm=None, window=None, plugin_manager=None) -> None:
         super().__init__()
         self._logger = logging.getLogger("web_bridge")
         self._bus = bus
         self._comm = comm
         self._window = window
+        self._plugin_manager = plugin_manager
         self._script_runner: Optional[ScriptRunnerQt] = None
         self._buffer: List[Dict[str, Any]] = []
         self._protocols_loaded = False
@@ -255,6 +256,54 @@ class WebBridge(QObject):
     @Slot(result="QVariant")
     def load_settings(self) -> Dict[str, Any]:
         return self._load_settings()
+
+    @Slot(result="QVariant")
+    def list_plugins(self) -> List[Dict[str, Any]]:
+        manager = self._plugin_manager
+        if manager is None:
+            return []
+        loaded = set()
+        try:
+            loaded = set(manager.list_plugins())
+        except Exception:
+            loaded = set()
+        modules = getattr(manager, "_plugins", {}) or {}
+        plugin_dir = getattr(manager, "plugin_dir", None)
+        if not isinstance(plugin_dir, Path) or not plugin_dir.exists():
+            return []
+
+        items: List[Dict[str, Any]] = []
+        for path in sorted(plugin_dir.glob("*.py")):
+            if path.name.startswith("_"):
+                continue
+            name = path.stem
+            module = modules.get(name)
+            version = ""
+            if module is not None:
+                version = str(getattr(module, "__version__", "") or "")
+            status = "enabled" if name in loaded else "available"
+            items.append(
+                {
+                    "id": name,
+                    "name": name,
+                    "status": status,
+                    "enabled": name in loaded,
+                    "version": version,
+                    "file": path.name,
+                }
+            )
+        return items
+
+    @Slot(result="QVariant")
+    def refresh_plugins(self) -> List[Dict[str, Any]]:
+        manager = self._plugin_manager
+        if manager is None:
+            return []
+        try:
+            manager.load_all()
+        except Exception as exc:
+            self.log.emit(f"[WARN] Refresh plugins failed: {exc}")
+        return self.list_plugins()
 
     @Slot(result="QVariant")
     def list_proxy_pairs(self) -> List[Dict[str, Any]]:
@@ -741,6 +790,17 @@ class WebBridge(QObject):
                 "tcpHeartbeatSec": 60,
                 "tcpRetryCount": 3,
             },
+            "runtime": {
+                "eventQueueSize": 1024,
+                "captureBufferLimit": 200,
+                "uiEventRelay": True,
+            },
+            "logs": {
+                "level": "INFO",
+                "retentionDays": 7,
+                "autoArchive": False,
+                "includeHex": True,
+            },
         }
 
     def _load_settings(self) -> Dict[str, Any]:
@@ -759,6 +819,8 @@ class WebBridge(QObject):
             **data,
             "serial": {**defaults.get("serial", {}), **(data.get("serial", {}) or {})},
             "network": {**defaults.get("network", {}), **(data.get("network", {}) or {})},
+            "runtime": {**defaults.get("runtime", {}), **(data.get("runtime", {}) or {})},
+            "logs": {**defaults.get("logs", {}), **(data.get("logs", {}) or {})},
         }
         return merged
 

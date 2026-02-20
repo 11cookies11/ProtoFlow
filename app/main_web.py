@@ -176,7 +176,7 @@ def main() -> None:
     plugins.load_all()
 
     app = QApplication.instance() or QApplication(sys.argv)
-    window = WebWindow(bus=bus, comm=comm)
+    window = WebWindow(bus=bus, comm=comm, plugin_manager=plugins)
     window.show()
     print("ProtoFlow Web UI started")
     app.exec()

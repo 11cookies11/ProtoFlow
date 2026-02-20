@@ -103,11 +103,19 @@ const defaultStopBits = ref('1')
 const tcpTimeoutMs = ref(5000)
 const tcpHeartbeatSec = ref(60)
 const tcpRetryCount = ref(3)
+const runtimeEventQueueSize = ref(1024)
+const runtimeCaptureBufferLimit = ref(200)
+const runtimeUiEventRelay = ref(true)
+const logLevel = ref('INFO')
+const logRetentionDays = ref(7)
+const logAutoArchive = ref(false)
+const logIncludeHex = ref(true)
 const dslWorkspacePath = ref('/usr/local/protoflow/workflows')
 const autoConnectOnStart = ref(true)
 const settingsSaving = ref(false)
 const settingsSnapshot = ref(null)
 const settingsTab = ref('general')
+const pluginItems = ref([])
 const zhCN = {
   'nav.manual': '串口终端',
   'nav.scripts': '自动脚本',
@@ -2817,6 +2825,23 @@ const channelCards = computed(() => {
 })
 
 const protocolCards = ref([])
+const pluginCards = computed(() => {
+  return (pluginItems.value || []).map((item) => {
+    const rawStatus = String(item?.status || '').toLowerCase()
+    const enabled = item?.enabled === true || rawStatus === 'enabled'
+    const name = String(item?.name || item?.id || tr('未命名插件'))
+    const file = String(item?.file || '')
+    return {
+      id: item?.id || `${name}:${file || 'plugin'}`,
+      name,
+      version: String(item?.version || ''),
+      file,
+      enabled,
+      statusText: enabled ? tr('已启用') : tr('可用'),
+      statusClass: enabled ? 'badge-green' : 'badge-gray',
+    }
+  })
+})
 
 const isConnected = computed(() => connectionInfo.value.state === 'connected')
 
@@ -2893,6 +2918,9 @@ const filteredProtocolCards = computed(() => {
 
 function setSettingsTab(tab) {
   settingsTab.value = tab
+  if (tab === 'plugins') {
+    refreshPlugins()
+  }
 }
 
 const manualViewBindings = {
@@ -3662,6 +3690,15 @@ function refreshProtocols() {
   })
 }
 
+function refreshPlugins() {
+  if (!bridge.value) return
+  const loader = bridge.value.refresh_plugins || bridge.value.list_plugins
+  if (!loader) return
+  withResult(loader(), (items) => {
+    pluginItems.value = Array.isArray(items) ? items : []
+  })
+}
+
 function resetProtocolDraft() {
   protocolDraft.value = {
     id: "",
@@ -4135,6 +4172,7 @@ function attachBridge(obj) {
   refreshPorts()
   refreshChannels()
   refreshProtocols()
+  refreshPlugins()
   loadSettings()
 }
 
@@ -4410,6 +4448,17 @@ function buildSettingsPayload() {
       tcpHeartbeatSec: Number(tcpHeartbeatSec.value || 0),
       tcpRetryCount: Number(tcpRetryCount.value || 0),
     },
+    runtime: {
+      eventQueueSize: Number(runtimeEventQueueSize.value || 0),
+      captureBufferLimit: Number(runtimeCaptureBufferLimit.value || 0),
+      uiEventRelay: !!runtimeUiEventRelay.value,
+    },
+    logs: {
+      level: String(logLevel.value || 'INFO').toUpperCase(),
+      retentionDays: Number(logRetentionDays.value || 0),
+      autoArchive: !!logAutoArchive.value,
+      includeHex: !!logIncludeHex.value,
+    },
   }
 }
 
@@ -4430,6 +4479,17 @@ function normalizeSettings(payload) {
       tcpHeartbeatSec: 60,
       tcpRetryCount: 3,
     },
+    runtime: {
+      eventQueueSize: 1024,
+      captureBufferLimit: 200,
+      uiEventRelay: true,
+    },
+    logs: {
+      level: 'INFO',
+      retentionDays: 7,
+      autoArchive: false,
+      includeHex: true,
+    },
   }
   if (!payload || typeof payload !== 'object') return defaults
   return {
@@ -4444,6 +4504,14 @@ function normalizeSettings(payload) {
     network: {
       ...defaults.network,
       ...(payload.network || {}),
+    },
+    runtime: {
+      ...defaults.runtime,
+      ...(payload.runtime || {}),
+    },
+    logs: {
+      ...defaults.logs,
+      ...(payload.logs || {}),
     },
   }
 }
@@ -4461,6 +4529,13 @@ function applySettings(payload) {
   tcpTimeoutMs.value = Number(normalized.network.tcpTimeoutMs || 0)
   tcpHeartbeatSec.value = Number(normalized.network.tcpHeartbeatSec || 0)
   tcpRetryCount.value = Number(normalized.network.tcpRetryCount || 0)
+  runtimeEventQueueSize.value = Number(normalized.runtime.eventQueueSize || 1024)
+  runtimeCaptureBufferLimit.value = Number(normalized.runtime.captureBufferLimit || 200)
+  runtimeUiEventRelay.value = normalized.runtime.uiEventRelay !== false
+  logLevel.value = String(normalized.logs.level || 'INFO').toUpperCase()
+  logRetentionDays.value = Number(normalized.logs.retentionDays || 7)
+  logAutoArchive.value = !!normalized.logs.autoArchive
+  logIncludeHex.value = normalized.logs.includeHex !== false
   baud.value = Number(defaultBaud.value || 115200)
 }
 
@@ -4846,25 +4921,28 @@ function unlockSidebarWidth() {
               <div class="divider"></div>
               <div class="panel-title simple inline">
                 {{ t('settings.plugins.title') }}
-                <button class="link-btn">
+                <button class="link-btn" type="button" @click="refreshPlugins">
                   <span class="material-symbols-outlined">refresh</span>
                   {{ t('settings.plugins.refresh') }}
                 </button>
               </div>
               <div class="plugin-list">
-                <div class="plugin-item">
+                <div v-for="plugin in pluginCards" :key="plugin.id" class="plugin-item" :class="{ muted: !plugin.enabled }">
                   <div>
-                    <div class="plugin-title">Modbus TCP/RTU</div>
-                    <div class="plugin-meta">{{ tr('v1.2.4 - 已启用') }}</div>
+                    <div class="plugin-title">{{ plugin.name }}</div>
+                    <div class="plugin-meta">
+                      {{ plugin.version ? `v${plugin.version}` : '--' }}
+                      <template v-if="plugin.file"> · {{ plugin.file }}</template>
+                    </div>
                   </div>
-                  <span class="badge badge-green">{{ tr('已启用') }}</span>
+                  <span class="badge" :class="plugin.statusClass">{{ plugin.statusText }}</span>
                 </div>
-                <div class="plugin-item muted">
+                <div v-if="!pluginCards.length" class="plugin-item muted">
                   <div>
-                    <div class="plugin-title">{{ tr('MQTT 适配器') }}</div>
-                    <div class="plugin-meta">{{ tr('v0.9.8 - 未安装') }}</div>
+                    <div class="plugin-title">{{ tr('暂无插件') }}</div>
+                    <div class="plugin-meta">{{ tr('请检查 plugins 目录或点击刷新') }}</div>
                   </div>
-                  <span class="badge badge-gray">{{ tr('未安装') }}</span>
+                  <span class="badge badge-gray">{{ tr('空') }}</span>
                 </div>
               </div>
               <div class="toggle-row spaced">
@@ -4883,8 +4961,25 @@ function unlockSidebarWidth() {
               <div class="panel-title simple">
                 <span class="material-symbols-outlined">tune</span>{{ t('settings.tab.runtime') }}
               </div>
-              <div class="empty-state muted">
-                {{ tr('暂无可配置项，运行时设置将随着模块扩展开放。') }}
+              <div class="form-grid">
+                <label>
+                  {{ tr('事件队列上限') }}
+                  <input v-model.number="runtimeEventQueueSize" type="number" min="128" step="128" />
+                </label>
+                <label>
+                  {{ tr('抓包缓冲上限') }}
+                  <input v-model.number="runtimeCaptureBufferLimit" type="number" min="50" step="10" />
+                </label>
+              </div>
+              <div class="toggle-row spaced">
+                <div>
+                  <strong>{{ tr('UI 事件转发') }}</strong>
+                  <p>{{ tr('将 UI 动作事件转发到事件总线供 DSL 消费。') }}</p>
+                </div>
+                <label class="switch">
+                  <input v-model="runtimeUiEventRelay" type="checkbox" />
+                  <span></span>
+                </label>
               </div>
             </div>
 
@@ -4892,8 +4987,43 @@ function unlockSidebarWidth() {
               <div class="panel-title simple">
                 <span class="material-symbols-outlined">folder_open</span>{{ t('settings.tab.logs') }}
               </div>
-              <div class="empty-state muted">
-                {{ tr('日志采集与归档策略将在后续版本中提供。') }}
+              <div class="form-grid">
+                <label>
+                  {{ tr('日志级别') }}
+                  <DropdownSelect
+                    v-model="logLevel"
+                    :options="[
+                      { label: 'DEBUG', value: 'DEBUG' },
+                      { label: 'INFO', value: 'INFO' },
+                      { label: 'WARNING', value: 'WARNING' },
+                      { label: 'ERROR', value: 'ERROR' },
+                    ]"
+                  />
+                </label>
+                <label>
+                  {{ tr('保留天数') }}
+                  <input v-model.number="logRetentionDays" type="number" min="1" step="1" />
+                </label>
+              </div>
+              <div class="toggle-row spaced">
+                <div>
+                  <strong>{{ tr('自动归档') }}</strong>
+                  <p>{{ tr('达到保留策略前自动整理日志。') }}</p>
+                </div>
+                <label class="switch">
+                  <input v-model="logAutoArchive" type="checkbox" />
+                  <span></span>
+                </label>
+              </div>
+              <div class="toggle-row spaced">
+                <div>
+                  <strong>{{ tr('记录十六进制') }}</strong>
+                  <p>{{ tr('通信日志中保留 HEX 字段。') }}</p>
+                </div>
+                <label class="switch">
+                  <input v-model="logIncludeHex" type="checkbox" />
+                  <span></span>
+                </label>
               </div>
             </div>
           </div>

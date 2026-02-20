@@ -22,7 +22,10 @@ const confirmProxy = ref(null)
 const captureProxy = ref(null)
 const captureFilter = ref('all')
 const captureView = ref('parsed')
+const captureSearch = ref('')
+const capturePage = ref(1)
 const selectedFrame = ref(null)
+const CAPTURE_PAGE_SIZE = 50
 
 const proxyName = ref('')
 const connectionMode = ref(tr('透传模式'))
@@ -307,12 +310,93 @@ function hexCellClass(index, value) {
 
 const filteredFrames = computed(() => {
   const safeFrames = captureFrames.value.filter(Boolean)
-  if (captureFilter.value === 'all') return safeFrames
-  if (captureFilter.value === 'error') {
-    return safeFrames.filter((frame) => frame.tone === 'red')
-  }
-  return safeFrames.filter((frame) => frame.direction === captureFilter.value)
+  const byType = (() => {
+    if (captureFilter.value === 'all') return safeFrames
+    if (captureFilter.value === 'error') {
+      return safeFrames.filter((frame) => frame.tone === 'red')
+    }
+    return safeFrames.filter((frame) => frame.direction === captureFilter.value)
+  })()
+  const keyword = String(captureSearch.value || '').trim().toLowerCase()
+  if (!keyword) return byType
+  return byType.filter((frame) => {
+    const text = [
+      frame?.id,
+      frame?.note,
+      frame?.summaryText,
+      frame?.summary,
+      frame?.protocolLabel,
+      frame?.direction,
+      frame?.time,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return text.includes(keyword)
+  })
 })
+
+const capturePageCount = computed(() => {
+  const total = filteredFrames.value.length
+  return Math.max(1, Math.ceil(total / CAPTURE_PAGE_SIZE))
+})
+
+const pagedFrames = computed(() => {
+  const page = Math.min(Math.max(1, capturePage.value), capturePageCount.value)
+  const start = (page - 1) * CAPTURE_PAGE_SIZE
+  const end = start + CAPTURE_PAGE_SIZE
+  return filteredFrames.value.slice(start, end)
+})
+
+const pageRangeStart = computed(() => {
+  if (!filteredFrames.value.length) return 0
+  return (Math.min(Math.max(1, capturePage.value), capturePageCount.value) - 1) * CAPTURE_PAGE_SIZE + 1
+})
+
+const pageRangeEnd = computed(() => {
+  if (!filteredFrames.value.length) return 0
+  return Math.min(pageRangeStart.value + pagedFrames.value.length - 1, filteredFrames.value.length)
+})
+
+function goFirstPage() {
+  capturePage.value = 1
+}
+
+function goPrevPage() {
+  capturePage.value = Math.max(1, capturePage.value - 1)
+}
+
+function goNextPage() {
+  capturePage.value = Math.min(capturePageCount.value, capturePage.value + 1)
+}
+
+function goLastPage() {
+  capturePage.value = capturePageCount.value
+}
+
+function exportAnalysis() {
+  const exportedAt = new Date().toISOString()
+  const filename = `capture_analysis_${exportedAt.replace(/[:.]/g, '-')}.json`
+  const payload = {
+    exportedAt,
+    proxy: captureProxy.value ? { id: captureProxy.value.id, name: captureProxy.value.name } : null,
+    filter: captureFilter.value,
+    keyword: captureSearch.value,
+    page: capturePage.value,
+    pageSize: CAPTURE_PAGE_SIZE,
+    totalFiltered: filteredFrames.value.length,
+    frames: filteredFrames.value,
+  }
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
 
 function openEditModal(proxy) {
   modalMode.value = 'edit'
@@ -352,6 +436,8 @@ function openCaptureModal(proxy) {
   }
   captureProxy.value = proxy
   captureFilter.value = 'all'
+  captureSearch.value = ''
+  capturePage.value = 1
   selectedFrame.value = captureFrames.value[0] || null
   captureOpen.value = true
 }
@@ -547,6 +633,25 @@ watch(
   () => captureOpen.value,
   (open) => {
     document.body.classList.toggle('proxy-modal-open', open)
+  }
+)
+
+watch(
+  () => [captureFilter.value, captureSearch.value, filteredFrames.value.length],
+  () => {
+    capturePage.value = 1
+  }
+)
+
+watch(
+  () => [capturePage.value, capturePageCount.value],
+  () => {
+    if (capturePage.value > capturePageCount.value) {
+      capturePage.value = capturePageCount.value
+    }
+    if (capturePage.value < 1) {
+      capturePage.value = 1
+    }
   }
 )
 
@@ -802,6 +907,7 @@ onBeforeUnmount(() => {
               <input
                 class="bg-transparent border-none text-xs w-64 lg:w-96 focus:ring-0 text-slate-900 placeholder-slate-500"
                 :placeholder="tr('搜索标识、十六进制、协议、原始数据...')"
+                v-model="captureSearch"
                 type="text"
               />
             </div>
@@ -836,14 +942,14 @@ onBeforeUnmount(() => {
                 </thead>
                 <tbody class="text-xs">
                   <tr
-                    v-for="(frame, index) in filteredFrames"
+                    v-for="(frame, index) in pagedFrames"
                     :key="frame?.id ?? index"
                     class="hover:bg-slate-50 cursor-pointer border-b border-slate-100"
                     :class="{ 'bg-orange-50/40 border-l-4 border-l-orange-400': frame.tone === 'red' }"
                     @click="selectFrame(frame)"
                   >
                     <td class="px-3 py-2 text-slate-400 font-mono">
-                      {{ frame.seq ?? (captureMeta.rangeStart ? captureMeta.rangeStart + index : index + 1) }}
+                      {{ frame.seq ?? (pageRangeStart ? pageRangeStart + index : index + 1) }}
                     </td>
                     <td class="px-3 py-2 text-slate-500 font-mono">{{ frame.time }}</td>
                     <td class="px-3 py-2 text-center">
@@ -1018,26 +1124,26 @@ onBeforeUnmount(() => {
             </div>
             <div class="h-4 w-[1px] bg-slate-300"></div>
             <p class="text-[10px] font-medium text-slate-500 uppercase">
-              {{ tr('显示') }} {{ captureMeta.rangeStart }}-{{ captureMeta.rangeEnd }} / {{ tr('共') }} {{ captureMeta.totalFrames }} {{ tr('报文') }}
+              {{ tr('显示') }} {{ pageRangeStart }}-{{ pageRangeEnd }} / {{ tr('共') }} {{ filteredFrames.length }} {{ tr('报文') }}
             </p>
           </div>
           <div class="flex items-center gap-4">
             <div class="flex items-center gap-1 bg-white p-0.5 rounded border border-slate-200">
-              <button class="p-1 hover:bg-slate-100 rounded" disabled>
+              <button class="p-1 hover:bg-slate-100 rounded" :disabled="capturePage <= 1" @click="goFirstPage">
                 <span class="material-symbols-outlined !text-sm">first_page</span>
               </button>
-              <button class="p-1 hover:bg-slate-100 rounded">
+              <button class="p-1 hover:bg-slate-100 rounded" :disabled="capturePage <= 1" @click="goPrevPage">
                 <span class="material-symbols-outlined !text-sm">chevron_left</span>
               </button>
-              <div class="px-3 text-[10px] font-bold text-slate-700">{{ tr('第') }} {{ captureMeta.page }} / {{ captureMeta.pageCount }} {{ tr('页') }}</div>
-              <button class="p-1 hover:bg-slate-100 rounded">
+              <div class="px-3 text-[10px] font-bold text-slate-700">{{ tr('第') }} {{ capturePage }} / {{ capturePageCount }} {{ tr('页') }}</div>
+              <button class="p-1 hover:bg-slate-100 rounded" :disabled="capturePage >= capturePageCount" @click="goNextPage">
                 <span class="material-symbols-outlined !text-sm">chevron_right</span>
               </button>
-              <button class="p-1 hover:bg-slate-100 rounded">
+              <button class="p-1 hover:bg-slate-100 rounded" :disabled="capturePage >= capturePageCount" @click="goLastPage">
                 <span class="material-symbols-outlined !text-sm">last_page</span>
               </button>
             </div>
-            <button class="flex items-center gap-1 px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[10px] font-bold transition-colors">
+            <button class="flex items-center gap-1 px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[10px] font-bold transition-colors" @click="exportAnalysis">
               <span class="material-symbols-outlined !text-sm">download</span>{{ tr('导出分析结果') }}</button>
           </div>
         </footer>
