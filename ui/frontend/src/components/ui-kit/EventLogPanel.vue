@@ -29,7 +29,18 @@ async function copy() {
   try {
     await navigator.clipboard.writeText(formatted.value)
   } catch {
-    // TODO: add fallback copy
+    const input = document.createElement('textarea')
+    input.value = formatted.value
+    input.setAttribute('readonly', '')
+    input.style.position = 'fixed'
+    input.style.opacity = '0'
+    document.body.appendChild(input)
+    input.select()
+    try {
+      document.execCommand('copy')
+    } finally {
+      document.body.removeChild(input)
+    }
   }
 }
 </script>
