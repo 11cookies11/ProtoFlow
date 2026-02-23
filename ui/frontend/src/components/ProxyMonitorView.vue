@@ -59,10 +59,10 @@ const proxies = ref([
     name: tr('主控制器链路'),
     meta: 'ID: PX-00124 · 8-N-1',
     status: 'running',
-    statusLabel: tr('运行中'),
+    statusLabel: tr('配置已启用'),
     statusIcon: 'swap_horizontal_circle',
     routeIcon: 'keyboard_double_arrow_right',
-    routeLabel: tr('转发中'),
+    routeLabel: tr('未建立实时转发'),
     routeTone: 'primary',
     hostPort: 'COM3',
     devicePort: 'COM5',
@@ -71,7 +71,7 @@ const proxies = ref([
     bandwidthUnit: 'KB/s',
     spark: 'M0 35 L10 20 L20 35 L30 10 L40 30 L50 5 L60 35 L70 20 L80 30 L90 10 L100 25',
     active: true,
-    toggleLabel: tr('运行中'),
+    toggleLabel: tr('已启用'),
   },
   {
     id: 'proxy-com7',
@@ -136,14 +136,52 @@ function withBridgeResult(result, onSuccess) {
   onSuccess(result)
 }
 
+function deriveProxyPresentation(status, capability = 'config-only') {
+  if (status === 'error') {
+    return {
+      statusLabel: tr('异常'),
+      routeLabel: tr('连接失败'),
+      routeTone: 'danger',
+      statusIcon: 'report',
+      routeIcon: 'sync_problem',
+      toggleLabel: tr('异常'),
+    }
+  }
+  if (status === 'running') {
+    if (capability === 'realtime-forward') {
+      return {
+        statusLabel: tr('运行中'),
+        routeLabel: tr('转发中'),
+        routeTone: 'primary',
+        statusIcon: 'swap_horizontal_circle',
+        routeIcon: 'keyboard_double_arrow_right',
+        toggleLabel: tr('运行中'),
+      }
+    }
+    return {
+      statusLabel: tr('配置已启用'),
+      routeLabel: tr('未建立实时转发'),
+      routeTone: 'primary',
+      statusIcon: 'swap_horizontal_circle',
+      routeIcon: 'keyboard_double_arrow_right',
+      toggleLabel: tr('已启用'),
+    }
+  }
+  return {
+    statusLabel: tr('已停止'),
+    routeLabel: tr('离线'),
+    routeTone: 'muted',
+    statusIcon: 'pause_circle',
+    routeIcon: 'more_horiz',
+    toggleLabel: tr('已停止'),
+  }
+}
+
 function mapProxyFromBackend(payload) {
   const status = payload.status || 'stopped'
   const active = status === 'running'
-  const statusLabel = active ? tr('运行中') : tr('已停止')
-  const routeLabel = active ? tr('转发中') : tr('离线')
-  const routeTone = active ? 'primary' : 'muted'
-  const statusIcon = active ? 'swap_horizontal_circle' : 'pause_circle'
-  const routeIcon = active ? 'keyboard_double_arrow_right' : 'more_horiz'
+  const capability = payload.capability || 'config-only'
+  const view = deriveProxyPresentation(status, capability)
   const baud = payload.baud ? String(payload.baud) : '115200'
   proxySeq = Math.max(proxySeq, Number(String(payload.id || '').replace(/\D/g, '')) || proxySeq)
   return {
@@ -151,11 +189,12 @@ function mapProxyFromBackend(payload) {
     name: payload.name || tr('未命名转发对'),
     meta: payload.meta || buildProxyMeta(payload.hostPort, baud),
     status,
-    statusLabel,
-    statusIcon,
-    routeIcon,
-    routeLabel,
-    routeTone,
+    capability,
+    statusLabel: view.statusLabel,
+    statusIcon: view.statusIcon,
+    routeIcon: view.routeIcon,
+    routeLabel: view.routeLabel,
+    routeTone: view.routeTone,
     hostPort: payload.hostPort || 'COM1',
     devicePort: payload.devicePort || 'COM2',
     baud,
@@ -167,7 +206,7 @@ function mapProxyFromBackend(payload) {
     bandwidthUnit: payload.bandwidthUnit || 'KB/s',
     spark: payload.spark || '',
     active,
-    toggleLabel: statusLabel,
+    toggleLabel: view.toggleLabel,
   }
 }
 
@@ -228,25 +267,16 @@ const activeProtocolLabel = computed(() => activeFrame.value?.protocolLabel || '
 
 const activeProtocolTooltip = computed(() => activeFrame.value?.protocolTooltip || '')
 
-const proxyStatusLabel = (status) => {
-  if (status === 'running') return tr('运行中')
-  if (status === 'stopped') return tr('已停止')
-  if (status === 'error') return tr('异常')
-  return tr('未知')
+const proxyStatusLabel = (status, capability = 'config-only') => {
+  return deriveProxyPresentation(status, capability).statusLabel || tr('未知')
 }
 
-const proxyRouteLabel = (status) => {
-  if (status === 'running') return tr('转发中')
-  if (status === 'stopped') return tr('离线')
-  if (status === 'error') return tr('连接失败')
-  return tr('未知')
+const proxyRouteLabel = (status, capability = 'config-only') => {
+  return deriveProxyPresentation(status, capability).routeLabel || tr('未知')
 }
 
-const proxyToggleLabel = (status) => {
-  if (status === 'running') return tr('运行中')
-  if (status === 'stopped') return tr('已停止')
-  if (status === 'error') return tr('异常')
-  return tr('未知')
+const proxyToggleLabel = (status, capability = 'config-only') => {
+  return deriveProxyPresentation(status, capability).toggleLabel || tr('未知')
 }
 
 const activeSummaryText = computed(() => activeFrame.value?.summaryText || activeFrame.value?.summary || '')
@@ -470,18 +500,14 @@ function refreshProxies() {
 
 function setProxyStatus(proxy, active) {
   const nextStatus = active ? 'running' : 'stopped'
-  const statusLabel = active ? tr('运行中') : tr('已停止')
-  const routeLabel = active ? tr('转发中') : tr('离线')
-  const routeTone = active ? 'primary' : 'muted'
-  const statusIcon = active ? 'swap_horizontal_circle' : 'pause_circle'
-  const routeIcon = active ? 'keyboard_double_arrow_right' : 'more_horiz'
+  const view = deriveProxyPresentation(nextStatus, proxy.capability || 'config-only')
   proxy.status = nextStatus
-  proxy.statusLabel = statusLabel
-  proxy.toggleLabel = statusLabel
-  proxy.routeLabel = routeLabel
-  proxy.routeTone = routeTone
-  proxy.statusIcon = statusIcon
-  proxy.routeIcon = routeIcon
+  proxy.statusLabel = view.statusLabel
+  proxy.toggleLabel = view.toggleLabel
+  proxy.routeLabel = view.routeLabel
+  proxy.routeTone = view.routeTone
+  proxy.statusIcon = view.statusIcon
+  proxy.routeIcon = view.routeIcon
   proxy.active = active
 
   if (bridge && bridge.value && bridge.value.set_proxy_pair_status) {
@@ -513,6 +539,7 @@ function saveProxy() {
           hostPort: payload.hostPort,
           devicePort: payload.devicePort,
           baud: payload.baud,
+          capability: 'config-only',
           dataBits: payload.dataBits,
           stopBits: payload.stopBits,
           parity: payload.parity,
@@ -563,6 +590,7 @@ function saveProxy() {
           hostPort: payload.hostPort,
           devicePort: payload.devicePort,
           baud: payload.baud,
+          capability: modalProxy.value.capability || 'config-only',
           dataBits: payload.dataBits,
           stopBits: payload.stopBits,
           parity: payload.parity,
@@ -679,6 +707,9 @@ onBeforeUnmount(() => {
         </button>
       </div>
     </header>
+    <p class="proxy-capability-note">
+      {{ tr('说明：当前版本以代理配置管理和抓包分析为主，状态“配置已启用”不代表已建立实时串口转发链路。') }}
+    </p>
     <div class="tab-strip secondary">
       <button
         v-for="tab in filterTabs"
@@ -710,7 +741,7 @@ onBeforeUnmount(() => {
           </div>
           <span class="proxy-status-pill" :class="`status-${proxy.status}`">
             <span class="dot"></span>
-            {{ proxyStatusLabel(proxy.status) }}
+            {{ proxyStatusLabel(proxy.status, proxy.capability) }}
           </span>
         </div>
 
@@ -721,7 +752,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="proxy-route-state" :class="proxy.routeTone">
             <span class="material-symbols-outlined">{{ proxy.routeIcon }}</span>
-            <span>{{ proxyRouteLabel(proxy.status) }}</span>
+            <span>{{ proxyRouteLabel(proxy.status, proxy.capability) }}</span>
           </div>
           <div class="proxy-route-col">
             <p>{{ tr('设备代理端口') }}</p>
@@ -756,7 +787,7 @@ onBeforeUnmount(() => {
             <span class="proxy-toggle" :class="{ active: proxy.active }" @click="setProxyStatus(proxy, !proxy.active)">
               <span class="proxy-toggle-track"></span>
             </span>
-            <span class="proxy-toggle-text">{{ proxyToggleLabel(proxy.status) }}</span>
+            <span class="proxy-toggle-text">{{ proxyToggleLabel(proxy.status, proxy.capability) }}</span>
           </label>
           <div class="proxy-footer-actions">
             <button class="icon-btn" type="button" :title="tr('抓包')" @click="openCaptureModal(proxy)">

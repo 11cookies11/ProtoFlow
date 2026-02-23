@@ -115,7 +115,7 @@ stateDiagram-v2
 当前示例主要提供 XMODEM；YMODEM 可类比扩展：发送 header、数据块、EOT（可参考 XMODEM 动作并新增 `send_ymodem_header` / `send_ymodem_block` / `send_ymodem_eot` 动作）。
 
 ## 11. Modbus（RTU/ASCII/TCP）动作
-- 预留动作：`modbus_read` / `modbus_write`（当前 DSL Runner 未实现，仅文档占位）
+- 已支持动作：`modbus_read` / `modbus_write`
   - 参数：`protocol: rtu|ascii|tcp`，`function`，`address`，`quantity`，`values`（写），`unit_id`。
 - 差异：RTU（CRC16，二进制）；ASCII（LRC，文本帧）；TCP（MBAP，无 CRC）。
 说明：仓库中已实现 Modbus 协议驱动（`infra/protocol/modbus_*.py`），可在 DSL 动作中调用（已注册 `modbus_read/modbus_write`）。
@@ -199,7 +199,7 @@ state_machine:
 ```
 
 ### 13.3 Modbus 轮询读写
-> 注：`modbus_read` / `modbus_write` 当前 DSL Runner 未实现，本段示例为文档预留模板。
+> 注：示例默认基于已注册动作 `modbus_read` / `modbus_write` 执行。
 ```yaml
 vars:
   retries: 0
@@ -236,7 +236,7 @@ state_machine:
 ```
 
 ### 13.4 组合示例（升级后写寄存器）
-> 注：`modbus_read` / `modbus_write` 当前 DSL Runner 未实现，本段示例为文档预留模板。
+> 注：示例默认基于已注册动作 `modbus_read` / `modbus_write` 执行。
 ```yaml
 vars: { block: 1, file_path: ./fw.bin }
 channels:
@@ -298,7 +298,7 @@ state_machine:
 - 关键字：`version`, `vars`, `channels`, `state_machine`, `initial`, `states`, `do`, `on_event`, `timeout`, `on_timeout`, `when`, `goto`, `else_goto`
 - 内置变量：`$now`，`$event`，用户变量（vars + set 生成）；示例中 `file`、`file.block_count` 可由文件元信息动作填充。
 - 内置动作：`set`，`log`，`wait`，`wait_for_event`；曲线动作：`chart_add`，`chart_add3d`；schema 帧动作：`send_frame`，`expect_frame`；协议动作：`send_xmodem_block`，`send_eot`。
-- 说明：`meter_start/meter_add/meter_stop` 与 `modbus_read/modbus_write` 当前未在 DSL Runner 中实现（文档占位/预留字段）。
+- 说明：`meter_start/meter_add/meter_stop` 当前仍为预留动作（未在 DSL Runner 中实现）。
 - 表达式：算术/比较/逻辑，变量 `$var`/`$a.b`，内置 `$now/$event`。
 - 通道参数：UART `device`、`baudrate`；TCP `host`、`port`、`timeout`。
 - 简化 BNF（核心）：

@@ -15,6 +15,7 @@ class CommunicationManager:
     def __init__(self, bus: EventBus) -> None:
         self._bus = bus
         self._current_session: Optional[SessionType] = None
+        self._tcp_connect_timeout_ms = 3000
 
         # 事件转发：底层 -> comm.*
         self._bus.subscribe("serial.rx", lambda data: self._bus.publish("comm.rx", data))
@@ -49,12 +50,24 @@ class CommunicationManager:
         """选择 TCP 通道并连接。"""
         self.close(notify=False)
         session = TcpSession(self._bus)
-        session.connect(ip, port)
+        timeout_s = max(0.1, self._tcp_connect_timeout_ms / 1000.0)
+        session.connect(ip, port, connect_timeout_s=timeout_s)
         self._current_session = session
         self._bus.publish(
             "comm.connected",
             {"type": "tcp", "host": ip, "port": port, "address": f"{ip}:{port}"},
         )
+
+    def set_network_config(self, *, tcp_timeout_ms: Optional[int] = None) -> None:
+        """Apply runtime network settings from UI config."""
+        if tcp_timeout_ms is None:
+            return
+        try:
+            value = int(tcp_timeout_ms)
+        except (TypeError, ValueError):
+            return
+        # Keep a sane lower bound to avoid immediate connect timeout.
+        self._tcp_connect_timeout_ms = max(100, value)
 
     def close(self, notify: bool = True) -> None:
         """关闭当前会话。"""

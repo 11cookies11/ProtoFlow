@@ -4961,6 +4961,9 @@ function unlockSidebarWidth() {
               <div class="panel-title simple">
                 <span class="material-symbols-outlined">tune</span>{{ t('settings.tab.runtime') }}
               </div>
+              <p class="settings-capability-note">
+                {{ tr('说明：当前运行时参数主要用于配置保存，尚未完整接入执行引擎。') }}
+              </p>
               <div class="form-grid">
                 <label>
                   {{ tr('事件队列上限') }}
@@ -4987,6 +4990,9 @@ function unlockSidebarWidth() {
               <div class="panel-title simple">
                 <span class="material-symbols-outlined">folder_open</span>{{ t('settings.tab.logs') }}
               </div>
+              <p class="settings-capability-note">
+                {{ tr('说明：当前日志策略参数用于配置记录，逐项生效会在后续版本接入。') }}
+              </p>
               <div class="form-grid">
                 <label>
                   {{ tr('日志级别') }}

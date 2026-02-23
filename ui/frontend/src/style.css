@@ -2156,6 +2156,17 @@ textarea {
   gap: 18px;
 }
 
+.settings-capability-note {
+  margin: 6px 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .empty-state {
   padding: 12px 0;
   font-size: 13px;
@@ -3826,6 +3837,17 @@ textarea {
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 18px;
   justify-content: start;
+}
+
+.proxy-capability-note {
+  margin: 8px 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .proxy-panel {

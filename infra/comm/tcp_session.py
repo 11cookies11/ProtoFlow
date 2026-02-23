@@ -28,13 +28,14 @@ class TcpSession:
         with self._lock:
             return bool(self._sock) and self._running
 
-    def connect(self, ip: str, port: int) -> None:
+    def connect(self, ip: str, port: int, connect_timeout_s: float = 3.0) -> None:
         """建立 TCP 连接并启动接收线程。"""
         with self._lock:
             self._endpoint = (ip, port)
             self.close()
             try:
-                sock = socket.create_connection((ip, port), timeout=3)
+                timeout_s = max(0.1, float(connect_timeout_s))
+                sock = socket.create_connection((ip, port), timeout=timeout_s)
                 sock.settimeout(0.1)  # 非阻塞轮询
                 self._sock = sock
                 self._running = True

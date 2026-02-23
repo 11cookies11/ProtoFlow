@@ -57,6 +57,7 @@ class WebBridge(QObject):
         self._protocols_path = self._settings_root / "config" / "protocols.json"
         self._proxy_pairs: List[Dict[str, Any]] = self._load_proxy_pairs()
         self._custom_protocols: List[Dict[str, Any]] = self._load_custom_protocols()
+        self._apply_comm_settings(self._load_settings())
         self._channel_state: Dict[str, Any] = {
             "type": None,
             "status": "disconnected",
@@ -325,6 +326,7 @@ class WebBridge(QObject):
             "devicePort": payload.get("devicePort") or "",
             "baud": payload.get("baud") or "115200",
             "status": payload.get("status") or "stopped",
+            "capability": payload.get("capability") or "config-only",
             "dataBits": payload.get("dataBits") or "8",
             "stopBits": payload.get("stopBits") or "1",
             "parity": payload.get("parity") or "none",
@@ -355,6 +357,7 @@ class WebBridge(QObject):
                             "devicePort",
                             "baud",
                             "status",
+                            "capability",
                             "dataBits",
                             "stopBits",
                             "parity",
@@ -392,7 +395,10 @@ class WebBridge(QObject):
 
     @Slot("QVariant", result=bool)
     def save_settings(self, payload: Dict[str, Any]) -> bool:
-        return self._save_settings(payload)
+        ok = self._save_settings(payload)
+        if ok:
+            self._apply_comm_settings(payload)
+        return ok
 
     @Slot("QVariant", result=bool)
     def start_capture(self, payload: Dict[str, Any]) -> bool:
@@ -823,6 +829,20 @@ class WebBridge(QObject):
             "logs": {**defaults.get("logs", {}), **(data.get("logs", {}) or {})},
         }
         return merged
+
+    def _apply_comm_settings(self, settings: Dict[str, Any]) -> None:
+        if not isinstance(settings, dict):
+            return
+        if not self._comm or not hasattr(self._comm, "set_network_config"):
+            return
+        network = settings.get("network") or {}
+        if not isinstance(network, dict):
+            return
+        tcp_timeout_ms = network.get("tcpTimeoutMs")
+        try:
+            self._comm.set_network_config(tcp_timeout_ms=tcp_timeout_ms)
+        except Exception as exc:
+            self.log.emit(f"[WARN] Apply network settings failed: {exc}")
 
     def _save_settings(self, payload: Dict[str, Any]) -> bool:
         if not isinstance(payload, dict):

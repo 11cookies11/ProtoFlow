@@ -11,6 +11,9 @@ Push-Location "ui\\frontend"
 & $Node run build
 Pop-Location
 
+Write-Host "==> Verify web UI dist"
+& powershell -File scripts\check_frontend_dist.ps1
+
 Write-Host "==> Install Python deps"
 & $Python -m pip install --upgrade pip
 & $Python -m pip install -r requirements.txt
