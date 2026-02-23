@@ -31,7 +31,18 @@ class CommunicationManager:
         # 协议帧请求发送 -> 调用当前会话发送
         self._bus.subscribe("protocol.tx", self._handle_protocol_tx)
 
-    def select_serial(self, port: str, baud: int) -> None:
+    def select_serial(
+        self,
+        port: str,
+        baud: int,
+        *,
+        databits: int = 8,
+        parity: str = "none",
+        stopbits: str | float = "1",
+        flow_control: str = "none",
+        read_timeout_ms: int = 100,
+        write_timeout_ms: int = 1000,
+    ) -> None:
         """选择串口通道并连接。"""
         if isinstance(self._current_session, SerialManager):
             if (
@@ -42,7 +53,16 @@ class CommunicationManager:
                 return
         self.close(notify=False)
         session = SerialManager(self._bus)
-        if session.open(port=port, baudrate=baud):
+        if session.open(
+            port=port,
+            baudrate=baud,
+            databits=databits,
+            parity=parity,
+            stopbits=stopbits,
+            flow_control=flow_control,
+            read_timeout_ms=read_timeout_ms,
+            write_timeout_ms=write_timeout_ms,
+        ):
             self._current_session = session
             self._bus.publish("comm.connected", {"type": "serial", "port": port, "baud": baud})
 

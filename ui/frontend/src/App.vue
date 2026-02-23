@@ -3829,7 +3829,20 @@ function submitChannelDialog() {
   if (!bridge.value) return
   if (channelType.value === 'serial') {
     if (channelAutoConnect.value) {
-      bridge.value.connect_serial(channelPort.value, Number(channelBaud.value || 115200))
+      if (bridge.value.connect_serial_advanced) {
+        bridge.value.connect_serial_advanced({
+          port: channelPort.value,
+          baud: Number(channelBaud.value || 115200),
+          dataBits: Number(channelDataBits.value || 8),
+          parity: channelParity.value || 'none',
+          stopBits: String(channelStopBits.value || '1'),
+          flowControl: channelFlowControl.value || 'none',
+          readTimeoutMs: Number(channelReadTimeout.value || 1000),
+          writeTimeoutMs: Number(channelWriteTimeout.value || 1000),
+        })
+      } else {
+        bridge.value.connect_serial(channelPort.value, Number(channelBaud.value || 115200))
+      }
     }
   } else if (channelType.value === 'tcp') {
     if (channelAutoConnect.value) {
@@ -3843,7 +3856,20 @@ function connectSerial() {
   if (!bridge.value) return
   if (isConnecting.value || isConnected.value) return
   isConnecting.value = true
-  bridge.value.connect_serial(selectedPort.value, Number(baud.value))
+  if (bridge.value.connect_serial_advanced) {
+    bridge.value.connect_serial_advanced({
+      port: selectedPort.value,
+      baud: Number(baud.value),
+      dataBits: 8,
+      parity: defaultParity.value || 'none',
+      stopBits: String(defaultStopBits.value || '1'),
+      flowControl: 'none',
+      readTimeoutMs: 1000,
+      writeTimeoutMs: 1000,
+    })
+  } else {
+    bridge.value.connect_serial(selectedPort.value, Number(baud.value))
+  }
 }
 
 function connectTcp() {

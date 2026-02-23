@@ -22,6 +22,7 @@ class SerialManager:
         self._lock = threading.RLock()
         self._port: Optional[str] = None
         self._baudrate: Optional[int] = None
+        self._serial_options: dict[str, Any] = {}
 
     @property
     def port(self) -> Optional[str]:
@@ -40,18 +41,50 @@ class SerialManager:
         """返回系统可用串口列表。"""
         return [port.device for port in list_ports.comports()]
 
-    def open(self, port: str, baudrate: int) -> bool:
+    def open(
+        self,
+        port: str,
+        baudrate: int,
+        *,
+        databits: int = 8,
+        parity: str = "none",
+        stopbits: str | float = "1",
+        flow_control: str = "none",
+        read_timeout_ms: int = 100,
+        write_timeout_ms: int = 1000,
+    ) -> bool:
         """打开串口并启动接收线程。"""
         with self._lock:
             self._port, self._baudrate = port, baudrate
+            self._serial_options = {
+                "databits": self._normalize_databits(databits),
+                "parity": self._normalize_parity(parity),
+                "stopbits": self._normalize_stopbits(stopbits),
+                "flow_control": self._normalize_flow_control(flow_control),
+                "read_timeout_s": max(0.01, int(read_timeout_ms) / 1000.0),
+                "write_timeout_s": max(0.01, int(write_timeout_ms) / 1000.0),
+            }
             if self._ser and self._ser.is_open:
                 self.close()
             try:
-                self._ser = serial.Serial(port=port, baudrate=baudrate, timeout=0.1)
+                self._ser = serial.Serial(
+                    port=port,
+                    baudrate=baudrate,
+                    bytesize=self._serial_options["databits"],
+                    parity=self._serial_options["parity"],
+                    stopbits=self._serial_options["stopbits"],
+                    timeout=self._serial_options["read_timeout_s"],
+                    write_timeout=self._serial_options["write_timeout_s"],
+                    rtscts=self._serial_options["flow_control"] == "rtscts",
+                    xonxoff=self._serial_options["flow_control"] == "xonxoff",
+                )
                 self._running = True
                 self._rx_thread = threading.Thread(target=self._rx_loop, daemon=True)
                 self._rx_thread.start()
-                self._log(f"串口打开: {port} @ {baudrate}")
+                self._log(
+                    f"串口打开: {port} @ {baudrate} "
+                    f"(data={databits}, parity={parity}, stop={stopbits}, flow={flow_control})"
+                )
                 self.bus.publish("serial.opened", port)
                 return True
             except SerialException as exc:
@@ -135,7 +168,18 @@ class SerialManager:
                 with self._lock:
                     if self._ser and self._ser.is_open:
                         return
-                    self._ser = serial.Serial(port=port, baudrate=baudrate, timeout=0.1)
+                    opts = self._serial_options or {}
+                    self._ser = serial.Serial(
+                        port=port,
+                        baudrate=baudrate,
+                        bytesize=opts.get("databits", serial.EIGHTBITS),
+                        parity=opts.get("parity", serial.PARITY_NONE),
+                        stopbits=opts.get("stopbits", serial.STOPBITS_ONE),
+                        timeout=opts.get("read_timeout_s", 0.1),
+                        write_timeout=opts.get("write_timeout_s", 1.0),
+                        rtscts=opts.get("flow_control") == "rtscts",
+                        xonxoff=opts.get("flow_control") == "xonxoff",
+                    )
                 self._log(f"重连成功: {port}")
                 self.bus.publish("serial.opened", port)
                 return
@@ -148,3 +192,46 @@ class SerialManager:
     def _log(msg: str) -> None:
         # 简易日志，后续可换成 loguru/logging
         print(f"[SerialManager] {msg}")
+
+    @staticmethod
+    def _normalize_databits(value: int) -> int:
+        try:
+            bits = int(value)
+        except (TypeError, ValueError):
+            bits = 8
+        mapping = {
+            5: serial.FIVEBITS,
+            6: serial.SIXBITS,
+            7: serial.SEVENBITS,
+            8: serial.EIGHTBITS,
+        }
+        return mapping.get(bits, serial.EIGHTBITS)
+
+    @staticmethod
+    def _normalize_parity(value: str) -> str:
+        text = str(value or "none").strip().lower()
+        mapping = {
+            "none": serial.PARITY_NONE,
+            "odd": serial.PARITY_ODD,
+            "even": serial.PARITY_EVEN,
+            "mark": serial.PARITY_MARK,
+            "space": serial.PARITY_SPACE,
+        }
+        return mapping.get(text, serial.PARITY_NONE)
+
+    @staticmethod
+    def _normalize_stopbits(value: str | float) -> float:
+        text = str(value or "1").strip()
+        mapping = {
+            "1": serial.STOPBITS_ONE,
+            "1.5": serial.STOPBITS_ONE_POINT_FIVE,
+            "2": serial.STOPBITS_TWO,
+        }
+        return mapping.get(text, serial.STOPBITS_ONE)
+
+    @staticmethod
+    def _normalize_flow_control(value: str) -> str:
+        text = str(value or "none").strip().lower()
+        if text in {"rtscts", "xonxoff"}:
+            return text
+        return "none"

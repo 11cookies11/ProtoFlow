@@ -443,6 +443,46 @@ class WebBridge(QObject):
 
         threading.Thread(target=_run, daemon=True).start()
 
+    @Slot("QVariant")
+    def connect_serial_advanced(self, payload: Dict[str, Any]) -> None:
+        if not self._comm or not isinstance(payload, dict):
+            return
+        if self._connect_inflight:
+            return
+        if not self._connect_lock.acquire(blocking=False):
+            return
+        self._connect_inflight = True
+
+        port = str(payload.get("port") or "")
+        if not port:
+            self._connect_inflight = False
+            self._connect_lock.release()
+            return
+        baud = int(payload.get("baud") or 115200)
+        databits = int(payload.get("dataBits") or 8)
+        parity = str(payload.get("parity") or "none")
+        stopbits = str(payload.get("stopBits") or "1")
+        flow_control = str(payload.get("flowControl") or "none")
+        read_timeout_ms = int(payload.get("readTimeoutMs") or 100)
+        write_timeout_ms = int(payload.get("writeTimeoutMs") or 1000)
+
+        def _run() -> None:
+            try:
+                self._comm.select_serial(
+                    port,
+                    baud,
+                    databits=databits,
+                    parity=parity,
+                    stopbits=stopbits,
+                    flow_control=flow_control,
+                    read_timeout_ms=read_timeout_ms,
+                    write_timeout_ms=write_timeout_ms,
+                )
+            finally:
+                self._connect_lock.release()
+
+        threading.Thread(target=_run, daemon=True).start()
+
     @Slot(str, int)
     def connect_tcp(self, host: str, port: int) -> None:
         if not self._comm:
