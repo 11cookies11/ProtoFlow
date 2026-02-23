@@ -740,6 +740,15 @@ textarea {
   gap: 12px;
 }
 
+.status-meta {
+  font-size: 11px;
+  color: #64748b;
+  max-width: 520px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;

@@ -3581,16 +3581,39 @@ function refreshPorts() {
   })
 }
 
+function buildSerialDetail(channel) {
+  if (!channel) return ''
+  const parts = []
+  if (channel.port) parts.push(`${channel.port}`)
+  if (channel.baud) parts.push(`${channel.baud}bps`)
+  if (channel.dataBits || channel.parity || channel.stopBits) {
+    const bits = channel.dataBits || 8
+    const parity = String(channel.parity || 'none').toUpperCase()
+    const stop = channel.stopBits || '1'
+    parts.push(`${bits}-${parity}-${stop}`)
+  }
+  if (channel.flowControl && channel.flowControl !== 'none') {
+    parts.push(`flow=${channel.flowControl}`)
+  }
+  if (channel.readTimeoutMs != null) {
+    parts.push(`RTO=${channel.readTimeoutMs}ms`)
+  }
+  if (channel.writeTimeoutMs != null) {
+    parts.push(`WTO=${channel.writeTimeoutMs}ms`)
+  }
+  return parts.join(' · ')
+}
+
 function setChannels(items) {
   channels.value = Array.isArray(items) ? items : []
   const primary = channels.value[0]
   if (!primary) return
   if (primary.status === 'connected') {
-    const target = primary.address || primary.port || primary.type || ''
+    const target = primary.type === 'serial' ? buildSerialDetail(primary) : (primary.address || primary.port || primary.type || '')
     emitStatus(`Connected: ${target}`, Date.now() / 1000)
     connectionInfo.value = {
       state: 'connected',
-      detail: primary.address || primary.port || primary.type || '',
+      detail: target,
     }
     hasStatusActivity = true
     isConnecting.value = false

@@ -64,7 +64,15 @@ class CommunicationManager:
             write_timeout_ms=write_timeout_ms,
         ):
             self._current_session = session
-            self._bus.publish("comm.connected", {"type": "serial", "port": port, "baud": baud})
+            self._bus.publish(
+                "comm.connected",
+                {
+                    "type": "serial",
+                    "port": port,
+                    "baud": baud,
+                    **session.serial_options,
+                },
+            )
 
     def select_tcp(self, ip: str, port: int) -> None:
         """选择 TCP 通道并连接。"""
@@ -120,7 +128,12 @@ class CommunicationManager:
         if isinstance(session, SerialManager):
             if not session.is_open():
                 return None
-            return {"type": "serial", "port": session.port, "baud": session.baudrate}
+            return {
+                "type": "serial",
+                "port": session.port,
+                "baud": session.baudrate,
+                **session.serial_options,
+            }
         if isinstance(session, TcpSession):
             if not session.is_connected():
                 return None

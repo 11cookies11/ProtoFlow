@@ -76,6 +76,7 @@ const {
                   <span class="dot"></span>
                   {{ isConnected ? t('status.connected') : connectionInfo.state === 'error' ? t('status.error') : t('status.disconnected') }}
                 </div>
+                <div v-if="isConnected && connectionInfo.detail" class="status-meta">{{ connectionInfo.detail }}</div>
               </div>
               <div class="port-picker terminal-port-picker">
                 <DropdownSelect

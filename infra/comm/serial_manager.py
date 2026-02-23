@@ -23,6 +23,7 @@ class SerialManager:
         self._port: Optional[str] = None
         self._baudrate: Optional[int] = None
         self._serial_options: dict[str, Any] = {}
+        self._serial_display_options: dict[str, Any] = {}
 
     @property
     def port(self) -> Optional[str]:
@@ -31,6 +32,10 @@ class SerialManager:
     @property
     def baudrate(self) -> Optional[int]:
         return self._baudrate
+
+    @property
+    def serial_options(self) -> dict[str, Any]:
+        return dict(self._serial_display_options)
 
     def is_open(self) -> bool:
         with self._lock:
@@ -63,6 +68,14 @@ class SerialManager:
                 "flow_control": self._normalize_flow_control(flow_control),
                 "read_timeout_s": max(0.01, int(read_timeout_ms) / 1000.0),
                 "write_timeout_s": max(0.01, int(write_timeout_ms) / 1000.0),
+            }
+            self._serial_display_options = {
+                "dataBits": int(databits) if str(databits).isdigit() else 8,
+                "parity": str(parity or "none").lower(),
+                "stopBits": str(stopbits or "1"),
+                "flowControl": self._serial_options["flow_control"],
+                "readTimeoutMs": int(read_timeout_ms),
+                "writeTimeoutMs": int(write_timeout_ms),
             }
             if self._ser and self._ser.is_open:
                 self.close()

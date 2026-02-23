@@ -63,6 +63,12 @@ class WebBridge(QObject):
             "status": "disconnected",
             "port": None,
             "baud": None,
+            "dataBits": None,
+            "parity": None,
+            "stopBits": None,
+            "flowControl": None,
+            "readTimeoutMs": None,
+            "writeTimeoutMs": None,
             "host": None,
             "address": None,
             "error": None,
@@ -682,6 +688,12 @@ class WebBridge(QObject):
                 "status": info.get("status") or "disconnected",
                 "port": info.get("port"),
                 "baud": info.get("baud"),
+                "dataBits": info.get("dataBits"),
+                "parity": info.get("parity"),
+                "stopBits": info.get("stopBits"),
+                "flowControl": info.get("flowControl"),
+                "readTimeoutMs": info.get("readTimeoutMs"),
+                "writeTimeoutMs": info.get("writeTimeoutMs"),
                 "host": info.get("host"),
                 "address": info.get("address"),
                 "error": info.get("error") or "",
@@ -776,6 +788,12 @@ class WebBridge(QObject):
             self._channel_state["type"] = payload.get("type")
             self._channel_state["port"] = payload.get("port")
             self._channel_state["baud"] = payload.get("baud")
+            self._channel_state["dataBits"] = payload.get("dataBits")
+            self._channel_state["parity"] = payload.get("parity")
+            self._channel_state["stopBits"] = payload.get("stopBits")
+            self._channel_state["flowControl"] = payload.get("flowControl")
+            self._channel_state["readTimeoutMs"] = payload.get("readTimeoutMs")
+            self._channel_state["writeTimeoutMs"] = payload.get("writeTimeoutMs")
             self._channel_state["host"] = payload.get("host")
             self._channel_state["address"] = payload.get("address")
             self._channel_state["status"] = "connected"
