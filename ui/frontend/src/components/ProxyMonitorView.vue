@@ -9,6 +9,7 @@ const bridge = inject('bridge', null)
 const filterTabs = computed(() => [
   { id: 'all', label: t('filter.all') },
   { id: 'running', label: t('filter.running') },
+  { id: 'configured', label: tr('已配置') },
   { id: 'stopped', label: t('filter.stopped') },
   { id: 'error', label: t('filter.error') },
 ])
@@ -58,9 +59,9 @@ const proxies = ref([
     id: 'proxy-com3',
     name: tr('主控制器链路'),
     meta: 'ID: PX-00124 · 8-N-1',
-    status: 'running',
+    status: 'configured',
     statusLabel: tr('配置已启用'),
-    statusIcon: 'swap_horizontal_circle',
+    statusIcon: 'tune',
     routeIcon: 'keyboard_double_arrow_right',
     routeLabel: tr('未建立实时转发'),
     routeTone: 'primary',
@@ -147,6 +148,16 @@ function deriveProxyPresentation(status, capability = 'config-only') {
       toggleLabel: tr('异常'),
     }
   }
+  if (status === 'configured') {
+    return {
+      statusLabel: tr('配置已启用'),
+      routeLabel: tr('未建立实时转发'),
+      routeTone: 'primary',
+      statusIcon: 'tune',
+      routeIcon: 'keyboard_double_arrow_right',
+      toggleLabel: tr('已启用'),
+    }
+  }
   if (status === 'running') {
     if (capability === 'realtime-forward') {
       return {
@@ -179,7 +190,7 @@ function deriveProxyPresentation(status, capability = 'config-only') {
 
 function mapProxyFromBackend(payload) {
   const status = payload.status || 'stopped'
-  const active = status === 'running'
+  const active = status === 'running' || status === 'configured'
   const capability = payload.capability || 'config-only'
   const view = deriveProxyPresentation(status, capability)
   const baud = payload.baud ? String(payload.baud) : '115200'
@@ -221,6 +232,9 @@ function loadProxyPairs() {
 const filteredProxies = computed(() => {
   const safeProxies = proxies.value.filter(Boolean)
   if (activeFilter.value === 'all') return safeProxies
+  if (activeFilter.value === 'running') {
+    return safeProxies.filter((proxy) => proxy.status === 'running' || proxy.status === 'configured')
+  }
   return safeProxies.filter((proxy) => proxy.status === activeFilter.value)
 })
 
@@ -499,8 +513,11 @@ function refreshProxies() {
 }
 
 function setProxyStatus(proxy, active) {
-  const nextStatus = active ? 'running' : 'stopped'
-  const view = deriveProxyPresentation(nextStatus, proxy.capability || 'config-only')
+  const capability = proxy.capability || 'config-only'
+  const nextStatus = active
+    ? (capability === 'realtime-forward' ? 'running' : 'configured')
+    : 'stopped'
+  const view = deriveProxyPresentation(nextStatus, capability)
   proxy.status = nextStatus
   proxy.statusLabel = view.statusLabel
   proxy.toggleLabel = view.toggleLabel

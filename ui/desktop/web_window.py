@@ -75,19 +75,26 @@ class WebWindow(QMainWindow):
             self.setWindowIcon(icon)
         dist_index = base_dir / "frontend" / "dist" / "index.html"
         fallback_index = base_dir / "assets" / "web" / "index.html"
+        allow_fallback = str(os.environ.get("PROTOFLOW_ALLOW_WEB_FALLBACK", "")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
         if dist_index.exists():
             index_path = dist_index
-        else:
-            # In packaged runtime, missing frontend dist is a release integrity failure.
-            if getattr(sys, "_MEIPASS", None):
-                raise FileNotFoundError(
-                    f"Frontend dist entry not found in packaged runtime: {dist_index}"
-                )
+        elif allow_fallback and fallback_index.exists():
             logging.getLogger("web_window").warning(
-                "Frontend dist missing, fallback page loaded for local development only: %s",
+                "Frontend dist missing; explicit fallback enabled by PROTOFLOW_ALLOW_WEB_FALLBACK=1: %s",
                 fallback_index,
             )
             index_path = fallback_index
+        else:
+            mode = "packaged runtime" if getattr(sys, "_MEIPASS", None) else "development runtime"
+            raise FileNotFoundError(
+                f"Frontend dist entry not found in {mode}: {dist_index}. "
+                "Build frontend dist first, or set PROTOFLOW_ALLOW_WEB_FALLBACK=1 for temporary local fallback."
+            )
         view.load(QUrl.fromLocalFile(str(index_path)))
         view.page().profile().downloadRequested.connect(self._handle_download)
 

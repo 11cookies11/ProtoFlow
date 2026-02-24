@@ -390,11 +390,14 @@ class WebBridge(QObject):
 
     @Slot(str, bool, result="QVariant")
     def set_proxy_pair_status(self, pair_id: str, active: bool) -> Dict[str, Any]:
-        status = "running" if active else "stopped"
         for idx, pair in enumerate(self._proxy_pairs):
             if pair.get("id") == pair_id:
                 pair = dict(pair)
-                pair["status"] = status
+                capability = str(pair.get("capability") or "config-only")
+                if active:
+                    pair["status"] = "running" if capability == "realtime-forward" else "configured"
+                else:
+                    pair["status"] = "stopped"
                 self._proxy_pairs[idx] = pair
                 self._save_proxy_pairs()
                 return pair
