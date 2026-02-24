@@ -83,6 +83,8 @@ class _ObservableExecutor(StateMachineExecutor):
             self.ctx.logger.debug(f"  event: {evt}")
             if evt in state.on_event:
                 return state.on_event[evt]
+        if self._stop_event.is_set():
+            return None
         return state.on_timeout
 
     def _goto(self, name: str) -> None:
@@ -120,6 +122,8 @@ class ScriptRunnerQt(QThread):
         logger = logging.getLogger("dsl")
         logger.handlers = [handler]
         logger.setLevel(logging.INFO)
+        started_at = time.time()
+        self.sig_log.emit("[LIFECYCLE] script.start")
 
         # 注册动作
         register_builtin_actions()
@@ -160,11 +164,23 @@ class ScriptRunnerQt(QThread):
                 on_progress=lambda p: self.sig_progress.emit(p),
             )
             executor.run()
+            elapsed_ms = int((time.time() - started_at) * 1000)
+            visited = getattr(executor, "_visited", 0)
+            total = max(1, int(getattr(executor, "_total", 1)))
+            progress = int(min(1.0, visited / total) * 100)
             if self._stop_event.is_set():
+                self.sig_log.emit(
+                    f"[LIFECYCLE] script.stopped elapsed_ms={elapsed_ms} visited={visited} progress={progress}"
+                )
                 self.sig_log.emit("Script stopped")
             else:
+                self.sig_log.emit(
+                    f"[LIFECYCLE] script.finished elapsed_ms={elapsed_ms} visited={visited} progress={progress}"
+                )
                 self.sig_log.emit("Script finished")
         except Exception as exc:  # 报错直接显示
+            elapsed_ms = int((time.time() - started_at) * 1000)
+            self.sig_log.emit(f"[LIFECYCLE] script.failed elapsed_ms={elapsed_ms} error={exc}")
             self.sig_log.emit(f"[ERROR] {exc}")
         finally:
             if ctx is not None:

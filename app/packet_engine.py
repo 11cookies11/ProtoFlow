@@ -153,10 +153,33 @@ class PacketAnalysisEngine:
                 }
             )
             if crc_ok:
+                summary = self._modbus_summary(addr, func, data)
                 return "Modbus RTU", False, summary, tree, []
 
         errors = [{"code": "UNKNOWN_PROTOCOL", "message": "No known signature"}]
         return "Unknown", True, summary, tree, errors
+
+    @staticmethod
+    def _modbus_summary(addr: int, func: int, data: bytes) -> str:
+        base = f"addr=0x{addr:02X} func=0x{func:02X} len={len(data)}"
+        func_code = func & 0x7F
+        func_name = {
+            0x01: "Read Coils",
+            0x02: "Read Discrete Inputs",
+            0x03: "Read Holding Registers",
+            0x04: "Read Input Registers",
+            0x05: "Write Single Coil",
+            0x06: "Write Single Register",
+            0x0F: "Write Multiple Coils",
+            0x10: "Write Multiple Registers",
+        }.get(func_code, "Custom")
+        if func & 0x80 and len(data) >= 5:
+            ex_code = data[2]
+            return f"{base} {func_name} exception=0x{ex_code:02X}"
+        if func_code in {0x03, 0x04} and len(data) >= 5:
+            byte_count = data[2]
+            return f"{base} {func_name} byte_count={byte_count}"
+        return f"{base} {func_name}"
 
     @staticmethod
     def _check_modbus_crc(data: bytes) -> bool:
