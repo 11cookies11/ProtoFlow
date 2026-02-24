@@ -27,6 +27,8 @@ const captureSearch = ref('')
 const capturePage = ref(1)
 const selectedFrame = ref(null)
 const CAPTURE_PAGE_SIZE = 50
+const notices = ref([])
+let noticeSeq = 0
 
 const proxyName = ref('')
 const connectionMode = ref(tr('透传模式'))
@@ -60,9 +62,10 @@ let proxySeq = 1000
 let proxyPairsSignalHandler = null
 let captureFrameSignalHandler = null
 
-const BANDWIDTH_WINDOW_SEC = 30
+const bandwidthWindowSec = ref(30)
+const bandwidthWindowOptions = [10, 30, 60]
 const SPARK_BUCKETS = 10
-const SAMPLE_RETENTION_SEC = 120
+const SAMPLE_RETENTION_SEC = 180
 const channelTrafficSamples = new Map()
 
 function normalizeChannel(value) {
@@ -100,6 +103,19 @@ function appendTrafficSample(payload) {
   channelTrafficSamples.set(channel, list)
 }
 
+function formatBandwidth(bytesPerSec) {
+  const safe = Math.max(0, Number(bytesPerSec) || 0)
+  if (safe >= 1024 * 1024) {
+    const value = safe / (1024 * 1024)
+    return { value: value >= 10 ? value.toFixed(1) : value.toFixed(2), unit: 'MB/s' }
+  }
+  if (safe >= 1024) {
+    const value = safe / 1024
+    return { value: value >= 10 ? value.toFixed(1) : value.toFixed(2), unit: 'KB/s' }
+  }
+  return { value: String(Math.round(safe)), unit: 'B/s' }
+}
+
 function buildProxyMeta(host, baud) {
   return `ID: PX-${proxySeq} · ${baud ? String(baud) : '8'}-N-1`
 }
@@ -112,10 +128,20 @@ function normalizeProxy(proxy, updates = {}) {
   return next
 }
 
-function withBridgeResult(result, onSuccess) {
+function pushNotice(level, message) {
+  const id = `notice-${Date.now()}-${noticeSeq++}`
+  notices.value.push({ id, level, message })
+  window.setTimeout(() => {
+    notices.value = notices.value.filter((item) => item.id !== id)
+  }, 2500)
+}
+
+function withBridgeResult(result, onSuccess, onError) {
   if (!result) return
   if (typeof result.then === 'function') {
-    result.then(onSuccess).catch(() => {})
+    result.then(onSuccess).catch((err) => {
+      if (typeof onError === 'function') onError(err)
+    })
     return
   }
   onSuccess(result)
@@ -220,6 +246,12 @@ function applyProxyListFromBackend(items) {
   proxies.value = items
     .filter(Boolean)
     .map((item) => mergeProxyRuntimeMetrics(mapProxyFromBackend(item)))
+  if (captureProxy.value?.id) {
+    const matched = proxies.value.find((proxy) => proxy.id === captureProxy.value.id)
+    if (matched) {
+      captureProxy.value = matched
+    }
+  }
   refreshProxyRuntimeMetrics()
 }
 
@@ -234,7 +266,8 @@ function loadProxyPairs() {
 function refreshProxyRuntimeMetrics() {
   if (!proxies.value.length) return
   const nowSec = Date.now() / 1000
-  const lowerBound = nowSec - BANDWIDTH_WINDOW_SEC
+  const windowSec = Math.max(1, Number(bandwidthWindowSec.value) || 30)
+  const lowerBound = nowSec - windowSec
 
   proxies.value = proxies.value.map((proxy) => {
     const host = normalizeChannel(proxy.hostPort)
@@ -246,15 +279,16 @@ function refreshProxyRuntimeMetrics() {
     if (!samples.length) {
       return {
         ...proxy,
-        bandwidth: '0.0',
-        bandwidthUnit: 'KB/s',
+        bandwidth: '0',
+        bandwidthUnit: 'B/s',
         spark: '',
       }
     }
 
     const bytes = samples.reduce((sum, sample) => sum + sample.size, 0)
-    const kbps = bytes / 1024 / BANDWIDTH_WINDOW_SEC
-    const bucketSec = BANDWIDTH_WINDOW_SEC / SPARK_BUCKETS
+    const bytesPerSec = bytes / windowSec
+    const display = formatBandwidth(bytesPerSec)
+    const bucketSec = windowSec / SPARK_BUCKETS
     const buckets = new Array(SPARK_BUCKETS).fill(0)
     for (const sample of samples) {
       const idx = Math.min(
@@ -263,12 +297,12 @@ function refreshProxyRuntimeMetrics() {
       )
       buckets[idx] += sample.size
     }
-    const bucketKbps = buckets.map((value) => value / 1024 / bucketSec)
+    const bucketRates = buckets.map((value) => value / bucketSec)
     return {
       ...proxy,
-      bandwidth: kbps.toFixed(1),
-      bandwidthUnit: 'KB/s',
-      spark: buildSparklinePath(bucketKbps),
+      bandwidth: display.value,
+      bandwidthUnit: display.unit,
+      spark: buildSparklinePath(bucketRates),
     }
   })
 }
@@ -370,6 +404,23 @@ const isCaptureRunning = computed(() => {
 
 const captureChannelNormalized = computed(() => {
   return normalizeChannel(captureMeta.value.channel || captureProxy.value?.hostPort || '')
+})
+
+const captureExpectedChannels = computed(() => {
+  if (!captureProxy.value) return []
+  return [normalizeChannel(captureProxy.value.hostPort), normalizeChannel(captureProxy.value.devicePort)].filter(Boolean)
+})
+
+const captureChannelMismatch = computed(() => {
+  if (!captureOpen.value || !captureProxy.value) return false
+  const channel = captureChannelNormalized.value
+  if (!channel) return false
+  return !captureExpectedChannels.value.includes(channel)
+})
+
+const captureChannelHint = computed(() => {
+  if (!captureChannelMismatch.value || !captureProxy.value) return ''
+  return `${tr('当前抓包通道与代理端口不一致')}: ${captureMeta.value.channel}`
 })
 
 function isProxyCaptureActive(proxy) {
@@ -627,10 +678,17 @@ function selectFrame(frame) {
 
 function refreshProxies() {
   if (bridge && bridge.value && bridge.value.refresh_proxy_pairs) {
-    withBridgeResult(bridge.value.refresh_proxy_pairs(), (items) => {
-      if (!Array.isArray(items)) return
-      applyProxyListFromBackend(items)
-    })
+    withBridgeResult(
+      bridge.value.refresh_proxy_pairs(),
+      (items) => {
+        if (!Array.isArray(items)) return
+        applyProxyListFromBackend(items)
+        pushNotice('success', tr('代理状态已刷新'))
+      },
+      () => {
+        pushNotice('error', tr('刷新代理状态失败'))
+      }
+    )
     return
   }
   refreshProxyRuntimeMetrics()
@@ -652,12 +710,19 @@ function setProxyStatus(proxy, active) {
   proxy.active = active
 
   if (bridge && bridge.value && bridge.value.set_proxy_pair_status) {
-    withBridgeResult(bridge.value.set_proxy_pair_status(proxy.id, active), (updated) => {
-      if (updated && typeof updated === 'object') {
-        Object.assign(proxy, mapProxyFromBackend(updated))
-        refreshProxyRuntimeMetrics()
+    withBridgeResult(
+      bridge.value.set_proxy_pair_status(proxy.id, active),
+      (updated) => {
+        if (updated && typeof updated === 'object') {
+          Object.assign(proxy, mapProxyFromBackend(updated))
+          refreshProxyRuntimeMetrics()
+          pushNotice('success', active ? tr('代理已启用') : tr('代理已停用'))
+        }
+      },
+      () => {
+        pushNotice('error', tr('代理状态更新失败'))
       }
-    })
+    )
   }
 
   if (!active && isProxyCaptureActive(proxy) && bridge && bridge.value && bridge.value.stop_capture) {
@@ -695,7 +760,11 @@ function saveProxy() {
           if (created) {
             proxies.value.unshift(mergeProxyRuntimeMetrics(mapProxyFromBackend(created)))
             refreshProxyRuntimeMetrics()
+            pushNotice('success', tr('代理创建成功'))
           }
+        },
+        () => {
+          pushNotice('error', tr('代理创建失败'))
         }
       )
     } else {
@@ -748,7 +817,11 @@ function saveProxy() {
           if (updated) {
             Object.assign(modalProxy.value, mapProxyFromBackend(updated))
             refreshProxyRuntimeMetrics()
+            pushNotice('success', tr('代理保存成功'))
           }
+        },
+        () => {
+          pushNotice('error', tr('代理保存失败'))
         }
       )
     } else {
@@ -790,13 +863,23 @@ function applyConfirmDelete() {
   if (!proxy) return
   setProxyStatus(proxy, false)
   if (bridge && bridge.value && bridge.value.delete_proxy_pair) {
-    withBridgeResult(bridge.value.delete_proxy_pair(proxy.id), (success) => {
-      if (success) {
-        proxies.value = proxies.value.filter((item) => item.id !== proxy.id)
+    withBridgeResult(
+      bridge.value.delete_proxy_pair(proxy.id),
+      (success) => {
+        if (success) {
+          proxies.value = proxies.value.filter((item) => item.id !== proxy.id)
+          pushNotice('success', tr('代理删除成功'))
+        } else {
+          pushNotice('error', tr('代理删除失败'))
+        }
+      },
+      () => {
+        pushNotice('error', tr('代理删除失败'))
       }
-    })
+    )
   } else {
     proxies.value = proxies.value.filter((item) => item.id !== proxy.id)
+    pushNotice('success', tr('代理删除成功'))
   }
   closeConfirm()
 }
@@ -851,6 +934,13 @@ watch(
   }
 )
 
+watch(
+  () => bandwidthWindowSec.value,
+  () => {
+    refreshProxyRuntimeMetrics()
+  }
+)
+
 onBeforeUnmount(() => {
   detachProxyPairsSignal()
   detachCaptureFrameSignal()
@@ -885,6 +975,19 @@ onBeforeUnmount(() => {
       <span class="proxy-filter-chip">{{ tr('运行中') }}: {{ proxyStats.running }}</span>
       <span class="proxy-filter-chip">{{ tr('已配置') }}: {{ proxyStats.configured }}</span>
       <span class="proxy-filter-chip">{{ tr('异常') }}: {{ proxyStats.error }}</span>
+      <span class="proxy-filter-chip">
+        {{ tr('统计窗口') }}:
+        <button
+          v-for="option in bandwidthWindowOptions"
+          :key="`win-${option}`"
+          type="button"
+          :class="{ active: bandwidthWindowSec === option }"
+          @click="bandwidthWindowSec = option"
+          style="margin-left: 6px; padding: 2px 6px; border-radius: 999px; border: 1px solid rgba(15,23,42,0.16)"
+        >
+          {{ option }}s
+        </button>
+      </span>
     </div>
     <div class="tab-strip secondary">
       <button
@@ -903,7 +1006,20 @@ onBeforeUnmount(() => {
         v-for="proxy in filteredProxies"
         :key="proxy.id"
         class="proxy-panel"
-        :class="`status-${proxy.status}`"
+        :class="[
+          `status-${proxy.status}`,
+          {
+            'capture-active': isProxyCaptureActive(proxy),
+            'capture-selected': captureOpen && captureProxy && captureProxy.id === proxy.id,
+          },
+        ]"
+        :style="
+          isProxyCaptureActive(proxy)
+            ? 'outline: 2px solid rgba(59,130,246,0.45); outline-offset: 2px;'
+            : (captureOpen && captureProxy && captureProxy.id === proxy.id
+                ? 'outline: 2px solid rgba(16,185,129,0.45); outline-offset: 2px;'
+                : '')
+        "
       >
         <div class="proxy-panel-head">
           <div class="proxy-panel-title">
@@ -979,6 +1095,22 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </article>
+    </div>
+    <div
+      v-if="notices.length"
+      style="position: fixed; right: 20px; bottom: 20px; z-index: 80; display: flex; flex-direction: column; gap: 8px;"
+    >
+      <div
+        v-for="notice in notices"
+        :key="notice.id"
+        :style="
+          `padding: 8px 12px; border-radius: 10px; font-size: 12px; font-weight: 600; color: #fff; box-shadow: 0 8px 20px rgba(2,6,23,.2); background: ${
+            notice.level === 'error' ? '#dc2626' : '#0f766e'
+          }`
+        "
+      >
+        {{ notice.message }}
+      </div>
     </div>
   </section>
 
@@ -1105,6 +1237,9 @@ onBeforeUnmount(() => {
                 <span class="flex h-2 w-2 rounded-full bg-emerald-500"></span>
                 <p class="text-[10px] font-medium text-slate-500">
                   {{ tr('活动通道') }}: {{ captureProxy ? captureProxy.hostPort : captureMeta.channel }} | {{ tr('引擎状态') }}: {{ tr(captureMeta.engine) }}
+                </p>
+                <p v-if="captureChannelMismatch" class="text-[10px] font-medium text-rose-600 mt-1">
+                  {{ captureChannelHint }}
                 </p>
               </div>
             </div>
