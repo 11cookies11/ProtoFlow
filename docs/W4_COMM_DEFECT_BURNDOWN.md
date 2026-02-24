@@ -19,3 +19,15 @@
 1. P0 必须在 M2 结束前进入 `done` 或明确风险接受结论。
 2. P1 至少要有可执行门禁或回归脚本，不能只停留在人工描述。
 3. 每次状态变更必须附一条“可复现证据”（脚本输出、日志或代码路径）。
+
+## 一键门禁
+
+```powershell
+python scripts/w4_gate_runner.py --serial-mode mock --serial-cycles 200 --out-dir artifacts
+```
+
+输出：
+
+- `artifacts/w4_serial_gate.json`
+- `artifacts/w4_capture_gate.json`
+- `artifacts/w4_gate_summary.json`

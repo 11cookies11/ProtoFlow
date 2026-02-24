@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 import time
@@ -101,8 +102,17 @@ def run_gate() -> GateResult:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Capture pipeline gate for W4-02")
+    parser.add_argument("--json-out", default="", help="Write JSON result to file")
+    args = parser.parse_args()
+
     result = run_gate().to_dict()
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    output = json.dumps(result, ensure_ascii=False, indent=2)
+    print(output)
+    if args.json_out:
+        out_path = Path(args.json_out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(output, encoding="utf-8")
     return 0 if result["passed"] else 1
 
 

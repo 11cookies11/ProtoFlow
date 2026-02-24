@@ -16,6 +16,12 @@
 python scripts/capture_pipeline_gate.py
 ```
 
+带结果落盘：
+
+```powershell
+python scripts/capture_pipeline_gate.py --json-out artifacts/w4_capture_gate.json
+```
+
 ## Pass Criteria
 
 - `start_stop_ok = true`
@@ -35,3 +41,5 @@ python scripts/capture_pipeline_gate.py
 
 - This gate is runtime-level and does not require UI interaction.
 - For release evidence, keep one command output snapshot in the validation record.
+- 可配合一键汇总命令：
+  - `python scripts/w4_gate_runner.py --serial-mode mock --out-dir artifacts`
