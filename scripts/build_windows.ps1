@@ -20,11 +20,14 @@ Write-Host "==> Install Python deps"
 
 Write-Host "==> Build app (PyInstaller)"
 & $Python -m PyInstaller --name ProtoFlow --windowed --onedir --noconfirm --icon "installer\ProtoFlow.ico" `
-  --add-data "ui\\frontend\\dist;ui\\frontend\\dist" `
+  --add-data "ui\\frontend\\dist;frontend\\dist" `
   --add-data "config;config" `
   --add-data "plugins;plugins" `
-  --add-data "ui\\assets;ui\\assets" `
+  --add-data "ui\\assets;assets" `
   main.py
+
+Write-Host "==> Validate bundle layout"
+& powershell -File scripts\validate_windows_bundle.ps1 -BundleRoot "dist\\ProtoFlow"
 
 Write-Host "==> Generate installer icon"
 if (-not (Test-Path -LiteralPath "installer\\ProtoFlow.ico")) {
