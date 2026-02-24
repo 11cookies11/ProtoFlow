@@ -23,3 +23,15 @@
 ## 文档同步
 - 更新 `docs/USER_GUIDE.md`：补充运行策略、Proxy/Capture 状态说明与发布前检查建议。
 - 更新 `docs/W7_RELEASE_DOC_CHECKLIST.md`：形成可执行发布核对项。
+
+## 代理监听专项更新（P1-P3）
+- 代理监控改为后端实时驱动：
+  - 新增 `proxy_pairs` 推送信号，创建/编辑/删除/状态切换后即时同步。
+- 抓包联动增强：
+  - 代理停用时自动停止关联抓包，卡片支持“抓包中”高亮。
+  - 抓包窗口新增通道不一致提示。
+- 指标与交互优化：
+  - 带宽统计支持 `10s/30s/60s` 切换，单位自适应 `B/s|KB/s|MB/s`。
+  - 补充代理操作反馈提示（刷新、启停、保存、删除）。
+- 自动化保障：
+  - 新增 `scripts/proxy_monitor_gate.py`，并接入 `scripts/core_regression_gate.py`。

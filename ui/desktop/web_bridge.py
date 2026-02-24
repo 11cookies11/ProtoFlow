@@ -419,7 +419,12 @@ class WebBridge(QObject):
         if not isinstance(payload, dict):
             return False
         channel = payload.get("channel") or payload.get("hostPort")
+        if not channel:
+            self.log.emit("[WARN] start_capture ignored: missing channel")
+            return False
         pair_id = payload.get("id") or payload.get("pairId")
+        if not self._bus:
+            return False
         self._bus.publish(
             "capture.control",
             {
@@ -439,6 +444,8 @@ class WebBridge(QObject):
 
     @Slot(result=bool)
     def stop_capture(self) -> bool:
+        if not self._bus:
+            return False
         self._bus.publish("capture.control", {"action": "stop"})
         self.capture_status.emit(
             {

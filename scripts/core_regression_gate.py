@@ -35,6 +35,7 @@ def run_core_gate(*, out_dir: Path, serial_cycles: int, serial_mode: str) -> Dic
         ),
         ("dsl_lifecycle_gate", [sys.executable, "scripts/dsl_lifecycle_gate.py"]),
         ("protocol_replay_gate", [sys.executable, "scripts/protocol_replay_gate.py"]),
+        ("proxy_monitor_gate", [sys.executable, "scripts/proxy_monitor_gate.py"]),
     ]
 
     details = []

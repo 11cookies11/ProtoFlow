@@ -330,6 +330,24 @@ expr      ::= 参见表达式系统，支持 $var 引用
   - `python scripts/core_regression_gate.py --serial-mode mock --serial-cycles 50`
   - `powershell -File scripts/validate_windows_bundle.ps1 -BundleRoot dist\ProtoFlow`
 
+## 18. 代理监控（Proxy Monitor）使用要点
+- 数据来源：
+  - 代理列表由后端桥接实时推送，不再使用前端默认演示数据。
+- 状态语义：
+  - `running`：实时转发已运行。
+  - `configured`：仅完成配置，尚未建立实时转发。
+  - `stopped`：未运行。
+  - `error`：异常状态，需查看日志与链路配置。
+- 抓包联动：
+  - 对代理卡片执行停用时，若该代理通道正在抓包，将自动停止抓包。
+  - 抓包窗口会提示“当前抓包通道与代理端口不一致”。
+- 带宽指标：
+  - 支持 `10s/30s/60s` 统计窗口。
+  - 单位自动切换 `B/s`、`KB/s`、`MB/s`。
+- 回归建议：
+  - 执行 `python scripts/proxy_monitor_gate.py`
+  - 或执行全量核心回归：`python scripts/core_regression_gate.py --serial-mode mock --serial-cycles 50`
+
 ---
 
 本说明书面向嵌入式开发/工控通讯/自动化测试工程师及可编程 Agent，覆盖 DSL、状态机、动作系统、协议适配与扩展方法，可直接作为开源文档发布。***
