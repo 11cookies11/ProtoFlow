@@ -317,6 +317,19 @@ action_entry ::= {"action": name, "args": obj} |
 expr      ::= 参见表达式系统，支持 $var 引用
 ```
 
+## 17. v0.4.0 运行策略补充
+- 前端页面加载策略：
+  - 默认要求本地 `frontend/dist` 可用，不再隐式回退到开发页。
+  - 仅在显式设置 `PROTOFLOW_ALLOW_WEB_FALLBACK=1` 时允许临时回退（建议仅开发调试使用）。
+- Proxy 状态语义：
+  - `running`：实时转发已启动。
+  - `configured`：仅完成配置，尚未启动转发。
+- Capture 状态来源：
+  - 以桥接层下发的 `capture_status` 为准，前端不再本地推断运行态。
+- 发布前建议执行：
+  - `python scripts/core_regression_gate.py --serial-mode mock --serial-cycles 50`
+  - `powershell -File scripts/validate_windows_bundle.ps1 -BundleRoot dist\ProtoFlow`
+
 ---
 
 本说明书面向嵌入式开发/工控通讯/自动化测试工程师及可编程 Agent，覆盖 DSL、状态机、动作系统、协议适配与扩展方法，可直接作为开源文档发布。***
