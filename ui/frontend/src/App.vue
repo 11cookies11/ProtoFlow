@@ -3608,6 +3608,15 @@ function setChannels(items) {
   channels.value = Array.isArray(items) ? items : []
   const primary = channels.value[0]
   if (!primary) return
+  if (primary.status === 'connecting') {
+    const target = primary.type === 'serial' ? buildSerialDetail(primary) : (primary.address || primary.port || primary.type || '')
+    connectionInfo.value = {
+      state: 'connecting',
+      detail: target,
+    }
+    isConnecting.value = true
+    return
+  }
   if (primary.status === 'connected') {
     const target = primary.type === 'serial' ? buildSerialDetail(primary) : (primary.address || primary.port || primary.type || '')
     emitStatus(`Connected: ${target}`, Date.now() / 1000)
@@ -4173,8 +4182,8 @@ function attachBridge(obj) {
   obj.comm_status.connect((payload) => {
     const detail = payload && payload.payload !== undefined ? payload.payload : payload
     const ts = payload && payload.ts ? payload.ts : Date.now() / 1000
-    isConnecting.value = false
     if (!detail) {
+      isConnecting.value = false
       const reason = payload && payload.reason ? String(payload.reason) : ''
       const message = reason ? `Disconnected: ${reason}` : 'Disconnected'
       if (hasStatusActivity || reason) {
@@ -4186,12 +4195,26 @@ function attachBridge(obj) {
       return
     }
     if (typeof detail === 'string') {
+      isConnecting.value = false
       emitStatus(`Error: ${detail}`, ts)
       const nextInfo = { state: 'error', detail }
       connectionInfo.value = nextInfo
       scheduleChannelRefresh()
       return
     }
+    const status = detail && typeof detail.status === 'string' ? detail.status.toLowerCase() : ''
+    if (status === 'connecting') {
+      isConnecting.value = true
+      const target = detail.port || detail.address || detail.type || ''
+      emitStatus(`Connecting: ${target}`, ts)
+      connectionInfo.value = {
+        state: 'connecting',
+        detail: target,
+      }
+      scheduleChannelRefresh()
+      return
+    }
+    isConnecting.value = false
     if (detail && typeof detail === 'object') {
       const target = detail.address || detail.port || detail.type || ''
       emitStatus(`Connected: ${target}`, ts)

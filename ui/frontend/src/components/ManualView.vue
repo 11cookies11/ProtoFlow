@@ -74,9 +74,17 @@ const {
               <div class="config-status">
                 <div class="status-pill" :class="connectionInfo.state">
                   <span class="dot"></span>
-                  {{ isConnected ? t('status.connected') : connectionInfo.state === 'error' ? t('status.error') : t('status.disconnected') }}
+                  {{
+                    connectionInfo.state === 'connected'
+                      ? t('status.connected')
+                      : connectionInfo.state === 'connecting'
+                        ? t('status.connecting')
+                        : connectionInfo.state === 'error'
+                          ? t('status.error')
+                          : t('status.disconnected')
+                  }}
                 </div>
-                <div v-if="isConnected && connectionInfo.detail" class="status-meta">{{ connectionInfo.detail }}</div>
+                <div v-if="(isConnected || connectionInfo.state === 'connecting') && connectionInfo.detail" class="status-meta">{{ connectionInfo.detail }}</div>
               </div>
               <div class="port-picker terminal-port-picker">
                 <DropdownSelect

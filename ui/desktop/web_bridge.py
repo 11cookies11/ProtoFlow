@@ -89,6 +89,7 @@ class WebBridge(QObject):
             self._bus.subscribe("comm.rx", self._on_comm_rx)
             self._bus.subscribe("comm.tx", self._on_comm_tx)
             self._bus.subscribe("comm.connected", self._on_comm_status)
+            self._bus.subscribe("comm.connecting", self._on_comm_status)
             self._bus.subscribe("comm.disconnected", self._on_comm_status)
             self._bus.subscribe("comm.error", self._on_comm_status)
             self._bus.subscribe("protocol.frame", self._on_protocol_frame)
@@ -770,8 +771,8 @@ class WebBridge(QObject):
         if now < self._last_status_ts:
             return
         self._last_status_ts = now
-        self._connect_inflight = False
         if payload is None:
+            self._connect_inflight = False
             reason = None
             if self._manual_disconnect:
                 reason = "manual"
@@ -780,6 +781,7 @@ class WebBridge(QObject):
             self._channel_state["status"] = "disconnected"
             self._manual_disconnect = False
         elif isinstance(payload, str):
+            self._connect_inflight = False
             self._channel_state["status"] = "error"
             self._channel_state["error"] = payload
             self._last_error = payload
@@ -796,10 +798,24 @@ class WebBridge(QObject):
             self._channel_state["writeTimeoutMs"] = payload.get("writeTimeoutMs")
             self._channel_state["host"] = payload.get("host")
             self._channel_state["address"] = payload.get("address")
-            self._channel_state["status"] = "connected"
-            self._channel_state["error"] = None
-            self._traffic = {"tx": 0, "rx": 0}
-            self._manual_disconnect = False
+            status = str(payload.get("status") or "connected").lower()
+            if status == "connecting":
+                self._connect_inflight = True
+                self._channel_state["status"] = "connecting"
+                reconnect_reason = payload.get("reason")
+                attempt = payload.get("attempt")
+                if reconnect_reason:
+                    self._channel_state["error"] = str(reconnect_reason)
+                elif attempt is not None:
+                    self._channel_state["error"] = f"reconnecting attempt={attempt}"
+                else:
+                    self._channel_state["error"] = None
+            else:
+                self._connect_inflight = False
+                self._channel_state["status"] = "connected"
+                self._channel_state["error"] = None
+                self._traffic = {"tx": 0, "rx": 0}
+                self._manual_disconnect = False
         event_payload = {"payload": payload, "ts": now}
         if payload is None:
             event_payload["reason"] = reason

@@ -28,6 +28,7 @@ class CommunicationManager:
             "serial.error", lambda reason: self._bus.publish("comm.error", reason)
         )
         self._bus.subscribe("tcp.error", lambda reason: self._bus.publish("comm.error", reason))
+        self._bus.subscribe("serial.reconnecting", self._forward_serial_reconnecting)
         # 协议帧请求发送 -> 调用当前会话发送
         self._bus.subscribe("protocol.tx", self._handle_protocol_tx)
 
@@ -51,6 +52,15 @@ class CommunicationManager:
                 and self._current_session.baudrate == baud
             ):
                 return
+        self._bus.publish(
+            "comm.connecting",
+            {
+                "type": "serial",
+                "port": port,
+                "baud": baud,
+                "status": "connecting",
+            },
+        )
         self.close(notify=False)
         session = SerialManager(self._bus)
         if session.open(
@@ -149,3 +159,14 @@ class CommunicationManager:
         if not data:
             return
         self.send(data)
+
+    def _forward_serial_reconnecting(self, payload: object) -> None:
+        data = payload if isinstance(payload, dict) else {"reason": str(payload)}
+        self._bus.publish(
+            "comm.connecting",
+            {
+                "type": "serial",
+                "status": "connecting",
+                **data,
+            },
+        )

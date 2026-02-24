@@ -20,6 +20,8 @@ class SerialManager:
         self._rx_thread: Optional[threading.Thread] = None
         self._running = False
         self._lock = threading.RLock()
+        self._stop_event = threading.Event()
+        self._reconnecting = False
         self._port: Optional[str] = None
         self._baudrate: Optional[int] = None
         self._serial_options: dict[str, Any] = {}
@@ -60,6 +62,8 @@ class SerialManager:
     ) -> bool:
         """打开串口并启动接收线程。"""
         with self._lock:
+            self._stop_event.clear()
+            self._reconnecting = False
             self._port, self._baudrate = port, baudrate
             self._serial_options = {
                 "databits": self._normalize_databits(databits),
@@ -109,6 +113,8 @@ class SerialManager:
         """关闭串口并停止接收线程。"""
         with self._lock:
             self._running = False
+            self._stop_event.set()
+            self._reconnecting = False
             if self._rx_thread and self._rx_thread.is_alive():
                 self._rx_thread.join(timeout=1)
             if self._ser:
@@ -168,38 +174,63 @@ class SerialManager:
 
     def _attempt_reconnect(self) -> None:
         """自动重连，不阻塞关闭操作。"""
-        if not self._running:
-            return
+        with self._lock:
+            if not self._running or self._stop_event.is_set():
+                return
+            if self._reconnecting:
+                return
+            self._reconnecting = True
+            port, baudrate = self._port, self._baudrate
+            opts = dict(self._serial_options or {})
 
-        port, baudrate = self._port, self._baudrate
         if not port or not baudrate:
+            with self._lock:
+                self._reconnecting = False
             return
 
         self._log(f"尝试重连串口: {port}")
-        while self._running:
-            try:
-                with self._lock:
-                    if self._ser and self._ser.is_open:
-                        return
-                    opts = self._serial_options or {}
-                    self._ser = serial.Serial(
-                        port=port,
-                        baudrate=baudrate,
-                        bytesize=opts.get("databits", serial.EIGHTBITS),
-                        parity=opts.get("parity", serial.PARITY_NONE),
-                        stopbits=opts.get("stopbits", serial.STOPBITS_ONE),
-                        timeout=opts.get("read_timeout_s", 0.1),
-                        write_timeout=opts.get("write_timeout_s", 1.0),
-                        rtscts=opts.get("flow_control") == "rtscts",
-                        xonxoff=opts.get("flow_control") == "xonxoff",
+        attempt = 0
+        delay_s = 0.5
+        max_delay_s = 5.0
+        try:
+            while self._running and not self._stop_event.is_set():
+                attempt += 1
+                try:
+                    with self._lock:
+                        if self._ser and self._ser.is_open:
+                            return
+                        if self._ser:
+                            try:
+                                self._ser.close()
+                            except Exception:
+                                pass
+                            self._ser = None
+                        self._ser = serial.Serial(
+                            port=port,
+                            baudrate=baudrate,
+                            bytesize=opts.get("databits", serial.EIGHTBITS),
+                            parity=opts.get("parity", serial.PARITY_NONE),
+                            stopbits=opts.get("stopbits", serial.STOPBITS_ONE),
+                            timeout=opts.get("read_timeout_s", 0.1),
+                            write_timeout=opts.get("write_timeout_s", 1.0),
+                            rtscts=opts.get("flow_control") == "rtscts",
+                            xonxoff=opts.get("flow_control") == "xonxoff",
+                        )
+                    self._log(f"重连成功: {port} (attempt={attempt})")
+                    self.bus.publish("serial.opened", port)
+                    return
+                except SerialException as exc:
+                    self._log(f"[WARN] 重连失败 (attempt={attempt}): {exc}")
+                    self.bus.publish("serial.error", f"reconnect failed (attempt={attempt}): {exc}")
+                    self.bus.publish(
+                        "serial.reconnecting",
+                        {"port": port, "attempt": attempt, "next_delay_s": delay_s},
                     )
-                self._log(f"重连成功: {port}")
-                self.bus.publish("serial.opened", port)
-                return
-            except SerialException as exc:
-                self._log(f"[WARN] 重连失败: {exc}")
-                self.bus.publish("serial.error", f"reconnect failed: {exc}")
-                time.sleep(1)
+                    self._stop_event.wait(delay_s)
+                    delay_s = min(max_delay_s, delay_s * 2.0)
+        finally:
+            with self._lock:
+                self._reconnecting = False
 
     @staticmethod
     def _log(msg: str) -> None:
