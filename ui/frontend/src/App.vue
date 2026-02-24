@@ -4586,6 +4586,8 @@ function applySettings(payload) {
   logAutoArchive.value = !!normalized.logs.autoArchive
   logIncludeHex.value = normalized.logs.includeHex !== false
   baud.value = Number(defaultBaud.value || 115200)
+  channelParity.value = defaultParity.value || 'none'
+  channelStopBits.value = defaultStopBits.value || '1'
 }
 
 function loadSettings() {
