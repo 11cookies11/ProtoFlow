@@ -83,9 +83,25 @@ class PacketAnalysisEngine:
             self._enabled = True
             channel = payload.get("channel")
             self._target_channel = str(channel) if channel else None
+            self._bus.publish(
+                "capture.status",
+                {
+                    "status": "running",
+                    "channel": self._target_channel or self._channel.channel or "",
+                    "engine": "agnostic",
+                },
+            )
         elif action == "stop":
             self._enabled = False
             self._target_channel = None
+            self._bus.publish(
+                "capture.status",
+                {
+                    "status": "stopped",
+                    "channel": self._channel.channel or "",
+                    "engine": "agnostic",
+                },
+            )
 
     def _run(self) -> None:
         while not self._stop.is_set():

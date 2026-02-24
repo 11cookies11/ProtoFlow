@@ -3315,6 +3315,7 @@ function ingestCaptureFrame(payload) {
   if (payload && payload.channel) {
     captureMeta.value.channel = payload.channel
   }
+  captureMeta.value.engine = '???'
 }
 
 function flushLogs() {
@@ -4177,6 +4178,20 @@ function attachBridge(obj) {
       const ts = payload && payload.ts ? payload.ts : Date.now() / 1000
       addCommLog('CAPTURE', { text: JSON.stringify(payload), ts })
       ingestCaptureFrame(payload)
+    })
+  }
+  if (obj.capture_status) {
+    obj.capture_status.connect((payload) => {
+      if (!payload || typeof payload !== 'object') return
+      if (payload.channel) {
+        captureMeta.value.channel = payload.channel
+      }
+      const status = String(payload.status || '').toLowerCase()
+      if (status === 'running') {
+        captureMeta.value.engine = '???'
+      } else if (status === 'stopped') {
+        captureMeta.value.engine = '???'
+      }
     })
   }
   obj.comm_status.connect((payload) => {

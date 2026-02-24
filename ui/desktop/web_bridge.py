@@ -34,6 +34,7 @@ class WebBridge(QObject):
     comm_status = Signal(object)
     protocol_frame = Signal(object)
     capture_frame = Signal(object)
+    capture_status = Signal(object)
     comm_batch = Signal(str)
     script_log = Signal(str)
     script_state = Signal(str)
@@ -94,6 +95,7 @@ class WebBridge(QObject):
             self._bus.subscribe("comm.error", self._on_comm_status)
             self._bus.subscribe("protocol.frame", self._on_protocol_frame)
             self._bus.subscribe("capture.frame", self._on_capture_frame)
+            self._bus.subscribe("capture.status", self._on_capture_status)
 
     def _read_app_version(self) -> str:
         env_version = os.environ.get("PROTOFLOW_VERSION")
@@ -424,11 +426,25 @@ class WebBridge(QObject):
                 "pair_id": pair_id,
             },
         )
+        self.capture_status.emit(
+            {
+                "status": "running",
+                "channel": channel or "",
+                "engine": "agnostic",
+            }
+        )
         return True
 
     @Slot(result=bool)
     def stop_capture(self) -> bool:
         self._bus.publish("capture.control", {"action": "stop"})
+        self.capture_status.emit(
+            {
+                "status": "stopped",
+                "channel": "",
+                "engine": "agnostic",
+            }
+        )
         return True
 
     @Slot(str, str, result=str)
@@ -836,6 +852,11 @@ class WebBridge(QObject):
             Qt.QueuedConnection,
             Q_ARG(object, payload),
         )
+
+    def _on_capture_status(self, payload: Any) -> None:
+        if not isinstance(payload, dict):
+            return
+        self.capture_status.emit(payload)
 
     def _load_protocols(self) -> None:
         if self._protocols_loaded:

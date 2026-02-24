@@ -273,6 +273,11 @@ const captureMetrics = computed(() => ({
   ...(props.captureMetrics || {}),
 }))
 
+const isCaptureRunning = computed(() => {
+  const engine = String(captureMeta.value.engine || '').toLowerCase()
+  return engine.includes('running') || engine.includes('运行中')
+})
+
 const activeFrame = computed(() => selectedFrame.value || captureFrames.value[0] || null)
 
 const isUnknownFrame = computed(() => activeFrame.value?.protocolType === 'unknown')
@@ -495,6 +500,23 @@ function closeCaptureModal() {
     bridge.value.stop_capture()
   }
   captureOpen.value = false
+}
+
+function toggleCaptureEngine() {
+  if (!bridge || !bridge.value) return
+  if (isCaptureRunning.value) {
+    if (bridge.value.stop_capture) {
+      bridge.value.stop_capture()
+    }
+    return
+  }
+  if (bridge.value.start_capture) {
+    bridge.value.start_capture({
+      id: captureProxy.value?.id,
+      channel: captureProxy.value?.hostPort || captureMeta.value.channel || '',
+      hostPort: captureProxy.value?.hostPort || '',
+    })
+  }
 }
 
 function selectFrame(frame) {
@@ -960,8 +982,14 @@ onBeforeUnmount(() => {
               />
             </div>
             <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
-            <button class="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition-colors shadow-sm">
-              <span class="material-symbols-outlined !text-sm">play_arrow</span>{{ tr('继续捕获') }}</button>
+            <button
+              class="flex items-center gap-1 px-3 py-1.5 text-white rounded text-xs font-bold transition-colors shadow-sm"
+              :class="isCaptureRunning ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'"
+              @click="toggleCaptureEngine"
+            >
+              <span class="material-symbols-outlined !text-sm">{{ isCaptureRunning ? 'pause' : 'play_arrow' }}</span>
+              {{ isCaptureRunning ? tr('暂停捕获') : tr('继续捕获') }}
+            </button>
             <button class="p-1.5 hover:bg-slate-100 rounded text-slate-400">
               <span class="material-symbols-outlined">settings</span>
             </button>

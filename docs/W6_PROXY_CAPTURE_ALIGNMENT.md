@@ -20,6 +20,9 @@
 - 前端 `ProxyMonitorView`：
   - 新增 `configured` 展示分支与筛选项。
   - `running` 筛选兼容显示 `running + configured`（便于操作习惯延续）。
+- Capture 状态透传：
+  - `PacketAnalysisEngine` 在 `capture.control start/stop` 时发布 `capture.status`。
+  - `WebBridge` 转发 `capture_status` 信号，前端据此更新引擎状态显示（运行中/已停止）。
 
 ## 目的
 
