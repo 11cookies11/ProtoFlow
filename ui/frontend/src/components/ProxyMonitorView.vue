@@ -54,67 +54,51 @@ const parityOptions = computed(() => [
 ])
 
 
-const proxies = ref([
-  {
-    id: 'proxy-com3',
-    name: tr('主控制器链路'),
-    meta: 'ID: PX-00124 · 8-N-1',
-    status: 'configured',
-    statusLabel: tr('配置已启用'),
-    statusIcon: 'tune',
-    routeIcon: 'keyboard_double_arrow_right',
-    routeLabel: tr('未建立实时转发'),
-    routeTone: 'primary',
-    hostPort: 'COM3',
-    devicePort: 'COM5',
-    baud: '115200',
-    bandwidth: '12.4',
-    bandwidthUnit: 'KB/s',
-    spark: 'M0 35 L10 20 L20 35 L30 10 L40 30 L50 5 L60 35 L70 20 L80 30 L90 10 L100 25',
-    active: true,
-    toggleLabel: tr('已启用'),
-  },
-  {
-    id: 'proxy-com7',
-    name: tr('电机反馈继电器'),
-    meta: 'ID: PX-00992 · 8-E-1',
-    status: 'stopped',
-    statusLabel: tr('已停止'),
-    statusIcon: 'pause_circle',
-    routeIcon: 'more_horiz',
-    routeLabel: tr('离线'),
-    routeTone: 'muted',
-    hostPort: 'COM7',
-    devicePort: 'COM10',
-    baud: '9600',
-    bandwidth: '0.0',
-    bandwidthUnit: 'KB/s',
-    spark: '',
-    active: false,
-    toggleLabel: tr('已停止'),
-  },
-  {
-    id: 'proxy-com1',
-    name: tr('GPS 模块数据流'),
-    meta: 'ID: PX-00219 · 7-N-2',
-    status: 'error',
-    statusLabel: tr('异常'),
-    statusIcon: 'report',
-    routeIcon: 'sync_problem',
-    routeLabel: tr('连接失败'),
-    routeTone: 'danger',
-    hostPort: 'COM1',
-    devicePort: 'COM12',
-    baud: '4800',
-    bandwidth: '0.4',
-    bandwidthUnit: 'KB/s',
-    spark: 'M0 38 L40 38 L42 10 L48 10 L50 38 L90 38 L92 10 L98 10 L100 38',
-    active: true,
-    toggleLabel: tr('异常'),
-  },
-])
+const proxies = ref([])
 
 let proxySeq = 1000
+let proxyPairsSignalHandler = null
+let captureFrameSignalHandler = null
+
+const BANDWIDTH_WINDOW_SEC = 30
+const SPARK_BUCKETS = 10
+const SAMPLE_RETENTION_SEC = 120
+const channelTrafficSamples = new Map()
+
+function normalizeChannel(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+}
+
+function buildSparklinePath(values) {
+  if (!Array.isArray(values) || !values.length) return ''
+  const points = values.map((value) => Math.max(0, Number(value) || 0))
+  const max = Math.max(...points, 1)
+  const step = points.length > 1 ? 100 / (points.length - 1) : 100
+  return points
+    .map((value, index) => {
+      const x = (index * step).toFixed(2)
+      const y = (38 - (value / max) * 30).toFixed(2)
+      return `${index === 0 ? 'M' : 'L'}${x} ${y}`
+    })
+    .join(' ')
+}
+
+function appendTrafficSample(payload) {
+  if (!payload || typeof payload !== 'object') return
+  const channel = normalizeChannel(payload.channel)
+  const size = Math.max(0, Number(payload.length || 0))
+  if (!channel || !size) return
+  const ts = Number(payload.timestamp || Date.now() / 1000)
+  const list = channelTrafficSamples.get(channel) || []
+  list.push({ ts, size })
+  const keepFrom = ts - SAMPLE_RETENTION_SEC
+  while (list.length && list[0].ts < keepFrom) {
+    list.shift()
+  }
+  channelTrafficSamples.set(channel, list)
+}
 
 function buildProxyMeta(host, baud) {
   return `ID: PX-${proxySeq} · ${baud ? String(baud) : '8'}-N-1`
@@ -221,12 +205,108 @@ function mapProxyFromBackend(payload) {
   }
 }
 
+function mergeProxyRuntimeMetrics(nextProxy) {
+  const current = proxies.value.find((item) => item.id === nextProxy.id)
+  if (!current) return nextProxy
+  return {
+    ...nextProxy,
+    bandwidth: current.bandwidth || nextProxy.bandwidth,
+    bandwidthUnit: current.bandwidthUnit || nextProxy.bandwidthUnit,
+    spark: current.spark || nextProxy.spark,
+  }
+}
+
+function applyProxyListFromBackend(items) {
+  proxies.value = items
+    .filter(Boolean)
+    .map((item) => mergeProxyRuntimeMetrics(mapProxyFromBackend(item)))
+  refreshProxyRuntimeMetrics()
+}
+
 function loadProxyPairs() {
   if (!bridge || !bridge.value || !bridge.value.list_proxy_pairs) return
   withBridgeResult(bridge.value.list_proxy_pairs(), (items) => {
     if (!Array.isArray(items)) return
-    proxies.value = items.filter(Boolean).map((item) => mapProxyFromBackend(item))
+    applyProxyListFromBackend(items)
   })
+}
+
+function refreshProxyRuntimeMetrics() {
+  if (!proxies.value.length) return
+  const nowSec = Date.now() / 1000
+  const lowerBound = nowSec - BANDWIDTH_WINDOW_SEC
+
+  proxies.value = proxies.value.map((proxy) => {
+    const host = normalizeChannel(proxy.hostPort)
+    const device = normalizeChannel(proxy.devicePort)
+    const samples = [...(channelTrafficSamples.get(host) || []), ...(channelTrafficSamples.get(device) || [])]
+      .filter((sample) => sample.ts >= lowerBound)
+      .sort((a, b) => a.ts - b.ts)
+
+    if (!samples.length) {
+      return {
+        ...proxy,
+        bandwidth: '0.0',
+        bandwidthUnit: 'KB/s',
+        spark: '',
+      }
+    }
+
+    const bytes = samples.reduce((sum, sample) => sum + sample.size, 0)
+    const kbps = bytes / 1024 / BANDWIDTH_WINDOW_SEC
+    const bucketSec = BANDWIDTH_WINDOW_SEC / SPARK_BUCKETS
+    const buckets = new Array(SPARK_BUCKETS).fill(0)
+    for (const sample of samples) {
+      const idx = Math.min(
+        SPARK_BUCKETS - 1,
+        Math.max(0, Math.floor((sample.ts - lowerBound) / bucketSec))
+      )
+      buckets[idx] += sample.size
+    }
+    const bucketKbps = buckets.map((value) => value / 1024 / bucketSec)
+    return {
+      ...proxy,
+      bandwidth: kbps.toFixed(1),
+      bandwidthUnit: 'KB/s',
+      spark: buildSparklinePath(bucketKbps),
+    }
+  })
+}
+
+function attachProxyPairsSignal() {
+  if (!bridge || !bridge.value || !bridge.value.proxy_pairs) return
+  if (proxyPairsSignalHandler) return
+  proxyPairsSignalHandler = (items) => {
+    if (!Array.isArray(items)) return
+    applyProxyListFromBackend(items)
+  }
+  bridge.value.proxy_pairs.connect(proxyPairsSignalHandler)
+}
+
+function detachProxyPairsSignal() {
+  if (!bridge || !bridge.value || !bridge.value.proxy_pairs || !proxyPairsSignalHandler) return
+  try {
+    bridge.value.proxy_pairs.disconnect(proxyPairsSignalHandler)
+  } catch (_) {}
+  proxyPairsSignalHandler = null
+}
+
+function attachCaptureFrameSignal() {
+  if (!bridge || !bridge.value || !bridge.value.capture_frame) return
+  if (captureFrameSignalHandler) return
+  captureFrameSignalHandler = (payload) => {
+    appendTrafficSample(payload)
+    refreshProxyRuntimeMetrics()
+  }
+  bridge.value.capture_frame.connect(captureFrameSignalHandler)
+}
+
+function detachCaptureFrameSignal() {
+  if (!bridge || !bridge.value || !bridge.value.capture_frame || !captureFrameSignalHandler) return
+  try {
+    bridge.value.capture_frame.disconnect(captureFrameSignalHandler)
+  } catch (_) {}
+  captureFrameSignalHandler = null
 }
 
 const filteredProxies = computed(() => {
@@ -236,6 +316,16 @@ const filteredProxies = computed(() => {
     return safeProxies.filter((proxy) => proxy.status === 'running' || proxy.status === 'configured')
   }
   return safeProxies.filter((proxy) => proxy.status === activeFilter.value)
+})
+
+const proxyStats = computed(() => {
+  const safeProxies = proxies.value.filter(Boolean)
+  return {
+    total: safeProxies.length,
+    running: safeProxies.filter((proxy) => proxy.status === 'running').length,
+    configured: safeProxies.filter((proxy) => proxy.status === 'configured').length,
+    error: safeProxies.filter((proxy) => proxy.status === 'error').length,
+  }
 })
 
 const props = defineProps({
@@ -277,6 +367,18 @@ const isCaptureRunning = computed(() => {
   const engine = String(captureMeta.value.engine || '').toLowerCase()
   return engine.includes('running') || engine.includes('运行中')
 })
+
+const captureChannelNormalized = computed(() => {
+  return normalizeChannel(captureMeta.value.channel || captureProxy.value?.hostPort || '')
+})
+
+function isProxyCaptureActive(proxy) {
+  if (!proxy || !isCaptureRunning.value) return false
+  const host = normalizeChannel(proxy.hostPort)
+  const device = normalizeChannel(proxy.devicePort)
+  const activeChannel = captureChannelNormalized.value
+  return Boolean(activeChannel) && (activeChannel === host || activeChannel === device)
+}
 
 const activeFrame = computed(() => selectedFrame.value || captureFrames.value[0] || null)
 
@@ -527,11 +629,11 @@ function refreshProxies() {
   if (bridge && bridge.value && bridge.value.refresh_proxy_pairs) {
     withBridgeResult(bridge.value.refresh_proxy_pairs(), (items) => {
       if (!Array.isArray(items)) return
-      proxies.value = items.map((item) => mapProxyFromBackend(item))
+      applyProxyListFromBackend(items)
     })
     return
   }
-  proxies.value = proxies.value.map((proxy) => ({ ...proxy }))
+  refreshProxyRuntimeMetrics()
 }
 
 function setProxyStatus(proxy, active) {
@@ -553,8 +655,13 @@ function setProxyStatus(proxy, active) {
     withBridgeResult(bridge.value.set_proxy_pair_status(proxy.id, active), (updated) => {
       if (updated && typeof updated === 'object') {
         Object.assign(proxy, mapProxyFromBackend(updated))
+        refreshProxyRuntimeMetrics()
       }
     })
+  }
+
+  if (!active && isProxyCaptureActive(proxy) && bridge && bridge.value && bridge.value.stop_capture) {
+    bridge.value.stop_capture()
   }
 }
 
@@ -586,7 +693,8 @@ function saveProxy() {
         }),
         (created) => {
           if (created) {
-            proxies.value.unshift(mapProxyFromBackend(created))
+            proxies.value.unshift(mergeProxyRuntimeMetrics(mapProxyFromBackend(created)))
+            refreshProxyRuntimeMetrics()
           }
         }
       )
@@ -639,6 +747,7 @@ function saveProxy() {
         (updated) => {
           if (updated) {
             Object.assign(modalProxy.value, mapProxyFromBackend(updated))
+            refreshProxyRuntimeMetrics()
           }
         }
       )
@@ -665,7 +774,10 @@ function confirmDeleteProxy(proxy) {
 }
 
 onMounted(() => {
+  attachProxyPairsSignal()
+  attachCaptureFrameSignal()
   loadProxyPairs()
+  refreshProxyRuntimeMetrics()
 })
 
 function closeConfirm() {
@@ -722,7 +834,26 @@ watch(
   }
 )
 
+watch(
+  () => bridge && bridge.value,
+  () => {
+    detachProxyPairsSignal()
+    detachCaptureFrameSignal()
+    attachProxyPairsSignal()
+    attachCaptureFrameSignal()
+  }
+)
+
+watch(
+  () => proxies.value.map((proxy) => `${proxy.id}:${proxy.hostPort}:${proxy.devicePort}`).join('|'),
+  () => {
+    refreshProxyRuntimeMetrics()
+  }
+)
+
 onBeforeUnmount(() => {
+  detachProxyPairsSignal()
+  detachCaptureFrameSignal()
   document.body.classList.remove('proxy-edit-open')
   document.body.classList.remove('proxy-modal-open')
 })
@@ -749,6 +880,12 @@ onBeforeUnmount(() => {
     <p class="proxy-capability-note">
       {{ tr('说明：当前版本以代理配置管理和抓包分析为主，状态“配置已启用”不代表已建立实时串口转发链路。') }}
     </p>
+    <div class="proxy-dashboard-filters">
+      <span class="proxy-filter-chip active">{{ tr('总数') }}: {{ proxyStats.total }}</span>
+      <span class="proxy-filter-chip">{{ tr('运行中') }}: {{ proxyStats.running }}</span>
+      <span class="proxy-filter-chip">{{ tr('已配置') }}: {{ proxyStats.configured }}</span>
+      <span class="proxy-filter-chip">{{ tr('异常') }}: {{ proxyStats.error }}</span>
+    </div>
     <div class="tab-strip secondary">
       <button
         v-for="tab in filterTabs"
@@ -798,6 +935,7 @@ onBeforeUnmount(() => {
             <span class="proxy-route-chip proxy-mono">{{ proxy.devicePort }}</span>
           </div>
         </div>
+        <p v-if="isProxyCaptureActive(proxy)" class="proxy-capability-note">{{ tr('抓包中') }}</p>
 
         <div class="proxy-metrics">
           <div>

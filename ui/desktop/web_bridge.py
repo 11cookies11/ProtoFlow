@@ -31,6 +31,7 @@ class WebBridge(QObject):
     protocol_frame = Signal(object)
     capture_frame = Signal(object)
     capture_status = Signal(object)
+    proxy_pairs = Signal(object)
     comm_batch = Signal(str)
     script_log = Signal(str)
     script_state = Signal(str)
@@ -318,6 +319,7 @@ class WebBridge(QObject):
     @Slot(result="QVariant")
     def refresh_proxy_pairs(self) -> List[Dict[str, Any]]:
         self._proxy_pairs = self._load_proxy_pairs()
+        self._emit_proxy_pairs()
         return list(self._proxy_pairs)
 
     @Slot("QVariant", result="QVariant")
@@ -339,6 +341,7 @@ class WebBridge(QObject):
         }
         self._proxy_pairs.insert(0, pair)
         self._save_proxy_pairs()
+        self._emit_proxy_pairs()
         return pair
 
     @Slot("QVariant", result="QVariant")
@@ -372,6 +375,7 @@ class WebBridge(QObject):
                 }
                 self._proxy_pairs[idx] = updated
                 self._save_proxy_pairs()
+                self._emit_proxy_pairs()
                 return updated
         return {}
 
@@ -383,6 +387,7 @@ class WebBridge(QObject):
         self._proxy_pairs = [pair for pair in self._proxy_pairs if pair.get("id") != pair_id]
         if len(self._proxy_pairs) != before:
             self._save_proxy_pairs()
+            self._emit_proxy_pairs()
             return True
         return False
 
@@ -398,6 +403,7 @@ class WebBridge(QObject):
                     pair["status"] = "stopped"
                 self._proxy_pairs[idx] = pair
                 self._save_proxy_pairs()
+                self._emit_proxy_pairs()
                 return pair
         return {}
 
@@ -970,6 +976,12 @@ class WebBridge(QObject):
         except Exception as exc:
             self.log.emit(f"[WARN] Save proxy pairs failed: {exc}")
 
+    def _emit_proxy_pairs(self) -> None:
+        try:
+            self.proxy_pairs.emit(list(self._proxy_pairs))
+        except Exception:
+            pass
+
     def _load_custom_protocols(self) -> List[Dict[str, Any]]:
         if not self._protocols_path.exists():
             return []
@@ -1023,3 +1035,4 @@ class WebBridge(QObject):
         self._buffer.clear()
         payload_json = json.dumps(batch, ensure_ascii=False, default=str)
         self.comm_batch.emit(payload_json)
+
