@@ -5,20 +5,12 @@ import logging
 import os
 import sys
 
-try:
-    from PySide6.QtCore import QPoint, Qt, QUrl
-    from PySide6.QtGui import QAction, QGuiApplication, QIcon
-    from PySide6.QtWebChannel import QWebChannel
-    from PySide6.QtWebEngineCore import QWebEnginePage
-    from PySide6.QtWidgets import QFileDialog, QMainWindow, QMenu
-    from PySide6.QtWebEngineWidgets import QWebEngineView
-except ImportError:  # pragma: no cover
-    from PyQt6.QtCore import QPoint, Qt, QUrl  # type: ignore
-    from PyQt6.QtGui import QAction, QGuiApplication, QIcon  # type: ignore
-    from PyQt6.QtWebChannel import QWebChannel  # type: ignore
-    from PyQt6.QtWebEngineCore import QWebEnginePage  # type: ignore
-    from PyQt6.QtWidgets import QFileDialog, QMainWindow, QMenu  # type: ignore
-    from PyQt6.QtWebEngineWidgets import QWebEngineView  # type: ignore
+from PySide6.QtCore import QPoint, Qt, QUrl
+from PySide6.QtGui import QAction, QGuiApplication, QIcon
+from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineCore import QWebEnginePage
+from PySide6.QtWidgets import QFileDialog, QMainWindow, QMenu
+from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from ui.desktop.web_bridge import WebBridge
 from ui.desktop.win_snap import apply_snap_styles

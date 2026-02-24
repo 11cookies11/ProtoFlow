@@ -12,12 +12,8 @@ import os
 from typing import Any, Dict, List, Optional
 import yaml
 
-try:
-    from PySide6.QtCore import QObject, Q_ARG, QMetaObject, QTimer, Qt, Signal, Slot
-    from PySide6.QtWidgets import QFileDialog
-except ImportError:  # pragma: no cover
-    from PyQt6.QtCore import QObject, Q_ARG, QMetaObject, QTimer, Qt, pyqtSignal as Signal, pyqtSlot as Slot  # type: ignore
-    from PyQt6.QtWidgets import QFileDialog  # type: ignore
+from PySide6.QtCore import QObject, Q_ARG, QMetaObject, QTimer, Qt, Signal, Slot
+from PySide6.QtWidgets import QFileDialog
 
 from infra.protocol.registry import ProtocolRegistry
 import infra.protocol as protocols_pkg
