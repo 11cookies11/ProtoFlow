@@ -29,7 +29,7 @@ class PacketAnalysisEngine:
 
     def __init__(self, bus: EventBus) -> None:
         self._bus = bus
-        self._queue: "queue.Queue[Tuple[str, bytes, float]]" = queue.Queue()
+        self._queue: "queue.Queue[Tuple[str, bytes, float, str]]" = queue.Queue()
         self._channel = _ChannelInfo()
         self._enabled = False
         self._target_channel: Optional[str] = None
@@ -42,6 +42,7 @@ class PacketAnalysisEngine:
         self._bus.subscribe("comm.connected", self._on_connected)
         self._bus.subscribe("comm.disconnected", self._on_disconnected)
         self._bus.subscribe("capture.control", self._on_control)
+        self._bus.subscribe("proxy.data", self._on_proxy_data)
 
     def _on_rx(self, payload: Any) -> None:
         if not self._enabled:
@@ -50,7 +51,7 @@ class PacketAnalysisEngine:
         if data:
             if self._target_channel and self._channel.channel and self._channel.channel != self._target_channel:
                 return
-            self._queue.put(("RX", data, time.time()))
+            self._queue.put(("RX", data, time.time(), self._channel.channel or ""))
 
     def _on_tx(self, payload: Any) -> None:
         if not self._enabled:
@@ -59,7 +60,28 @@ class PacketAnalysisEngine:
         if data:
             if self._target_channel and self._channel.channel and self._channel.channel != self._target_channel:
                 return
-            self._queue.put(("TX", data, time.time()))
+            self._queue.put(("TX", data, time.time(), self._channel.channel or ""))
+
+    def _on_proxy_data(self, payload: Any) -> None:
+        if not self._enabled:
+            return
+        if not isinstance(payload, dict):
+            return
+        data = self._to_bytes(payload.get("data"))
+        if not data:
+            return
+        src = str(payload.get("src") or "")
+        dst = str(payload.get("dst") or "")
+        if self._target_channel and self._target_channel not in {src, dst}:
+            return
+        if self._target_channel:
+            direction = "TX" if src == self._target_channel else "RX"
+            channel = self._target_channel
+        else:
+            direction = "TX"
+            channel = src
+        ts = float(payload.get("ts") or time.time())
+        self._queue.put((direction, data, ts, channel))
 
     def _on_connected(self, payload: Any) -> None:
         if isinstance(payload, dict):
@@ -90,20 +112,20 @@ class PacketAnalysisEngine:
     def _run(self) -> None:
         while not self._stop.is_set():
             try:
-                direction, data, ts = self._queue.get(timeout=0.2)
+                direction, data, ts, channel = self._queue.get(timeout=0.2)
             except queue.Empty:
                 continue
-            frame = self._build_frame(direction, data, ts)
+            frame = self._build_frame(direction, data, ts, channel)
             self._bus.publish("capture.frame", frame)
             self._queue.task_done()
 
-    def _build_frame(self, direction: str, data: bytes, ts: float) -> Dict[str, Any]:
+    def _build_frame(self, direction: str, data: bytes, ts: float, channel_override: str = "") -> Dict[str, Any]:
         self._counter += 1
         hex_bytes = [f"{b:02X}" for b in data]
         ascii_str = "".join(chr(b) if 32 <= b <= 126 else "." for b in data)
         ascii_lines = self._split_ascii(ascii_str, 8)
         protocol_name, protocol_unknown, summary, tree_rows, errors = self._parse_protocol(data)
-        channel = self._channel.channel or ""
+        channel = channel_override or self._channel.channel or ""
         frame_id = f"{direction.lower()}-{int(ts * 1000)}-{self._counter}"
         return {
             "id": frame_id,

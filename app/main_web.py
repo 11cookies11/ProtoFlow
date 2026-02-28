@@ -18,6 +18,7 @@ except ImportError:  # pragma: no cover
     from PyQt6.QtWidgets import QApplication  # type: ignore
 
 from infra.comm.communication_manager import CommunicationManager
+from infra.comm.proxy_forward_manager import ProxyForwardManager
 from infra.common.event_bus import EventBus
 from app.packet_engine import PacketAnalysisEngine
 from app.plugin_manager import PluginManager
@@ -170,13 +171,14 @@ def main() -> None:
         os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", flags)
     bus = EventBus()
     comm = CommunicationManager(bus)
+    proxy_manager = ProxyForwardManager(bus)
     protocol = ProtocolLoader(bus)
     packet_engine = PacketAnalysisEngine(bus)
     plugins = PluginManager(bus, protocol=protocol)
     plugins.load_all()
 
     app = QApplication.instance() or QApplication(sys.argv)
-    window = WebWindow(bus=bus, comm=comm)
+    window = WebWindow(bus=bus, comm=comm, proxy_manager=proxy_manager)
     window.show()
     print("ProtoFlow Web UI started")
     app.exec()

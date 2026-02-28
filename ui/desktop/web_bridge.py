@@ -42,12 +42,13 @@ class WebBridge(QObject):
     channel_update = Signal(object)
     ui_event_log = Signal(object)
 
-    def __init__(self, bus=None, comm=None, window=None) -> None:
+    def __init__(self, bus=None, comm=None, window=None, proxy_manager=None) -> None:
         super().__init__()
         self._logger = logging.getLogger("web_bridge")
         self._bus = bus
         self._comm = comm
         self._window = window
+        self._proxy_manager = proxy_manager
         self._script_runner: Optional[ScriptRunnerQt] = None
         self._buffer: List[Dict[str, Any]] = []
         self._protocols_loaded = False
@@ -86,6 +87,7 @@ class WebBridge(QObject):
             self._bus.subscribe("comm.error", self._on_comm_status)
             self._bus.subscribe("protocol.frame", self._on_protocol_frame)
             self._bus.subscribe("capture.frame", self._on_capture_frame)
+            self._bus.subscribe("proxy.status", self._on_proxy_status)
 
     def _read_app_version(self) -> str:
         env_version = os.environ.get("PROTOFLOW_VERSION")
@@ -312,6 +314,7 @@ class WebBridge(QObject):
             return {}
         for idx, pair in enumerate(self._proxy_pairs):
             if pair.get("id") == pair_id:
+                was_running = str(pair.get("status") or "").lower() == "running"
                 updated = {
                     **pair,
                     **{
@@ -332,6 +335,12 @@ class WebBridge(QObject):
                     },
                 }
                 self._proxy_pairs[idx] = updated
+                if was_running and self._proxy_manager:
+                    result = self._proxy_manager.start_pair(pair_id, updated)
+                    if not result.ok:
+                        updated["status"] = "error"
+                        updated["error"] = result.error
+                        self._proxy_pairs[idx] = updated
                 self._save_proxy_pairs()
                 return updated
         return {}
@@ -340,6 +349,8 @@ class WebBridge(QObject):
     def delete_proxy_pair(self, pair_id: str) -> bool:
         if not pair_id:
             return False
+        if self._proxy_manager:
+            self._proxy_manager.stop_pair(pair_id)
         before = len(self._proxy_pairs)
         self._proxy_pairs = [pair for pair in self._proxy_pairs if pair.get("id") != pair_id]
         if len(self._proxy_pairs) != before:
@@ -353,7 +364,19 @@ class WebBridge(QObject):
         for idx, pair in enumerate(self._proxy_pairs):
             if pair.get("id") == pair_id:
                 pair = dict(pair)
-                pair["status"] = status
+                if active and self._proxy_manager:
+                    result = self._proxy_manager.start_pair(pair_id, pair)
+                    if not result.ok:
+                        pair["status"] = "error"
+                        pair["error"] = result.error
+                    else:
+                        pair["status"] = status
+                        pair["error"] = None
+                else:
+                    if self._proxy_manager:
+                        self._proxy_manager.stop_pair(pair_id)
+                    pair["status"] = status
+                    pair["error"] = None
                 self._proxy_pairs[idx] = pair
                 self._save_proxy_pairs()
                 return pair
@@ -722,6 +745,28 @@ class WebBridge(QObject):
             Qt.QueuedConnection,
             Q_ARG(object, payload),
         )
+
+    def _on_proxy_status(self, payload: Any) -> None:
+        if not isinstance(payload, dict):
+            return
+        pair_id = payload.get("pair_id")
+        if not pair_id:
+            return
+        status = payload.get("status")
+        error = payload.get("error")
+        changed = False
+        for idx, pair in enumerate(self._proxy_pairs):
+            if pair.get("id") != pair_id:
+                continue
+            new_pair = dict(pair)
+            if status:
+                new_pair["status"] = status
+            new_pair["error"] = error or None
+            self._proxy_pairs[idx] = new_pair
+            changed = True
+            break
+        if changed:
+            self._save_proxy_pairs()
 
     def _load_protocols(self) -> None:
         if self._protocols_loaded:

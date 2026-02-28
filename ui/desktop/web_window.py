@@ -43,7 +43,7 @@ class LoggingWebPage(QWebEnginePage):
 class WebWindow(QMainWindow):
     """Minimal WebEngine host window for the new web UI."""
 
-    def __init__(self, bus=None, comm=None) -> None:
+    def __init__(self, bus=None, comm=None, proxy_manager=None) -> None:
         super().__init__()
         self.setWindowTitle("ProtoFlow Web UI")
         self.resize(1200, 800)
@@ -61,7 +61,7 @@ class WebWindow(QMainWindow):
         self.setCentralWidget(view)
 
         channel = QWebChannel(view)
-        self.bridge = WebBridge(bus=bus, comm=comm, window=self)
+        self.bridge = WebBridge(bus=bus, comm=comm, window=self, proxy_manager=proxy_manager)
         channel.registerObject("bridge", self.bridge)
         view.page().setWebChannel(channel)
 
