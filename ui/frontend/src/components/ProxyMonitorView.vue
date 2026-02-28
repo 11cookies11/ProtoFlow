@@ -83,12 +83,14 @@ function withBridgeResult(result, onSuccess) {
 function mapProxyFromBackend(payload) {
   const status = payload.status || 'stopped'
   const active = status === 'running'
-  const statusLabel = active ? tr('运行中') : tr('已停止')
-  const routeLabel = active ? tr('转发中') : tr('离线')
-  const routeTone = active ? 'primary' : 'muted'
-  const statusIcon = active ? 'swap_horizontal_circle' : 'pause_circle'
-  const routeIcon = active ? 'keyboard_double_arrow_right' : 'more_horiz'
+  const isError = status === 'error'
+  const statusLabel = active ? tr('运行中') : isError ? tr('异常') : tr('已停止')
+  const routeLabel = active ? tr('转发中') : isError ? tr('连接失败') : tr('离线')
+  const routeTone = active ? 'primary' : isError ? 'danger' : 'muted'
+  const statusIcon = active ? 'swap_horizontal_circle' : isError ? 'error' : 'pause_circle'
+  const routeIcon = active ? 'keyboard_double_arrow_right' : isError ? 'error' : 'more_horiz'
   const baud = payload.baud ? String(payload.baud) : '115200'
+  const error = typeof payload.error === 'string' ? payload.error.trim() : ''
   proxySeq = Math.max(proxySeq, Number(String(payload.id || '').replace(/\D/g, '')) || proxySeq)
   const parityMap = {
     无: 'none',
@@ -119,6 +121,7 @@ function mapProxyFromBackend(payload) {
     bandwidth: payload.bandwidth || '0.0',
     bandwidthUnit: payload.bandwidthUnit || 'KB/s',
     spark: payload.spark || '',
+    error,
     active,
     toggleLabel: statusLabel,
   }
@@ -381,6 +384,7 @@ function setProxyStatus(proxy, active) {
   proxy.routeTone = routeTone
   proxy.statusIcon = statusIcon
   proxy.routeIcon = routeIcon
+  proxy.error = ''
   proxy.active = active
 
   if (bridge && bridge.value && bridge.value.set_proxy_pair_status) {
@@ -390,6 +394,11 @@ function setProxyStatus(proxy, active) {
       }
     })
   }
+}
+
+function retryProxy(proxy) {
+  if (!proxy) return
+  setProxyStatus(proxy, true)
 }
 
 function saveProxy() {
@@ -636,6 +645,17 @@ onBeforeUnmount(() => {
               <div v-else class="proxy-sparkline-empty"></div>
             </div>
           </div>
+        </div>
+
+        <div v-if="proxy.status === 'error'" class="proxy-error-hint">
+          <div class="proxy-error-message">
+            <span class="material-symbols-outlined">warning</span>
+            <span>{{ proxy.error || tr('代理启动失败，请检查端口占用和参数配置。') }}</span>
+          </div>
+          <button class="proxy-error-retry" type="button" @click="retryProxy(proxy)">
+            <span class="material-symbols-outlined">refresh</span>
+            {{ tr('重试') }}
+          </button>
         </div>
 
         <div class="proxy-panel-footer" :class="`status-${proxy.status}`">
