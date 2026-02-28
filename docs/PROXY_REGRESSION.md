@@ -39,6 +39,20 @@ python scripts/proxy_regression.py `
 
 如果当前终端没有 `python` 命令，请改为你的 Python 可执行路径。
 
+### 2.1 环境检查（一键）
+
+可先运行：
+
+```powershell
+.\scripts\setup_proxy_test_env.ps1
+```
+
+该脚本会检查：
+- `.venv` Python 是否存在
+- `pyserial` 是否可用
+- `com0com` 驱动注册表是否可见
+- 当前可见串口列表
+
 ## 3. 结果判定
 
 脚本会输出每个子用例 `PASS/FAIL`，并附带延迟统计：
