@@ -88,6 +88,7 @@ class WebBridge(QObject):
             self._bus.subscribe("protocol.frame", self._on_protocol_frame)
             self._bus.subscribe("capture.frame", self._on_capture_frame)
             self._bus.subscribe("proxy.status", self._on_proxy_status)
+        self._restore_proxy_sessions()
 
     def _read_app_version(self) -> str:
         env_version = os.environ.get("PROTOFLOW_VERSION")
@@ -300,6 +301,8 @@ class WebBridge(QObject):
             "stopBits": payload.get("stopBits") or "1",
             "parity": payload.get("parity") or "none",
             "flowControl": payload.get("flowControl") or "none",
+            "desiredActive": bool(payload.get("desiredActive", False)),
+            "error": payload.get("error") or None,
         }
         self._proxy_pairs.insert(0, pair)
         self._save_proxy_pairs()
@@ -341,6 +344,10 @@ class WebBridge(QObject):
                         updated["status"] = "error"
                         updated["error"] = result.error
                         self._proxy_pairs[idx] = updated
+                    else:
+                        updated["desiredActive"] = True
+                        updated["error"] = None
+                        self._proxy_pairs[idx] = updated
                 self._save_proxy_pairs()
                 return updated
         return {}
@@ -369,14 +376,17 @@ class WebBridge(QObject):
                     if not result.ok:
                         pair["status"] = "error"
                         pair["error"] = result.error
+                        pair["desiredActive"] = True
                     else:
                         pair["status"] = status
                         pair["error"] = None
+                        pair["desiredActive"] = True
                 else:
                     if self._proxy_manager:
                         self._proxy_manager.stop_pair(pair_id)
                     pair["status"] = status
                     pair["error"] = None
+                    pair["desiredActive"] = False
                 self._proxy_pairs[idx] = pair
                 self._save_proxy_pairs()
                 return pair
@@ -847,7 +857,18 @@ class WebBridge(QObject):
             return []
         if not isinstance(data, list):
             return []
-        return [item for item in data if isinstance(item, dict)]
+        pairs: List[Dict[str, Any]] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            pair = dict(item)
+            pair["status"] = str(pair.get("status") or "stopped").lower()
+            if pair["status"] not in {"running", "stopped", "error"}:
+                pair["status"] = "stopped"
+            pair["desiredActive"] = bool(pair.get("desiredActive", pair["status"] == "running"))
+            pair["error"] = pair.get("error") or None
+            pairs.append(pair)
+        return pairs
 
     def _save_proxy_pairs(self) -> None:
         try:
@@ -856,6 +877,37 @@ class WebBridge(QObject):
                 json.dump(self._proxy_pairs, handle, ensure_ascii=False, indent=2)
         except Exception as exc:
             self.log.emit(f"[WARN] Save proxy pairs failed: {exc}")
+
+    def _restore_proxy_sessions(self) -> None:
+        if not self._proxy_pairs:
+            return
+        changed = False
+        for idx, pair in enumerate(self._proxy_pairs):
+            pair_id = pair.get("id")
+            normalized = dict(pair)
+            previous_status = str(normalized.get("status") or "stopped").lower()
+            desired_active = bool(normalized.get("desiredActive", previous_status == "running"))
+            normalized["desiredActive"] = desired_active
+            normalized["status"] = "stopped"
+            normalized["error"] = None
+            if desired_active and self._proxy_manager and pair_id:
+                result = self._proxy_manager.start_pair(str(pair_id), normalized)
+                if result.ok:
+                    normalized["status"] = "running"
+                    normalized["error"] = None
+                else:
+                    normalized["status"] = "error"
+                    normalized["error"] = result.error
+            if normalized != pair:
+                self._proxy_pairs[idx] = normalized
+                changed = True
+                continue
+            # Keep consistency for persisted "running" entries on cold start.
+            if previous_status == "running" and normalized["status"] != "running":
+                self._proxy_pairs[idx] = normalized
+                changed = True
+        if changed:
+            self._save_proxy_pairs()
 
     def _load_custom_protocols(self) -> List[Dict[str, Any]]:
         if not self._protocols_path.exists():

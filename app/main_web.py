@@ -178,6 +178,19 @@ def main() -> None:
     plugins.load_all()
 
     app = QApplication.instance() or QApplication(sys.argv)
+    _shutdown_done = {"value": False}
+
+    def _shutdown_proxy() -> None:
+        if _shutdown_done["value"]:
+            return
+        _shutdown_done["value"] = True
+        try:
+            proxy_manager.stop_all()
+        except Exception:
+            logging.getLogger("main_web").exception("Failed to stop proxy sessions on shutdown")
+
+    app.aboutToQuit.connect(_shutdown_proxy)
+    atexit.register(_shutdown_proxy)
     window = WebWindow(bus=bus, comm=comm, proxy_manager=proxy_manager)
     window.show()
     print("ProtoFlow Web UI started")
