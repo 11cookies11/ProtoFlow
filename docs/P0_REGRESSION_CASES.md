@@ -53,9 +53,11 @@
 - 前置：`.venv` 可用
 - 步骤：
   1. 运行 `.\scripts\run_proxy_regression.ps1 -Mode mock`
+  2. 运行 `.\scripts\run_proxy_regression.ps1 -Mode mock -Iterations 50 -SoakSec 60 -InjectDisconnect`
 - 预期：
   - 输出 `RESULT: PASSED`
   - 包含 `start_pair / host_to_device / device_to_host / proxy.data_event / status.stopped` 均为 PASS
+  - 增强回归包含 `soak.forwarding` 与 `fault.disconnect_error_event` 且均为 PASS
 
 ## Case 6: 虚拟串口/真实设备回归
 

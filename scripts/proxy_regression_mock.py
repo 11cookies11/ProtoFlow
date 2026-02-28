@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import argparse
 import queue
+import statistics
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -22,6 +24,7 @@ class TestResult:
     name: str
     passed: bool
     detail: str = ""
+    samples_ms: List[float] = field(default_factory=list)
 
 
 class _Endpoint:
@@ -85,8 +88,8 @@ def _fake_serial_ctor(port: str, **_: Any) -> _Endpoint:
         return ep
 
 
-def _await_bytes(port: _Endpoint, expect: bytes, timeout: float = 2.0) -> bool:
-    deadline = time.time() + timeout
+def _await_exact(port: _Endpoint, expect: bytes, timeout_sec: float) -> bool:
+    deadline = time.time() + timeout_sec
     buf = bytearray()
     while time.time() < deadline:
         waiting = port.in_waiting
@@ -96,13 +99,57 @@ def _await_bytes(port: _Endpoint, expect: bytes, timeout: float = 2.0) -> bool:
                 return True
             if len(buf) > len(expect):
                 return False
-        time.sleep(0.005)
+        time.sleep(0.002)
+    return False
+
+
+def _roundtrip(src: _Endpoint, dst: _Endpoint, payload: bytes, timeout_sec: float) -> tuple[bool, float]:
+    t0 = time.perf_counter()
+    src.write(payload)
+    ok = _await_exact(dst, payload, timeout_sec)
+    return ok, (time.perf_counter() - t0) * 1000.0
+
+
+def _wait_status(
+    q: "queue.Queue[Dict[str, Any]]",
+    pair_id: str,
+    status: str,
+    timeout_sec: float,
+) -> bool:
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline:
+        try:
+            evt = q.get(timeout=0.1)
+        except queue.Empty:
+            continue
+        if evt.get("pair_id") == pair_id and evt.get("status") == status:
+            return True
+    return False
+
+
+def _wait_data_event(q: "queue.Queue[Dict[str, Any]]", pair_id: str, timeout_sec: float) -> bool:
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline:
+        try:
+            evt = q.get(timeout=0.1)
+        except queue.Empty:
+            continue
+        if evt.get("pair_id") == pair_id and evt.get("src_role") in {"host", "device"}:
+            return True
     return False
 
 
 def main() -> int:
-    pfm.serial.Serial = _fake_serial_ctor  # type: ignore[assignment]
+    parser = argparse.ArgumentParser(description="Mock proxy regression without serial driver.")
+    parser.add_argument("--iterations", type=int, default=20)
+    parser.add_argument("--payload-size", type=int, default=32)
+    parser.add_argument("--timeout-sec", type=float, default=2.0)
+    parser.add_argument("--soak-sec", type=int, default=0)
+    parser.add_argument("--inject-disconnect", action="store_true")
+    args = parser.parse_args()
 
+    pfm.serial.Serial = _fake_serial_ctor  # type: ignore[assignment]
+    EventBus._log = staticmethod(lambda _message: None)  # type: ignore[method-assign]
     bus = EventBus()
     manager = pfm.ProxyForwardManager(bus)
     status_events: "queue.Queue[Dict[str, Any]]" = queue.Queue()
@@ -120,67 +167,105 @@ def main() -> int:
         "parity": "none",
         "flowControl": "none",
     }
-
     results: List[TestResult] = []
 
     start = manager.start_pair(pair_id, cfg)
     results.append(TestResult("start_pair", start.ok, start.error))
     if not start.ok:
         for r in results:
-            print(f"[{'PASS' if r.passed else 'FAIL'}] {r.name} {r.detail}")
+            print(f"[{'PASS' if r.passed else 'FAIL'}] {r.name} {r.detail}".rstrip())
+        print("RESULT: FAILED")
         return 2
 
     t_host = _fake_serial_ctor("VCOM12")
     t_device = _fake_serial_ctor("VCOM14")
 
-    payload_1 = b"\x01\x03\x00\x00\x00\x02\xC4\x0B"
-    t0 = time.time()
-    t_host.write(payload_1)
-    ok_h2d = _await_bytes(t_device, payload_1)
-    latency_h2d = (time.time() - t0) * 1000.0
-    results.append(
-        TestResult("host_to_device", ok_h2d, "" if ok_h2d else "payload mismatch or timeout")
-    )
-
-    payload_2 = b"\x01\x03\x04\x00\x01\x00\x02\x2A\x32"
-    t1 = time.time()
-    t_device.write(payload_2)
-    ok_d2h = _await_bytes(t_host, payload_2)
-    latency_d2h = (time.time() - t1) * 1000.0
-    results.append(
-        TestResult("device_to_host", ok_d2h, "" if ok_d2h else "payload mismatch or timeout")
-    )
-
-    evt_ok = False
-    evt_deadline = time.time() + 2.0
-    while time.time() < evt_deadline:
-        try:
-            evt = data_events.get(timeout=0.1)
-        except queue.Empty:
-            continue
-        if evt.get("pair_id") == pair_id and evt.get("src_role") in {"host", "device"}:
-            evt_ok = True
+    h2d_samples: List[float] = []
+    d2h_samples: List[float] = []
+    loops_ok = True
+    loops_msg = "ok"
+    for _ in range(max(1, args.iterations)):
+        payload_1 = bytes([0x01, 0x03]) + bytes([0xA5] * max(1, args.payload_size))
+        ok_1, lat_1 = _roundtrip(t_host, t_device, payload_1, args.timeout_sec)
+        if not ok_1:
+            loops_ok = False
+            loops_msg = "host_to_device payload mismatch/timeout"
             break
+        h2d_samples.append(lat_1)
+
+        payload_2 = bytes([0x01, 0x04]) + bytes([0x5A] * max(1, args.payload_size))
+        ok_2, lat_2 = _roundtrip(t_device, t_host, payload_2, args.timeout_sec)
+        if not ok_2:
+            loops_ok = False
+            loops_msg = "device_to_host payload mismatch/timeout"
+            break
+        d2h_samples.append(lat_2)
+    results.append(TestResult("bidirectional_loop", loops_ok, loops_msg, h2d_samples + d2h_samples))
+
+    evt_ok = _wait_data_event(data_events, pair_id, args.timeout_sec)
     results.append(TestResult("proxy.data_event", evt_ok, "" if evt_ok else "no proxy.data event"))
 
-    manager.stop_pair(pair_id)
-    stopped_ok = False
-    end = time.time() + 2.0
-    while time.time() < end:
+    if args.soak_sec > 0 and loops_ok:
+        soak_ok = True
+        soak_msg = "ok"
+        soak_samples: List[float] = []
+        end = time.time() + args.soak_sec
+        flip = True
+        while time.time() < end:
+            payload = b"\xAA\x55" + bytes([0x11] * 16)
+            if flip:
+                ok, lat = _roundtrip(t_host, t_device, payload, args.timeout_sec)
+            else:
+                ok, lat = _roundtrip(t_device, t_host, payload, args.timeout_sec)
+            if not ok:
+                soak_ok = False
+                soak_msg = "soak timeout/mismatch"
+                break
+            soak_samples.append(lat)
+            flip = not flip
+            time.sleep(0.01)
+        results.append(TestResult("soak.forwarding", soak_ok, soak_msg, soak_samples))
+
+    if args.inject_disconnect:
+        # Simulate device unplug: test endpoint closes, then next write should trigger proxy error.
+        t_device.close()
+        disconnect_observed = False
+        disconnect_msg = "no error event"
         try:
-            evt = status_events.get(timeout=0.1)
-        except queue.Empty:
-            continue
-        if evt.get("pair_id") == pair_id and evt.get("status") == "stopped":
-            stopped_ok = True
-            break
+            t_host.write(b"\x10\x20\x30")
+        except Exception:
+            pass
+        deadline = time.time() + args.timeout_sec
+        while time.time() < deadline:
+            try:
+                evt = status_events.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            if evt.get("pair_id") == pair_id and evt.get("status") == "error":
+                disconnect_observed = True
+                disconnect_msg = str(evt.get("error") or "")
+                break
+        results.append(
+            TestResult(
+                "fault.disconnect_error_event",
+                disconnect_observed,
+                disconnect_msg if not disconnect_observed else "error event observed",
+            )
+        )
+
+    manager.stop_pair(pair_id)
+    stopped_ok = _wait_status(status_events, pair_id, "stopped", args.timeout_sec)
     results.append(TestResult("status.stopped", stopped_ok, "" if stopped_ok else "no stopped event"))
 
     passed = all(r.passed for r in results)
     for r in results:
-        print(f"[{'PASS' if r.passed else 'FAIL'}] {r.name} {r.detail}".rstrip())
-    print(f"[INFO] latency host->device: {latency_h2d:.3f} ms")
-    print(f"[INFO] latency device->host: {latency_d2h:.3f} ms")
+        line = f"[{'PASS' if r.passed else 'FAIL'}] {r.name}"
+        if r.samples_ms:
+            avg = statistics.mean(r.samples_ms)
+            line += f" avg={avg:.3f}ms n={len(r.samples_ms)}"
+        if r.detail:
+            line += f" | {r.detail}"
+        print(line)
     print(f"RESULT: {'PASSED' if passed else 'FAILED'}")
     return 0 if passed else 2
 

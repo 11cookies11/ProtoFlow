@@ -10,7 +10,8 @@ param(
   [int]$PayloadSize = 64,
   [double]$TimeoutSec = 2.0,
   [int]$SoakSec = 180,
-  [string]$JsonOut = ".\proxy_regression_report.json"
+  [string]$JsonOut = ".\proxy_regression_report.json",
+  [switch]$InjectDisconnect
 )
 
 $ErrorActionPreference = "Stop"
@@ -23,7 +24,17 @@ if (-not (Test-Path $python)) {
 
 if ($Mode -eq "mock") {
   Write-Host "[RUN] mock regression" -ForegroundColor Cyan
-  & $python (Join-Path $PSScriptRoot "proxy_regression_mock.py")
+  $args = @(
+    (Join-Path $PSScriptRoot "proxy_regression_mock.py"),
+    "--iterations", $Iterations,
+    "--payload-size", $PayloadSize,
+    "--timeout-sec", $TimeoutSec,
+    "--soak-sec", $SoakSec
+  )
+  if ($InjectDisconnect) {
+    $args += "--inject-disconnect"
+  }
+  & $python @args
   exit $LASTEXITCODE
 }
 

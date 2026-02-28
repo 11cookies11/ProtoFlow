@@ -66,6 +66,16 @@ python scripts/proxy_regression.py `
 - `proxy.data` 事件产出
 - `proxy.status` 停止状态事件
 
+可选增强：
+
+```powershell
+.\scripts\run_proxy_regression.ps1 -Mode mock -Iterations 50 -SoakSec 60 -InjectDisconnect
+```
+
+上述命令会额外覆盖：
+- 长时转发稳定性（`soak.forwarding`）
+- 异常断连事件（`fault.disconnect_error_event`，模拟拔插）
+
 ## 3. 结果判定
 
 脚本会输出每个子用例 `PASS/FAIL`，并附带延迟统计：
