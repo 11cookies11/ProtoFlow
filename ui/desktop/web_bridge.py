@@ -4,8 +4,10 @@ import importlib
 import json
 import pkgutil
 import re
+import shutil
 import threading
 import time
+import tempfile
 from pathlib import Path
 import logging
 import os
@@ -818,13 +820,7 @@ class WebBridge(QObject):
 
     def _load_settings(self) -> Dict[str, Any]:
         defaults = self._settings_defaults()
-        if not self._settings_path.exists():
-            return defaults
-        try:
-            with self._settings_path.open("r", encoding="utf-8") as handle:
-                data = json.load(handle) or {}
-        except Exception:
-            return defaults
+        data = self._load_json_with_fallback(self._settings_path, default={})
         if not isinstance(data, dict):
             return defaults
         merged = {
@@ -838,23 +834,10 @@ class WebBridge(QObject):
     def _save_settings(self, payload: Dict[str, Any]) -> bool:
         if not isinstance(payload, dict):
             return False
-        try:
-            self._settings_path.parent.mkdir(parents=True, exist_ok=True)
-            with self._settings_path.open("w", encoding="utf-8") as handle:
-                json.dump(payload, handle, ensure_ascii=False, indent=2)
-        except Exception as exc:
-            self.log.emit(f"[WARN] Save settings failed: {exc}")
-            return False
-        return True
+        return self._save_json_atomic(self._settings_path, payload, "Save settings failed")
 
     def _load_proxy_pairs(self) -> List[Dict[str, Any]]:
-        if not self._proxy_pairs_path.exists():
-            return []
-        try:
-            with self._proxy_pairs_path.open("r", encoding="utf-8") as handle:
-                data = json.load(handle) or []
-        except Exception:
-            return []
+        data = self._load_json_with_fallback(self._proxy_pairs_path, default=[])
         if not isinstance(data, list):
             return []
         pairs: List[Dict[str, Any]] = []
@@ -871,12 +854,7 @@ class WebBridge(QObject):
         return pairs
 
     def _save_proxy_pairs(self) -> None:
-        try:
-            self._proxy_pairs_path.parent.mkdir(parents=True, exist_ok=True)
-            with self._proxy_pairs_path.open("w", encoding="utf-8") as handle:
-                json.dump(self._proxy_pairs, handle, ensure_ascii=False, indent=2)
-        except Exception as exc:
-            self.log.emit(f"[WARN] Save proxy pairs failed: {exc}")
+        self._save_json_atomic(self._proxy_pairs_path, self._proxy_pairs, "Save proxy pairs failed")
 
     def _restore_proxy_sessions(self) -> None:
         if not self._proxy_pairs:
@@ -910,25 +888,57 @@ class WebBridge(QObject):
             self._save_proxy_pairs()
 
     def _load_custom_protocols(self) -> List[Dict[str, Any]]:
-        if not self._protocols_path.exists():
-            return []
-        try:
-            with self._protocols_path.open("r", encoding="utf-8") as handle:
-                data = json.load(handle) or []
-        except Exception:
-            return []
+        data = self._load_json_with_fallback(self._protocols_path, default=[])
         if not isinstance(data, list):
             return []
         items = [item for item in data if isinstance(item, dict)]
         return items
 
     def _save_custom_protocols(self) -> None:
+        self._save_json_atomic(self._protocols_path, self._custom_protocols, "Save protocols failed")
+
+    def _save_json_atomic(self, path: Path, payload: Any, warn_prefix: str) -> bool:
+        tmp_path: Optional[Path] = None
         try:
-            self._protocols_path.parent.mkdir(parents=True, exist_ok=True)
-            with self._protocols_path.open("w", encoding="utf-8") as handle:
-                json.dump(self._custom_protocols, handle, ensure_ascii=False, indent=2)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+            os.close(fd)
+            tmp_path = Path(tmp_name)
+            with tmp_path.open("w", encoding="utf-8") as handle:
+                json.dump(payload, handle, ensure_ascii=False, indent=2)
+            tmp_path.replace(path)
+            backup = path.with_suffix(path.suffix + ".bak")
+            shutil.copy2(path, backup)
+            return True
         except Exception as exc:
-            self.log.emit(f"[WARN] Save protocols failed: {exc}")
+            self.log.emit(f"[WARN] {warn_prefix}: {exc}")
+            if tmp_path is not None and tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except Exception:
+                    pass
+            return False
+
+    def _load_json_with_fallback(self, path: Path, default: Any) -> Any:
+        if not path.exists():
+            return default
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                return json.load(handle)
+        except Exception as exc:
+            self.log.emit(f"[WARN] Load config failed, try backup: {path.name}: {exc}")
+        backup = path.with_suffix(path.suffix + ".bak")
+        if not backup.exists():
+            return default
+        try:
+            with backup.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            # Restore from valid backup for next startup consistency.
+            self._save_json_atomic(path, data, "Restore config from backup failed")
+            return data
+        except Exception as exc:
+            self.log.emit(f"[WARN] Load backup failed: {backup.name}: {exc}")
+            return default
 
     def _normalize_protocol_key(self, value: str) -> str:
         value = value.strip().lower().replace(" ", "_")
