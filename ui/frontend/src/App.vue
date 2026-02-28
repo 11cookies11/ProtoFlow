@@ -3244,8 +3244,9 @@ function mapCaptureFrame(payload) {
   if (!payload || typeof payload !== 'object') return null
   const protocol = payload.protocol || {}
   const unknown = Boolean(protocol.unknown)
+  const hasErrors = Array.isArray(payload.errors) && payload.errors.length > 0
   const direction = payload.direction || 'RX'
-  const tone = unknown ? 'red' : direction === 'TX' ? 'blue' : 'green'
+  const tone = unknown || hasErrors ? 'red' : direction === 'TX' ? 'blue' : 'green'
   return {
     id: payload.id || `cap-${Date.now()}`,
     direction,
@@ -3255,7 +3256,7 @@ function mapCaptureFrame(payload) {
     summary: payload.summary || '',
     summaryText: payload.summary || '',
     tone,
-    warn: unknown,
+    warn: unknown || hasErrors,
     channel: payload.channel || '',
     baud: payload.baud || '',
     protocolLabel: protocol.name || (unknown ? 'Unknown' : ''),

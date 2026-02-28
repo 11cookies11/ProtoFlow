@@ -164,7 +164,13 @@ class PacketAnalysisEngine:
         self, data: bytes
     ) -> Tuple[str, bool, str, List[Dict[str, str]], List[Dict[str, str]]]:
         if len(data) < 2:
-            return "Unknown", True, "Too short", [], []
+            return (
+                "Unknown",
+                True,
+                "Too short",
+                [],
+                [{"code": "FRAME_TOO_SHORT", "message": "Frame length < 2 bytes"}],
+            )
 
         addr = data[0]
         func = data[1]
@@ -173,29 +179,62 @@ class PacketAnalysisEngine:
             {"label": "Address", "raw": f"{addr:02X}", "value": str(addr)},
             {"label": "Function", "raw": f"{func:02X}", "value": f"0x{func:02X}"},
         ]
+        errors: List[Dict[str, str]] = []
 
-        if len(data) >= 4:
-            crc_ok = self._check_modbus_crc(data)
-            tree.append(
+        if len(data) < 5:
+            errors.append({"code": "FRAME_TOO_SHORT", "message": "Modbus RTU frame length < 5 bytes"})
+            return "Modbus RTU", False, summary, tree, errors
+
+        crc_calc = crc16_modbus(data[:-2])
+        crc_expected = int.from_bytes(data[-2:], "little")
+        crc_ok = crc_calc == crc_expected
+        payload_len = len(data) - 4
+        is_exception = bool(func & 0x80)
+        tree.append(
+            {
+                "label": "PayloadLength",
+                "raw": f"{payload_len:02X}",
+                "value": str(payload_len),
+            }
+        )
+        tree.append(
+            {
+                "label": "CRC16",
+                "raw": " ".join(f"{b:02X}" for b in data[-2:]),
+                "value": "valid" if crc_ok else "invalid",
+            }
+        )
+        tree.append(
+            {
+                "label": "CRC16(calc)",
+                "raw": f"{crc_calc:04X}",
+                "value": f"0x{crc_calc:04X}",
+            }
+        )
+        if not crc_ok:
+            errors.append(
                 {
-                    "label": "CRC16",
-                    "raw": " ".join(f"{b:02X}" for b in data[-2:]),
-                    "value": "valid" if crc_ok else "invalid",
+                    "code": "CRC_INVALID",
+                    "message": f"expected=0x{crc_expected:04X} calc=0x{crc_calc:04X}",
                 }
             )
-            if crc_ok:
-                return "Modbus RTU", False, summary, tree, []
-
-        errors = [{"code": "UNKNOWN_PROTOCOL", "message": "No known signature"}]
-        return "Unknown", True, summary, tree, errors
-
-    @staticmethod
-    def _check_modbus_crc(data: bytes) -> bool:
-        if len(data) < 3:
-            return False
-        body = data[:-2]
-        expected = int.from_bytes(data[-2:], "little")
-        return crc16_modbus(body) == expected
+        if is_exception and payload_len != 1:
+            errors.append(
+                {
+                    "code": "LENGTH_INVALID",
+                    "message": f"exception frame payload length should be 1, got {payload_len}",
+                }
+            )
+        if not is_exception and payload_len <= 0:
+            errors.append(
+                {
+                    "code": "LENGTH_INVALID",
+                    "message": "normal frame payload length should be >= 1",
+                }
+            )
+        if not errors:
+            return "Modbus RTU", False, summary, tree, []
+        return "Modbus RTU", False, summary, tree, errors
 
     @staticmethod
     def _split_ascii(text: str, width: int) -> List[str]:

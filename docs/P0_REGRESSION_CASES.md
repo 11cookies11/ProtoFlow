@@ -89,3 +89,16 @@
 - 预期：
   - 输出 `RESULT: PASSED`
   - 子项 `serial_connected / serial_disconnected / tcp_connected / tcp_disconnected` 全部 PASS
+
+## Case 9: 协议解析异常提示（Mock）
+
+- 前置：`.venv` 可用
+- 步骤：
+  1. 运行 `.\.venv\Scripts\python.exe scripts\packet_engine_regression.py`
+- 预期：
+  - 输出 `RESULT: PASSED`
+  - 覆盖以下判定：
+    - 正常 Modbus 帧：无错误
+    - CRC 错误帧：包含 `CRC_INVALID`
+    - 短帧：包含 `FRAME_TOO_SHORT`
+    - 异常帧长度不符：包含 `LENGTH_INVALID`
