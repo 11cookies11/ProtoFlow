@@ -74,12 +74,21 @@ class PacketAnalysisEngine:
         dst = str(payload.get("dst") or "")
         if self._target_channel and self._target_channel not in {src, dst}:
             return
-        if self._target_channel:
+        src_role = str(payload.get("src_role") or "").lower()
+        if src_role == "host":
+            direction = "TX"
+        elif src_role == "device":
+            direction = "RX"
+        elif self._target_channel:
             direction = "TX" if src == self._target_channel else "RX"
-            channel = self._target_channel
         else:
             direction = "TX"
-            channel = src
+
+        host_port = str(payload.get("host_port") or "")
+        if self._target_channel:
+            channel = self._target_channel
+        else:
+            channel = host_port or src
         ts = float(payload.get("ts") or time.time())
         self._queue.put((direction, data, ts, channel))
 

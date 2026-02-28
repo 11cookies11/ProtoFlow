@@ -97,12 +97,26 @@ class _ProxySession:
         self._threads = [
             threading.Thread(
                 target=self._relay_loop,
-                args=(self._host_ser, self._device_ser, self.host_port, self.device_port),
+                args=(
+                    self._host_ser,
+                    self._device_ser,
+                    self.host_port,
+                    self.device_port,
+                    "host",
+                    "device",
+                ),
                 daemon=True,
             ),
             threading.Thread(
                 target=self._relay_loop,
-                args=(self._device_ser, self._host_ser, self.device_port, self.host_port),
+                args=(
+                    self._device_ser,
+                    self._host_ser,
+                    self.device_port,
+                    self.host_port,
+                    "device",
+                    "host",
+                ),
                 daemon=True,
             ),
         ]
@@ -125,7 +139,15 @@ class _ProxySession:
         self._host_ser = None
         self._device_ser = None
 
-    def _relay_loop(self, src: serial.Serial, dst: serial.Serial, src_port: str, dst_port: str) -> None:
+    def _relay_loop(
+        self,
+        src: serial.Serial,
+        dst: serial.Serial,
+        src_port: str,
+        dst_port: str,
+        src_role: str,
+        dst_role: str,
+    ) -> None:
         while self._running.is_set():
             try:
                 waiting = src.in_waiting if src.is_open else 0
@@ -142,6 +164,10 @@ class _ProxySession:
                         "pair_id": self.pair_id,
                         "src": src_port,
                         "dst": dst_port,
+                        "src_role": src_role,
+                        "dst_role": dst_role,
+                        "host_port": self.host_port,
+                        "device_port": self.device_port,
                         "data": data,
                         "ts": time.time(),
                     },
