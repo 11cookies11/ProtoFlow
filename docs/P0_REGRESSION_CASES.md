@@ -75,3 +75,15 @@
   - `proxy_backup_fallback` 涓?PASS
   - `protocol_backup_fallback` 涓?PASS
   - `restored_primary_json_valid` 涓?PASS
+
+## Case 12: 打包运行一致性回归（Mock）
+- 前置：`.venv` 可用
+- 步骤：
+  1. 运行 `.\.venv\Scripts\python.exe scripts\package_runtime_regression.py`
+- 预期：
+  - 输出 `RESULT: PASSED`
+  - `spec.datas_required` 为 PASS
+  - `build_script.datas_required` 为 PASS
+  - `installer.version_macro` 为 PASS
+  - `runtime.log_path_created` 为 PASS
+  - `runtime.log_contains_probe` 为 PASS

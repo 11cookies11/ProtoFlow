@@ -62,6 +62,14 @@
 - [x] 回退后主配置文件会自动修复为可解析 JSON
 - [x] 回归脚本 `scripts/config_persistence_regression.py` 通过
 
+## 5.2 打包运行一致性
+
+- [x] PyInstaller spec 包含 `ui/frontend/dist`、`config`、`plugins`、`ui/assets`、`VERSION`
+- [x] `scripts/build_windows.ps1` 包含与 spec 一致的数据打包项
+- [x] `installer/ProtoFlow.iss` 使用 `MyAppVersion` 宏生成安装包版本号
+- [x] 运行日志默认写入 `%LOCALAPPDATA%/ProtoFlow/logs`
+- [x] 回归脚本 `scripts/package_runtime_regression.py` 通过
+
 ## 6. 验收结论模板
 
 - 版本：`<填写 VERSION>`
