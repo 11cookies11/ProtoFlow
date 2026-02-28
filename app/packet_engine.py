@@ -69,8 +69,8 @@ class PacketAnalysisEngine:
             self._channel.address = payload.get("address")
             if payload.get("type") == "serial" and self._channel.port:
                 self._channel.channel = str(self._channel.port)
-            elif payload.get("type") == "tcp-client":
-                self._channel.channel = f"{self._channel.host}:{self._channel.address}" if self._channel.host else ""
+            elif payload.get("type") in {"tcp", "tcp-client"}:
+                self._channel.channel = str(self._channel.address or "")
 
     def _on_disconnected(self, payload: Any) -> None:
         self._channel = _ChannelInfo()

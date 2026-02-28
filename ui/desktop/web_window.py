@@ -65,19 +65,62 @@ class WebWindow(QMainWindow):
         channel.registerObject("bridge", self.bridge)
         view.page().setWebChannel(channel)
 
-        base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
-        icon_svg = base_dir / "assets" / "icons" / "logo.svg"
-        icon_png = base_dir / "assets" / "icons" / "logo.png"
+        resource_root = self._resolve_resource_root()
+        icon_svg = self._find_existing_path(
+            resource_root / "assets" / "icons" / "logo.svg",
+            resource_root / "ui" / "assets" / "icons" / "logo.svg",
+        )
+        icon_png = self._find_existing_path(
+            resource_root / "assets" / "icons" / "logo.png",
+            resource_root / "ui" / "assets" / "icons" / "logo.png",
+        )
         icon = QIcon(str(icon_svg))
         if icon.isNull():
             icon = QIcon(str(icon_png))
         if not icon.isNull():
             self.setWindowIcon(icon)
-        dist_index = base_dir / "frontend" / "dist" / "index.html"
-        fallback_index = base_dir / "assets" / "web" / "index.html"
-        index_path = dist_index if dist_index.exists() else fallback_index
+        index_path = self._find_existing_path(
+            resource_root / "frontend" / "dist" / "index.html",
+            resource_root / "ui" / "frontend" / "dist" / "index.html",
+            resource_root / "assets" / "web" / "index.html",
+            resource_root / "ui" / "assets" / "web" / "index.html",
+        )
         view.load(QUrl.fromLocalFile(str(index_path)))
         view.page().profile().downloadRequested.connect(self._handle_download)
+
+    @staticmethod
+    def _find_existing_path(*candidates: Path) -> Path:
+        for path in candidates:
+            if path.exists():
+                return path
+        return candidates[0]
+
+    def _resolve_resource_root(self) -> Path:
+        source_ui_dir = Path(__file__).resolve().parents[1]
+        if not getattr(sys, "frozen", False):
+            return source_ui_dir
+
+        candidates = []
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            candidates.append(Path(meipass))
+            candidates.append(Path(meipass) / "ui")
+
+        exe_dir = Path(sys.executable).resolve().parent
+        candidates.append(exe_dir)
+        candidates.append(exe_dir / "_internal")
+        candidates.append(exe_dir / "ui")
+
+        for root in candidates:
+            if (root / "frontend" / "dist" / "index.html").exists():
+                return root
+            if (root / "ui" / "frontend" / "dist" / "index.html").exists():
+                return root
+            if (root / "assets" / "web" / "index.html").exists():
+                return root
+            if (root / "ui" / "assets" / "web" / "index.html").exists():
+                return root
+        return candidates[0] if candidates else source_ui_dir
 
     def _handle_download(self, item) -> None:
         suggested = item.downloadFileName()
@@ -291,8 +334,11 @@ class WebWindow(QMainWindow):
         return screen_y <= frame_y + self._titlebar_height
 
     def _apply_custom_titlebar(self) -> None:
-        base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
-        style_path = base_dir / "assets" / "styles" / "window.css"
+        resource_root = self._resolve_resource_root()
+        style_path = self._find_existing_path(
+            resource_root / "assets" / "styles" / "window.css",
+            resource_root / "ui" / "assets" / "styles" / "window.css",
+        )
         if not style_path.exists():
             return
         self.setStyleSheet(style_path.read_text(encoding="utf-8"))
@@ -300,8 +346,11 @@ class WebWindow(QMainWindow):
         self._win_style_applied = True
 
     def _init_system_titlebar(self):
-        base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
-        html_path = base_dir / "assets" / "titlebar" / "titlebar.html"
+        resource_root = self._resolve_resource_root()
+        html_path = self._find_existing_path(
+            resource_root / "assets" / "titlebar" / "titlebar.html",
+            resource_root / "ui" / "assets" / "titlebar" / "titlebar.html",
+        )
         if not html_path.exists():
             return
         html = html_path.read_text(encoding="utf-8")

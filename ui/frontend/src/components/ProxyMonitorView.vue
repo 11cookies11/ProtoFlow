@@ -29,7 +29,7 @@ const connectionMode = ref(tr('透传模式'))
 const hostPort = ref('COM3')
 const devicePort = ref('COM5')
 const baudRate = ref('115200')
-const parity = ref(tr('无'))
+const parity = ref('none')
 const dataBits = ref('8')
 const stopBits = ref('1')
 const flowControl = ref('none')
@@ -39,76 +39,23 @@ const connectionOptions = computed(() => [
   { value: '协议桥接', label: tr('协议桥接') },
   { value: '映射模式', label: tr('映射模式') },
 ])
-const portOptions = ['COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM10', 'COM12']
+const serialPorts = ref([])
+const fallbackPorts = ['COM1', 'COM2', 'COM3', 'COM4']
+const portOptions = computed(() => {
+  const ports = (serialPorts.value || []).filter(Boolean)
+  return ports.length ? ports : fallbackPorts
+})
 const baudOptions = ['4800', '9600', '19200', '38400', '57600', '115200']
 const parityOptions = computed(() => [
-  { value: '无', label: tr('无') },
-  { value: '偶校验', label: tr('偶校验') },
-  { value: '奇校验', label: tr('奇校验') },
-  { value: 'Mark', label: 'Mark' },
-  { value: 'Space', label: 'Space' },
+  { value: 'none', label: tr('无') },
+  { value: 'even', label: tr('偶校验') },
+  { value: 'odd', label: tr('奇校验') },
+  { value: 'mark', label: 'Mark' },
+  { value: 'space', label: 'Space' },
 ])
 
-
-const proxies = ref([
-  {
-    id: 'proxy-com3',
-    name: tr('主控制器链路'),
-    meta: 'ID: PX-00124 · 8-N-1',
-    status: 'running',
-    statusLabel: tr('运行中'),
-    statusIcon: 'swap_horizontal_circle',
-    routeIcon: 'keyboard_double_arrow_right',
-    routeLabel: tr('转发中'),
-    routeTone: 'primary',
-    hostPort: 'COM3',
-    devicePort: 'COM5',
-    baud: '115200',
-    bandwidth: '12.4',
-    bandwidthUnit: 'KB/s',
-    spark: 'M0 35 L10 20 L20 35 L30 10 L40 30 L50 5 L60 35 L70 20 L80 30 L90 10 L100 25',
-    active: true,
-    toggleLabel: tr('运行中'),
-  },
-  {
-    id: 'proxy-com7',
-    name: tr('电机反馈继电器'),
-    meta: 'ID: PX-00992 · 8-E-1',
-    status: 'stopped',
-    statusLabel: tr('已停止'),
-    statusIcon: 'pause_circle',
-    routeIcon: 'more_horiz',
-    routeLabel: tr('离线'),
-    routeTone: 'muted',
-    hostPort: 'COM7',
-    devicePort: 'COM10',
-    baud: '9600',
-    bandwidth: '0.0',
-    bandwidthUnit: 'KB/s',
-    spark: '',
-    active: false,
-    toggleLabel: tr('已停止'),
-  },
-  {
-    id: 'proxy-com1',
-    name: tr('GPS 模块数据流'),
-    meta: 'ID: PX-00219 · 7-N-2',
-    status: 'error',
-    statusLabel: tr('异常'),
-    statusIcon: 'report',
-    routeIcon: 'sync_problem',
-    routeLabel: tr('连接失败'),
-    routeTone: 'danger',
-    hostPort: 'COM1',
-    devicePort: 'COM12',
-    baud: '4800',
-    bandwidth: '0.4',
-    bandwidthUnit: 'KB/s',
-    spark: 'M0 38 L40 38 L42 10 L48 10 L50 38 L90 38 L92 10 L98 10 L100 38',
-    active: true,
-    toggleLabel: tr('异常'),
-  },
-])
+const proxies = ref([])
+const formError = ref('')
 
 let proxySeq = 1000
 
@@ -143,6 +90,15 @@ function mapProxyFromBackend(payload) {
   const routeIcon = active ? 'keyboard_double_arrow_right' : 'more_horiz'
   const baud = payload.baud ? String(payload.baud) : '115200'
   proxySeq = Math.max(proxySeq, Number(String(payload.id || '').replace(/\D/g, '')) || proxySeq)
+  const parityMap = {
+    无: 'none',
+    偶校验: 'even',
+    奇校验: 'odd',
+    Mark: 'mark',
+    Space: 'space',
+  }
+  const parityValue = String(payload.parity || 'none')
+  const normalizedParity = parityMap[parityValue] || parityValue
   return {
     id: payload.id || `proxy-${Date.now()}`,
     name: payload.name || tr('未命名转发对'),
@@ -158,7 +114,7 @@ function mapProxyFromBackend(payload) {
     baud,
     dataBits: payload.dataBits || '8',
     stopBits: payload.stopBits || '1',
-    parity: payload.parity || 'none',
+    parity: normalizedParity,
     flowControl: payload.flowControl || 'none',
     bandwidth: payload.bandwidth || '0.0',
     bandwidthUnit: payload.bandwidthUnit || 'KB/s',
@@ -173,6 +129,20 @@ function loadProxyPairs() {
   withBridgeResult(bridge.value.list_proxy_pairs(), (items) => {
     if (!Array.isArray(items)) return
     proxies.value = items.filter(Boolean).map((item) => mapProxyFromBackend(item))
+  })
+}
+
+function loadSerialPorts() {
+  if (!bridge || !bridge.value || !bridge.value.list_ports) {
+    serialPorts.value = []
+    return
+  }
+  withBridgeResult(bridge.value.list_ports(), (items) => {
+    if (!Array.isArray(items)) {
+      serialPorts.value = []
+      return
+    }
+    serialPorts.value = items.filter((item) => typeof item === 'string' && item.trim())
   })
 }
 
@@ -315,6 +285,7 @@ const filteredFrames = computed(() => {
 })
 
 function openEditModal(proxy) {
+  formError.value = ''
   modalMode.value = 'edit'
   modalProxy.value = proxy
   proxyName.value = proxy && proxy.name ? proxy.name : ''
@@ -329,11 +300,13 @@ function openEditModal(proxy) {
 }
 
 function openCreateModal() {
+  formError.value = ''
   modalMode.value = 'create'
   modalProxy.value = null
   proxyName.value = ''
-  hostPort.value = portOptions[0] || 'COM1'
-  devicePort.value = portOptions[1] || 'COM2'
+  const options = portOptions.value
+  hostPort.value = options[0] || 'COM1'
+  devicePort.value = options[1] || options[0] || 'COM2'
   baudRate.value = baudOptions[5] || '115200'
   dataBits.value = '8'
   stopBits.value = '1'
@@ -357,6 +330,7 @@ function openCaptureModal(proxy) {
 }
 
 function closeModal() {
+  formError.value = ''
   modalOpen.value = false
 }
 
@@ -372,6 +346,7 @@ function selectFrame(frame) {
 }
 
 function refreshProxies() {
+  loadSerialPorts()
   if (bridge && bridge.value && bridge.value.refresh_proxy_pairs) {
     withBridgeResult(bridge.value.refresh_proxy_pairs(), (items) => {
       if (!Array.isArray(items)) return
@@ -380,6 +355,16 @@ function refreshProxies() {
     return
   }
   proxies.value = proxies.value.map((proxy) => ({ ...proxy }))
+}
+
+function validateProxyPayload(payload) {
+  if (!payload.hostPort || !payload.devicePort) {
+    return tr('请选择主机端口和设备端口')
+  }
+  if (payload.hostPort === payload.devicePort) {
+    return tr('主机端口和设备端口不能相同')
+  }
+  return ''
 }
 
 function setProxyStatus(proxy, active) {
@@ -418,6 +403,12 @@ function saveProxy() {
     parity: parity.value,
     flowControl: flowControl.value,
   }
+  const validationError = validateProxyPayload(payload)
+  if (validationError) {
+    formError.value = validationError
+    return
+  }
+  formError.value = ''
 
   if (modalMode.value === 'create') {
     if (bridge && bridge.value && bridge.value.create_proxy_pair) {
@@ -512,6 +503,7 @@ function confirmDeleteProxy(proxy) {
 }
 
 onMounted(() => {
+  loadSerialPorts()
   loadProxyPairs()
 })
 
@@ -707,6 +699,7 @@ onBeforeUnmount(() => {
                 <DropdownSelect v-model="devicePort" class="proxy-select" :options="portOptions" />
               </div>
             </div>
+            <div v-if="formError" class="text-xs text-rose-500 -mt-1">{{ formError }}</div>
             <div class="proxy-section">
               <div class="proxy-section-title">
                 <span class="material-symbols-outlined">settings_ethernet</span>{{ tr('串口参数配置') }}<span>{{ tr('（两端需一致）') }}</span>

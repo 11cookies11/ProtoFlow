@@ -58,7 +58,7 @@ class ProtocolLoader:
         self.load_config()
         # 订阅串口接收事件
         if self._enabled:
-            self.bus.subscribe("serial.rx", self.parse)
+            self.bus.subscribe("comm.rx", self.parse)
 
     def load_config(self) -> None:
         """加载 YAML 配置，并缓存关键字段。"""

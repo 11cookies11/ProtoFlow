@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 import logging
 import os
+import sys
 from typing import Any, Dict, List, Optional
 import yaml
 
@@ -90,10 +91,27 @@ class WebBridge(QObject):
         env_version = os.environ.get("PROTOFLOW_VERSION")
         if env_version:
             return env_version.strip()
+        candidates = [
+            Path.cwd() / "VERSION",
+            Path(__file__).resolve().parents[2] / "VERSION",
+        ]
+        if getattr(sys, "frozen", False):
+            exe_dir = Path(sys.executable).resolve().parent
+            candidates.extend(
+                [
+                    exe_dir / "VERSION",
+                    exe_dir / "_internal" / "VERSION",
+                ]
+            )
+            meipass = getattr(sys, "_MEIPASS", None)
+            if meipass:
+                candidates.append(Path(meipass) / "VERSION")
         try:
-            version_path = Path(__file__).resolve().parents[1] / "VERSION"
-            if version_path.is_file():
-                return version_path.read_text(encoding="utf-8").strip()
+            for version_path in candidates:
+                if version_path.is_file():
+                    version = version_path.read_text(encoding="utf-8").strip()
+                    if version:
+                        return version
         except Exception:
             return "v0.0.0"
         return "v0.0.0"
