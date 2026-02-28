@@ -9,25 +9,25 @@ import time
 from PySide6.QtCore import QThread, Signal
 
 from dsl_runtime.actions.dsl_builtin_actions import register_builtin_actions
+from dsl_runtime.actions.dsl_chart_actions import register_chart_actions
+from dsl_runtime.actions.dsl_data_actions import register_data_actions
 from dsl_runtime.actions.dsl_protocol_actions import register_protocol_actions
 from dsl_runtime.actions.dsl_protocol_schema_actions import register_schema_protocol_actions
-from dsl_runtime.actions.dsl_chart_actions import register_chart_actions
 from dsl_runtime.actions.dsl_record_actions import register_record_actions
-from dsl_runtime.actions.dsl_data_actions import register_data_actions
-from dsl_runtime.lang.executor import StateMachineExecutor
-from dsl_runtime.lang.parser import parse_script
 from dsl_runtime.engine.channels import build_channels
 from dsl_runtime.engine.context import RuntimeContext
+from dsl_runtime.lang.executor import StateMachineExecutor
+from dsl_runtime.lang.parser import parse_script
 
 
 class _LogHandler(logging.Handler):
-    """将 logging 输出转发到 Qt 信号。"""
+    """Forward logging records to a Qt signal callback."""
 
     def __init__(self, emit_fn) -> None:
         super().__init__()
         self._emit_fn = emit_fn
 
-    def emit(self, record: logging.LogRecord) -> None:  # pragma: no cover - Qt 回调
+    def emit(self, record: logging.LogRecord) -> None:  # pragma: no cover
         msg = self.format(record)
         try:
             self._emit_fn(msg)
@@ -36,7 +36,7 @@ class _LogHandler(logging.Handler):
 
 
 class _ObservableExecutor(StateMachineExecutor):
-    """带停止标记与进度回调的执行器包装。"""
+    """State machine executor with stop event and progress callbacks."""
 
     def __init__(self, ast, ctx, stop_event: threading.Event, on_state, on_progress) -> None:
         super().__init__(ast, ctx)
@@ -54,7 +54,6 @@ class _ObservableExecutor(StateMachineExecutor):
             self._run_actions(state)
             if self._stop_event.is_set():
                 break
-            # 条件跳转
             if state.goto:
                 if state.when:
                     cond = bool(self.ctx.eval_value(state.when))
@@ -65,7 +64,6 @@ class _ObservableExecutor(StateMachineExecutor):
                 else:
                     self._goto(state.goto)
                     continue
-            # 事件/超时
             next_state = self._wait_event_or_timeout(state)
             if next_state:
                 self._goto(next_state)
@@ -98,7 +96,7 @@ class _ObservableExecutor(StateMachineExecutor):
 
 
 class ScriptRunnerQt(QThread):
-    """在后台线程运行 DSL，并通过信号回传 log/state/progress。"""
+    """Run DSL in a worker thread and emit log/state/progress via Qt signals."""
 
     sig_log = Signal(str)
     sig_state = Signal(str)
@@ -114,14 +112,13 @@ class ScriptRunnerQt(QThread):
     def stop(self) -> None:
         self._stop_event.set()
 
-    def run(self) -> None:  # pragma: no cover - 线程逻辑
+    def run(self) -> None:  # pragma: no cover
         handler = _LogHandler(lambda msg: self.sig_log.emit(msg))
         handler.setLevel(logging.INFO)
         logger = logging.getLogger("dsl")
         logger.handlers = [handler]
         logger.setLevel(logging.INFO)
 
-        # 注册动作
         register_builtin_actions()
         register_protocol_actions()
         register_schema_protocol_actions()
@@ -133,15 +130,19 @@ class ScriptRunnerQt(QThread):
         ctx = None
         tmp_path: str | None = None
         try:
-            # 将编辑器内容写入临时文件，复用 parser
-            with tempfile.NamedTemporaryFile("w+", suffix=".yaml", delete=False) as tmp:
+            self.sig_state.emit("__running__")
+            self.sig_progress.emit(0)
+
+            # Use UTF-8 explicitly to avoid locale-dependent encode failures on Windows.
+            with tempfile.NamedTemporaryFile("w+", suffix=".yaml", delete=False, encoding="utf-8") as tmp:
                 tmp.write(self.yaml_text)
                 tmp.flush()
                 tmp_path = tmp.name
+
             ast = parse_script(tmp_path)
             channels = build_channels(ast.channels)
             if not channels:
-                raise ValueError("未定义 channels")
+                raise ValueError("channels is required")
             default_channel = next(iter(channels.keys()))
             ctx = RuntimeContext(
                 channels,
@@ -161,10 +162,14 @@ class ScriptRunnerQt(QThread):
             )
             executor.run()
             if self._stop_event.is_set():
+                self.sig_state.emit("__stopped__")
                 self.sig_log.emit("Script stopped")
             else:
+                self.sig_progress.emit(100)
+                self.sig_state.emit("__finished__")
                 self.sig_log.emit("Script finished")
-        except Exception as exc:  # 报错直接显示
+        except Exception as exc:
+            self.sig_state.emit("__error__")
             self.sig_log.emit(f"[ERROR] {exc}")
         finally:
             if ctx is not None:

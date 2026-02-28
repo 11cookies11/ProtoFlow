@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { basicSetup } from 'codemirror'
 import { EditorState, RangeSetBuilder } from '@codemirror/state'
@@ -4120,6 +4120,27 @@ function attachBridge(obj) {
   })
   obj.script_log.connect((line) => addScriptLog(line))
   obj.script_state.connect((state) => {
+    if (state === '__running__') {
+      scriptRunning.value = true
+      scriptState.value = 'running'
+      return
+    }
+    if (state === '__finished__') {
+      scriptRunning.value = false
+      scriptState.value = 'idle'
+      scriptProgress.value = 100
+      return
+    }
+    if (state === '__stopped__') {
+      scriptRunning.value = false
+      scriptState.value = 'idle'
+      return
+    }
+    if (state === '__error__') {
+      scriptRunning.value = false
+      scriptState.value = 'error'
+      return
+    }
     scriptState.value = state
     if (state) {
       scriptRunning.value = true

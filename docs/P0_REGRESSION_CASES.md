@@ -102,3 +102,14 @@
     - CRC 错误帧：包含 `CRC_INVALID`
     - 短帧：包含 `FRAME_TOO_SHORT`
     - 异常帧长度不符：包含 `LENGTH_INVALID`
+
+## Case 10: DSL 运行生命周期回归（Mock）
+
+- 前置：`.venv` 可用
+- 步骤：
+  1. 运行 `.\.venv\Scripts\python.exe scripts\script_runner_regression.py`
+- 预期：
+  - 输出 `RESULT: PASSED`
+  - 正常执行路径包含 `__running__` 与 `__finished__`
+  - 停止路径包含 `__stopped__`
+  - 异常路径包含 `__error__`
