@@ -80,3 +80,12 @@
 - 预期：
   - 上次会话不会残留为僵尸占用
   - 状态恢复逻辑一致，不出现“显示运行但实际不可用”
+
+## Case 8: comm 事件序列一致性（Mock）
+
+- 前置：`.venv` 可用
+- 步骤：
+  1. 运行 `.\.venv\Scripts\python.exe scripts\comm_manager_regression_mock.py`
+- 预期：
+  - 输出 `RESULT: PASSED`
+  - 子项 `serial_connected / serial_disconnected / tcp_connected / tcp_disconnected` 全部 PASS

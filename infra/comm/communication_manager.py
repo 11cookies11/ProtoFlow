@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 from infra.common.event_bus import EventBus
 from infra.comm.serial_manager import SerialManager
@@ -15,6 +15,7 @@ class CommunicationManager:
     def __init__(self, bus: EventBus) -> None:
         self._bus = bus
         self._current_session: Optional[SessionType] = None
+        self._suppress_disconnect_event = False
 
         # Bridge low-level events to unified communication events.
         self._bus.subscribe("serial.rx", lambda data: self._bus.publish("comm.rx", data))
@@ -23,6 +24,8 @@ class CommunicationManager:
         self._bus.subscribe("tcp.tx", lambda data: self._bus.publish("comm.tx", data))
         self._bus.subscribe("serial.error", lambda reason: self._bus.publish("comm.error", reason))
         self._bus.subscribe("tcp.error", lambda reason: self._bus.publish("comm.error", reason))
+        self._bus.subscribe("serial.closed", self._on_serial_closed)
+        self._bus.subscribe("tcp.disconnected", self._on_tcp_disconnected)
 
         # Serial reconnection path: SerialManager emits serial.opened again after reconnect.
         self._bus.subscribe("serial.opened", self._on_serial_opened)
@@ -52,22 +55,23 @@ class CommunicationManager:
         self.close(notify=False)
         session = TcpSession(self._bus)
         session.connect(ip, port)
-        self._current_session = session
-        self._bus.publish(
-            "comm.connected",
-            {"type": "tcp", "host": ip, "port": port, "address": f"{ip}:{port}"},
-        )
+        if session.is_connected():
+            self._current_session = session
+            self._bus.publish(
+                "comm.connected",
+                {"type": "tcp", "host": ip, "port": port, "address": f"{ip}:{port}"},
+            )
 
     def close(self, notify: bool = True) -> None:
         """Close current session."""
         if self._current_session:
+            self._suppress_disconnect_event = not notify
             try:
                 self._current_session.close()
             except Exception:
                 pass
             self._current_session = None
-            if notify:
-                self._bus.publish("comm.disconnected")
+            self._suppress_disconnect_event = False
 
     def send(self, data: bytes) -> None:
         """Send bytes through current session."""
@@ -119,3 +123,17 @@ class CommunicationManager:
                 "baud": session.baudrate,
             },
         )
+
+    def _on_serial_closed(self, _payload: Any = None) -> None:
+        if self._suppress_disconnect_event:
+            return
+        session = self._current_session
+        if isinstance(session, SerialManager):
+            self._bus.publish("comm.disconnected")
+
+    def _on_tcp_disconnected(self, _payload: Any = None) -> None:
+        if self._suppress_disconnect_event:
+            return
+        session = self._current_session
+        if isinstance(session, TcpSession):
+            self._bus.publish("comm.disconnected")
