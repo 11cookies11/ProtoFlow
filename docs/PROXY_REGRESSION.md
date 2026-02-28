@@ -53,6 +53,19 @@ python scripts/proxy_regression.py `
 - `com0com` 驱动注册表是否可见
 - 当前可见串口列表
 
+### 2.2 无驱动模拟回归（可先执行）
+
+如果本机暂时无法安装虚拟串口驱动，可先运行纯 Python 模拟回归：
+
+```powershell
+.\.venv\Scripts\python.exe scripts\proxy_regression_mock.py
+```
+
+该脚本不依赖 `com0com`，会在进程内模拟 2 对串口并验证：
+- 代理双向转发
+- `proxy.data` 事件产出
+- `proxy.status` 停止状态事件
+
 ## 3. 结果判定
 
 脚本会输出每个子用例 `PASS/FAIL`，并附带延迟统计：
