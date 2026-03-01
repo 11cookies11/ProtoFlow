@@ -16,7 +16,11 @@
 - Proxy capture panel
   - Open/close capture modal from proxy card
   - Frame filter (`all/rx/tx/error`) reflects in table list
+  - Search keyword filters frame rows by id/protocol/summary/raw hex
+  - Capture footer pagination buttons (`first/prev/next/last`) are actionable
+  - Capture toolbar actions (`resume/settings`) are actionable
   - Select frame updates right details panel
+  - Details panel action buttons (`copy hex`, `open rule`) are actionable
 - Logging behavior
   - Comm/script logs append without UI freeze during burst input
   - Auto-scroll keeps tail pinned when enabled

@@ -42,10 +42,18 @@ defineProps({
   },
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'copy-hex', 'open-rule'])
 
 function onClose() {
   emit('close')
+}
+
+function onCopyHex() {
+  emit('copy-hex')
+}
+
+function onOpenRule(mode) {
+  emit('open-rule', mode)
 }
 </script>
 
@@ -56,10 +64,16 @@ function onClose() {
         <span class="material-symbols-outlined !text-sm text-blue-500">info</span>{{ tr('报文解析详情') }}
       </h2>
       <div class="flex gap-2">
-        <button class="p-1 hover:bg-slate-100 rounded" :title="tr('复制原始十六进制')">
+        <button
+          type="button"
+          class="p-1 hover:bg-slate-100 rounded"
+          :title="!activeFrame ? tr('暂无可复制报文') : tr('复制原始十六进制')"
+          :disabled="!activeFrame"
+          @click="onCopyHex"
+        >
           <span class="material-symbols-outlined !text-sm">content_copy</span>
         </button>
-        <button class="p-1 hover:bg-slate-100 rounded" @click="onClose">
+        <button type="button" class="p-1 hover:bg-slate-100 rounded" @click="onClose">
           <span class="material-symbols-outlined !text-sm">close</span>
         </button>
       </div>
@@ -84,10 +98,18 @@ function onClose() {
             </p>
           </div>
           <div class="flex justify-center gap-3">
-            <button class="px-3 py-1.5 bg-white border border-slate-300 rounded text-[11px] font-bold hover:bg-slate-50 transition-colors shadow-sm">
+            <button
+              type="button"
+              class="px-3 py-1.5 bg-white border border-slate-300 rounded text-[11px] font-bold hover:bg-slate-50 transition-colors shadow-sm"
+              @click="onOpenRule('inspect')"
+            >
               {{ isUnknownFrame ? tr('手动解析') : tr('查看详情') }}
             </button>
-            <button class="px-3 py-1.5 bg-blue-600 text-white rounded text-[11px] font-bold hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-md">
+            <button
+              type="button"
+              class="px-3 py-1.5 bg-blue-600 text-white rounded text-[11px] font-bold hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-md"
+              @click="onOpenRule('configure')"
+            >
               <span class="material-symbols-outlined !text-xs">schema</span>
               {{ isUnknownFrame ? tr('配置解析规则') : tr('调整解析规则') }}
             </button>

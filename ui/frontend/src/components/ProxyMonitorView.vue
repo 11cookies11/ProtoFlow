@@ -32,6 +32,9 @@ const captureProxy = ref(null)
 const captureView = ref('parsed')
 const { captureOpen, captureFilter, selectedFrame, openCapture, closeCapture } = useCapturePanel()
 const captureTableRef = ref(null)
+const captureSearchKeyword = ref('')
+const captureScrollTop = ref(0)
+const captureViewportHeight = ref(0)
 
 const proxyName = ref('')
 const connectionMode = ref(tr('透传模式'))
@@ -288,12 +291,46 @@ function hexCellClass(index, value) {
 
 const filteredFrames = computed(() => {
   const safeFrames = captureFrames.value.filter(Boolean)
-  if (captureFilter.value === 'all') return safeFrames
-  if (captureFilter.value === 'error') {
-    return safeFrames.filter((frame) => frame.tone === 'red')
-  }
-  return safeFrames.filter((frame) => frame.direction === captureFilter.value)
+  const byFilter =
+    captureFilter.value === 'all'
+      ? safeFrames
+      : captureFilter.value === 'error'
+        ? safeFrames.filter((frame) => frame.tone === 'red')
+        : safeFrames.filter((frame) => frame.direction === captureFilter.value)
+  const keyword = String(captureSearchKeyword.value || '').trim().toLowerCase()
+  if (!keyword) return byFilter
+  return byFilter.filter((frame) => {
+    const fields = [
+      frame.id,
+      frame.direction,
+      frame.summary,
+      frame.summaryText,
+      frame.note,
+      frame.protocolLabel,
+      frame.protocolTooltip,
+      frame.channel,
+    ]
+    return fields.some((item) => String(item || '').toLowerCase().includes(keyword))
+  })
 })
+
+const capturePageSize = computed(() => {
+  const rows = Math.floor((captureViewportHeight.value || 0) / 36)
+  return Math.max(1, rows || 1)
+})
+
+const capturePageCount = computed(() => Math.max(1, Math.ceil(filteredFrames.value.length / capturePageSize.value)))
+
+const capturePage = computed(() => {
+  const offset = Math.floor(captureScrollTop.value / (capturePageSize.value * 36))
+  return Math.min(capturePageCount.value, offset + 1)
+})
+
+const captureMetaView = computed(() => ({
+  ...captureMeta.value,
+  page: capturePage.value,
+  pageCount: capturePageCount.value,
+}))
 
 const frameWindow = useWindowedList({
   itemCount: computed(() => filteredFrames.value.length),
@@ -309,7 +346,58 @@ const visibleFrames = computed(() => {
 
 function syncCaptureWindow() {
   if (!captureTableRef.value) return
-  frameWindow.updateViewport(captureTableRef.value.clientHeight || 0, captureTableRef.value.scrollTop || 0)
+  captureViewportHeight.value = captureTableRef.value.clientHeight || 0
+  captureScrollTop.value = captureTableRef.value.scrollTop || 0
+  frameWindow.updateViewport(captureViewportHeight.value, captureScrollTop.value)
+}
+
+function scrollCaptureToPage(targetPage) {
+  if (!captureTableRef.value) return
+  const page = Math.max(1, Math.min(capturePageCount.value, Number(targetPage) || 1))
+  const top = (page - 1) * capturePageSize.value * 36
+  captureTableRef.value.scrollTop = top
+  syncCaptureWindow()
+}
+
+function copyActiveHex() {
+  const content = String(activeFrame.value?.note || '').trim()
+  if (!content) return
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    navigator.clipboard.writeText(content).catch(() => {})
+  }
+}
+
+function openCaptureRule() {
+  if (!captureProxy.value) return
+  openEditModal(captureProxy.value)
+}
+
+function exportCaptureResults() {
+  const rows = filteredFrames.value.map((frame) => {
+    return [frame.time || '', frame.direction || '', frame.protocolLabel || '', frame.note || '', frame.summaryText || frame.summary || ''].join('\t')
+  })
+  const payload = rows.join('\n')
+  const name = `capture_${new Date().toISOString().replace(/[:.]/g, '-')}.log`
+  const blob = new Blob([payload], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = name
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+function resumeCapture() {
+  if (!captureProxy.value) return
+  if (bridge && bridge.value && bridge.value.start_capture) {
+    bridge.value.start_capture({
+      id: captureProxy.value.id,
+      channel: captureProxy.value.hostPort,
+      hostPort: captureProxy.value.hostPort,
+    })
+  }
 }
 
 function openEditModal(proxy) {
@@ -364,6 +452,7 @@ function closeCaptureModal() {
   if (bridge && bridge.value && bridge.value.stop_capture) {
     bridge.value.stop_capture()
   }
+  captureSearchKeyword.value = ''
   closeCapture()
 }
 
@@ -676,13 +765,20 @@ onBeforeUnmount(() => {
         @mousedown.stop
         @click.stop
       >
-        <ProxyCaptureToolbar :capture-proxy="captureProxy" :capture-meta="captureMeta" />
+        <ProxyCaptureToolbar
+          :capture-proxy="captureProxy"
+          :capture-meta="captureMetaView"
+          :search-keyword="captureSearchKeyword"
+          @update:search-keyword="captureSearchKeyword = $event"
+          @resume-capture="resumeCapture"
+          @open-settings="openCaptureRule"
+        />
 
         <main class="flex-1 flex overflow-hidden">
           <div ref="captureTableRef" class="flex-[2] min-w-0 overflow-auto" @scroll.passive="syncCaptureWindow">
             <ProxyCaptureTable
               :visible-frames="visibleFrames"
-              :capture-meta="captureMeta"
+              :capture-meta="captureMetaView"
               :frame-window="frameWindow"
               @select-frame="selectFrame"
             />
@@ -699,9 +795,18 @@ onBeforeUnmount(() => {
             :capture-metrics="captureMetrics"
             :hex-cell-class="hexCellClass"
             @close="closeCaptureModal"
+            @copy-hex="copyActiveHex"
+            @open-rule="openCaptureRule"
           />
         </main>
-        <ProxyCaptureFooter :capture-meta="captureMeta" />
+        <ProxyCaptureFooter
+          :capture-meta="captureMetaView"
+          @page-first="scrollCaptureToPage(1)"
+          @page-prev="scrollCaptureToPage(captureMetaView.page - 1)"
+          @page-next="scrollCaptureToPage(captureMetaView.page + 1)"
+          @page-last="scrollCaptureToPage(captureMetaView.pageCount)"
+          @export="exportCaptureResults"
+        />
       </div>
     </div>
 
