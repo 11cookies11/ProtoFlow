@@ -574,8 +574,6 @@ class WebBridge(QObject):
     def window_start_move(self) -> None:
         if not self._window:
             return
-        if getattr(self._window, "_native_caption_enabled", False):
-            return
         handle = self._window.windowHandle()
         if handle and hasattr(handle, "startSystemMove"):
             handle.startSystemMove()
@@ -583,8 +581,6 @@ class WebBridge(QObject):
     @Slot(int, int)
     def window_start_move_at(self, screen_x: int, screen_y: int) -> None:
         if not self._window:
-            return
-        if getattr(self._window, "_native_caption_enabled", False):
             return
         if hasattr(self._window, "_start_move"):
             self._window._start_move(screen_x, screen_y)
