@@ -24,6 +24,7 @@ import { fallbackPorts, networkDefaults, serialDefaults, supportedBaudRates, uiD
 import { normalizeSerialPortName } from './utils/serialPort'
 import { useChannelState } from './composables/useChannelState'
 import { useSerialInteraction } from './composables/useSerialInteraction'
+import { useChannelConnectionActions } from './composables/useChannelConnectionActions'
 import { useChannelDialog } from './composables/useChannelDialog'
 import { usePayloadSender } from './composables/usePayloadSender'
 import { useYamlDocumentOps } from './composables/useYamlDocumentOps'
@@ -210,6 +211,18 @@ const channelCards = computed(() => {
 })
 
 const isConnected = computed(() => connectionInfo.value.state === 'connected')
+const { selectPort, connectSerial, connectTcp, connectPrimary, disconnect } = useChannelConnectionActions({
+  bridge,
+  isConnecting,
+  isConnected,
+  selectedPort,
+  baud,
+  tcpHost,
+  tcpPort,
+  channelMode,
+  resolveSerialPort,
+  selectChannelPort,
+})
 
 const sliceTail = (items, limit) => {
   if (!Array.isArray(items)) return []
@@ -1151,36 +1164,6 @@ function handleChannelRefresh() {
   refreshPorts()
 }
 
-function connectSerial() {
-  if (!bridge.value) return
-  if (isConnecting.value || isConnected.value) return
-  const targetPort = resolveSerialPort(selectedPort.value)
-  if (!targetPort) return
-  selectedPort.value = targetPort
-  isConnecting.value = true
-  bridge.value.connect_serial(targetPort, Number(baud.value))
-}
-
-function connectTcp() {
-  if (!bridge.value) return
-  if (isConnecting.value || isConnected.value) return
-  isConnecting.value = true
-  bridge.value.connect_tcp(tcpHost.value, Number(tcpPort.value))
-}
-
-function connectPrimary() {
-  if (channelMode.value === 'tcp') {
-    connectTcp()
-  } else {
-    connectSerial()
-  }
-}
-
-function disconnect() {
-  if (!bridge.value) return
-  bridge.value.disconnect()
-}
-
 function attachBridge(obj) {
   if (!obj || attachedBridge === obj) return
   attachedBridge = obj
@@ -1331,11 +1314,6 @@ watch(
   }
 )
 
-function selectPort(item) {
-  if (!item) return
-  selectChannelPort(item)
-  channelMode.value = 'serial'
-}
 function handleGlobalKeydown(event) {
   if (!event) return
   if (event.key === 'Escape') {
