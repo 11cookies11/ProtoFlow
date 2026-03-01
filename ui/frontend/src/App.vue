@@ -12,6 +12,7 @@ import DropdownSelect from './components/DropdownSelect.vue'
 import SettingsPanels from './components/SettingsPanels.vue'
 import SettingsHeader from './components/SettingsHeader.vue'
 import ProtocolCardsSection from './components/ProtocolCardsSection.vue'
+import ProtocolHeader from './components/ProtocolHeader.vue'
 import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
 import LayoutRenderer from './ui/LayoutRenderer.vue'
 import { useUiRuntimeStore } from './stores/uiRuntime'
@@ -2057,22 +2058,7 @@ function unlockSidebarWidth() {
         />
 
         <section v-else-if="currentView === 'protocols'" class="page">
-          <header class="page-header spaced">
-            <div>
-              <h2>{{ t('header.protocols.title') }}</h2>
-              <p>{{ t('header.protocols.desc') }}</p>
-            </div>
-            <div class="header-actions">
-              <button class="btn btn-outline" @click="refreshProtocols">
-                <span class="material-symbols-outlined">refresh</span>
-                {{ t('action.refresh') }}
-              </button>
-              <button class="btn btn-primary" @click="openCreateProtocol">
-                <span class="material-symbols-outlined">add</span>
-                {{ t('action.createProtocol') }}
-              </button>
-            </div>
-          </header>
+          <ProtocolHeader @refresh="refreshProtocols" @create="openCreateProtocol" />
           <ProtocolCardsSection
             :protocol-tab="protocolTab"
             :filtered-protocol-cards="filteredProtocolCards"
