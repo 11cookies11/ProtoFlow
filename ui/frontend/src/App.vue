@@ -40,6 +40,7 @@ import { useSettingsPersistence } from './composables/useSettingsPersistence'
 import { useSettingsBridge } from './composables/useSettingsBridge'
 import { useProtocolManager } from './composables/useProtocolManager'
 import { useBridgeBootstrap } from './composables/useBridgeBootstrap'
+import { useLogBuffers } from './composables/useLogBuffers'
 
 const bridge = ref(null)
 const sidebarRef = ref(null)
@@ -57,16 +58,9 @@ const sendHex = ref('')
 const commLogs = ref([])
 const scriptLogs = ref([])
 const commPaused = ref(false)
-const commLogBuffer = []
-const scriptLogBuffer = []
 const MAX_COMM_LOGS = 200
 const MAX_SCRIPT_LOGS = 200
 const MAX_RENDER_LOGS = 120
-let logFlushHandle = 0
-let commLogSeq = 0
-let scriptLogSeq = 0
-let lastStatusText = ''
-let hasStatusActivity = false
 const captureFrames = ref([])
 const captureMeta = ref({
   channel: '',
@@ -155,6 +149,16 @@ const channelTab = ref('all')
 const uiRuntime = useUiRuntimeStore()
 const uiModalOpen = ref(false)
 const appVersion = ref('')
+const { scriptLogBuffer, hasStatusActivity, addCommLog, emitStatus, addScriptLog, clearCommLogs, toggleCommPaused, disposeLogBuffers } =
+  useLogBuffers({
+    commLogs,
+    scriptLogs,
+    commPaused,
+    scriptRunning,
+    scriptState,
+    maxCommLogs: MAX_COMM_LOGS,
+    maxScriptLogs: MAX_SCRIPT_LOGS,
+  })
 const { noPorts, portOptionsList, applyPorts, selectPort: selectChannelPort } = useChannelState(ports, selectedPort)
 const { resolveSerialPort } = useSerialInteraction()
 
@@ -436,7 +440,7 @@ const { bindCommBridgeSignals } = useCommBridgeSignals({
   onConnectionInfo: (nextInfo) => {
     connectionInfo.value = nextInfo
   },
-  shouldEmitDisconnected: (reason) => hasStatusActivity || Boolean(reason),
+  shouldEmitDisconnected: (reason) => hasStatusActivity.value || Boolean(reason),
 })
 
 const {
@@ -787,14 +791,6 @@ function parseBridgePayload(payload) {
   }
 }
 
-function scheduleLogFlush() {
-  if (logFlushHandle) return
-  logFlushHandle = window.requestAnimationFrame(() => {
-    logFlushHandle = 0
-    flushLogs()
-  })
-}
-
 function formatCaptureTime(ts) {
   const date = new Date((ts || 0) * 1000)
   const pad = (value, length = 2) => String(value).padStart(length, '0')
@@ -852,70 +848,6 @@ function ingestCaptureFrame(payload) {
   if (payload && payload.channel) {
     captureMeta.value.channel = payload.channel
   }
-}
-
-function flushLogs() {
-  if (commLogBuffer.length) {
-    const batch = commLogBuffer.splice(0, commLogBuffer.length)
-    commLogs.value.push(...batch)
-    if (commLogs.value.length > MAX_COMM_LOGS) {
-      commLogs.value.splice(0, commLogs.value.length - MAX_COMM_LOGS)
-    }
-  }
-  if (scriptLogBuffer.length) {
-    scriptLogs.value.push(...scriptLogBuffer.splice(0, scriptLogBuffer.length))
-    if (scriptLogs.value.length > MAX_SCRIPT_LOGS) {
-      scriptLogs.value.splice(0, scriptLogs.value.length - MAX_SCRIPT_LOGS)
-    }
-  }
-}
-
-function addCommLog(kind, payload) {
-  if (commPaused.value) return
-  if (!payload || typeof payload !== 'object') {
-    payload = { text: String(payload || ''), hex: '', ts: Date.now() / 1000 }
-  } else if (!payload.text && !payload.hex) {
-    payload = { text: JSON.stringify(payload), hex: '', ts: payload.ts || Date.now() / 1000 }
-  }
-  commLogBuffer.push({
-    id: `c${commLogSeq++}`,
-    kind,
-    text: payload.text || '',
-    hex: payload.hex || '',
-    ts: payload.ts || Date.now() / 1000,
-  })
-  scheduleLogFlush()
-}
-
-function emitStatus(text, ts) {
-  const message = String(text || '')
-  if (!message || message === lastStatusText) return
-  lastStatusText = message
-  hasStatusActivity = true
-  addCommLog('STATUS', { text: message, ts })
-}
-
-function addScriptLog(line) {
-  const text = String(line || '')
-  scriptLogBuffer.push({ id: `s${scriptLogSeq++}`, text })
-  scheduleLogFlush()
-  if (
-    text.includes('Script finished') ||
-    text.includes('Script stopped') ||
-    text.toLowerCase().includes('[error]')
-  ) {
-    scriptRunning.value = false
-    scriptState.value = 'idle'
-  }
-}
-
-function clearCommLogs() {
-  commLogs.value = []
-  commLogBuffer.length = 0
-}
-
-function toggleCommPaused() {
-  commPaused.value = !commPaused.value
 }
 
 function formatCommLine(item) {
@@ -1143,10 +1075,7 @@ onBeforeUnmount(() => {
     window.clearTimeout(scriptVarTimer)
     scriptVarTimer = null
   }
-  if (logFlushHandle) {
-    window.cancelAnimationFrame(logFlushHandle)
-    logFlushHandle = 0
-  }
+  disposeLogBuffers()
   disposeBridgeBootstrap()
   disposeChannelSync()
   if (scriptLogScrollRaf) {
