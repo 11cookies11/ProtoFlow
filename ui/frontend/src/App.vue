@@ -482,14 +482,10 @@ const { bindCommBridgeSignals } = useCommBridgeSignals({
 })
 
 const {
-  draggingWindow,
-  snapPreview,
   armWindowMove,
-  maybeStartWindowMove,
   minimizeWindow,
   toggleMaximize,
   closeWindow,
-  applyWindowSnap,
   showSystemMenu,
   startResize,
   disposeWindowChrome,
@@ -1074,8 +1070,6 @@ const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
       class="app-titlebar"
       @dblclick="toggleMaximize"
       @mousedown.left="armWindowMove"
-      @mousemove="maybeStartWindowMove"
-      @mouseup.left="applyWindowSnap"
       @contextmenu.prevent="showSystemMenu"
     >
       <button
@@ -1269,7 +1263,6 @@ const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
 </main>
     </div>
 
-    <div v-if="snapPreview" class="snap-overlay" :class="`snap-${snapPreview}`"></div>
   </div>
 </template>
 

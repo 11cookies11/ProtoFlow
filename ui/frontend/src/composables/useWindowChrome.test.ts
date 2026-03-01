@@ -88,39 +88,6 @@ describe('useWindowChrome', () => {
     expect(snapped).toBe(1)
   })
 
-  it('shows snap preview near top edge while dragging', async () => {
-    let rafCallback: FrameRequestCallback | null = null
-    const originalRaf = window.requestAnimationFrame
-    window.requestAnimationFrame = ((cb: FrameRequestCallback) => {
-      rafCallback = cb
-      return 1
-    }) as typeof window.requestAnimationFrame
-
-    const chrome = useWindowChrome({
-      bridge: ref({
-        window_start_move_at: () => {},
-        window_apply_snap: () => {},
-      }),
-      sidebarRef: ref(null),
-      lockPageScroll: () => {},
-      unlockPageScroll: () => {},
-    })
-
-    chrome.armWindowMove({ screenX: 10, screenY: 10 })
-    chrome.maybeStartWindowMove({ screenX: 30, screenY: 30 })
-    window.dispatchEvent(
-      new MouseEvent('mousemove', { clientX: 20, clientY: 5, screenX: 20, screenY: 5, buttons: 1, bubbles: true })
-    )
-    if (rafCallback) {
-      rafCallback(0)
-    }
-
-    expect(chrome.snapPreview.value).toBe('max')
-
-    chrome.disposeWindowChrome()
-    window.requestAnimationFrame = originalRaf
-  })
-
   it('starts window move from global mousemove after titlebar mousedown', () => {
     let moveAt = 0
     const chrome = useWindowChrome({
