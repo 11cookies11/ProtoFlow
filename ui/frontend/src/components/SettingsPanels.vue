@@ -107,7 +107,12 @@ const emit = defineEmits([
         <div class="divider"></div>
         <div class="panel-title simple inline">
           {{ t('settings.plugins.title') }}
-          <button class="link-btn">
+          <button
+            class="link-btn"
+            type="button"
+            disabled
+            :title="tr('插件市场刷新能力将在后续版本提供')"
+          >
             <span class="material-symbols-outlined">refresh</span>
             {{ t('settings.plugins.refresh') }}
           </button>

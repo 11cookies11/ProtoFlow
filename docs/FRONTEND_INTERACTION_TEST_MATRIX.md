@@ -39,4 +39,5 @@
 ## Execution Cadence
 - Per PR: run `npm run ci:frontend`
 - Contract gate: `npm run acceptance:interaction`
+- Button audit: contract gate includes "no clickable-looking button without action/disabled" check for `src/components` (excluding `ui-kit`)
 - Release candidate: run manual matrix on desktop shell
