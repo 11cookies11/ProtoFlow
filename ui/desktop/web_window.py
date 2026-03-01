@@ -70,7 +70,9 @@ class WebWindow(QMainWindow):
         self._native_caption_enabled = sys.platform == "win32" and os.environ.get("PROTOFLOW_NATIVE_CAPTION", "1") != "0"
 
         self.setMinimumSize(960, 600)
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowSystemMenuHint)
+        self.setWindowFlags(
+            Qt.Window | Qt.FramelessWindowHint | Qt.WindowSystemMenuHint | Qt.WindowMinMaxButtonsHint
+        )
         self.setAttribute(Qt.WA_TranslucentBackground, False)
 
         view = QWebEngineView(self)
