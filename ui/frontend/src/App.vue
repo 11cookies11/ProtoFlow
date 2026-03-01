@@ -25,6 +25,7 @@ import { normalizeSerialPortName } from './utils/serialPort'
 import { useChannelState } from './composables/useChannelState'
 import { useSerialInteraction } from './composables/useSerialInteraction'
 import { useChannelDialog } from './composables/useChannelDialog'
+import { usePayloadSender } from './composables/usePayloadSender'
 import { useSettingsState } from './composables/useSettingsState'
 import { useSettingsPersistence } from './composables/useSettingsPersistence'
 import { useSettingsBridge } from './composables/useSettingsBridge'
@@ -334,6 +335,15 @@ const { handleNewChannel, openChannelSettings, closeChannelDialog, submitChannel
   },
   bridge,
   normalizeSerialPortName,
+})
+
+const { sendPayload, sendQuickCommand } = usePayloadSender({
+  bridge,
+  sendMode,
+  sendText,
+  sendHex,
+  appendCR,
+  appendLF,
 })
 
 function setSettingsTab(tab) {
@@ -1082,62 +1092,6 @@ function connectPrimary() {
 function disconnect() {
   if (!bridge.value) return
   bridge.value.disconnect()
-}
-
-function applyLineEndings(text, cr = appendCR.value, lf = appendLF.value) {
-  let payload = text
-  if (cr) payload += '\r'
-  if (lf) payload += '\n'
-  return payload
-}
-
-function applyHexLineEndings(text, cr = appendCR.value, lf = appendLF.value) {
-  const parts = text.trim().split(/\\s+/).filter(Boolean)
-  if (cr) parts.push('0D')
-  if (lf) parts.push('0A')
-  return parts.join(' ')
-}
-
-function sendAscii() {
-  if (!bridge.value || !sendText.value) return
-  const payload = applyLineEndings(sendText.value)
-  bridge.value.send_text(payload)
-}
-
-function sendHexData() {
-  if (!bridge.value || !sendHex.value) return
-  const payload = applyHexLineEndings(sendHex.value)
-  bridge.value.send_hex(payload)
-}
-
-function sendPayload() {
-  if (sendMode.value === 'hex') {
-    sendHexData()
-  } else {
-    sendAscii()
-  }
-}
-
-function sendQuickCommand(cmd) {
-  if (!cmd) return
-  const payload = typeof cmd === 'string' ? cmd : cmd.payload || cmd.name || ''
-  if (!payload) return
-  const mode = typeof cmd === 'string' ? 'text' : cmd.mode || 'text'
-  const cr = typeof cmd === 'string' ? appendCR.value : cmd.appendCR ?? appendCR.value
-  const lf = typeof cmd === 'string' ? appendLF.value : cmd.appendLF ?? appendLF.value
-  if (mode === 'hex') {
-    sendMode.value = 'hex'
-    sendHex.value = payload
-    if (!bridge.value) return
-    const data = applyHexLineEndings(payload, cr, lf)
-    bridge.value.send_hex(data)
-    return
-  }
-  sendMode.value = 'text'
-  sendText.value = payload
-  if (!bridge.value) return
-  const data = applyLineEndings(payload, cr, lf)
-  bridge.value.send_text(data)
 }
 
 async function openUiYamlModal() {
