@@ -27,6 +27,7 @@ import { useSerialInteraction } from './composables/useSerialInteraction'
 import { useChannelDialog } from './composables/useChannelDialog'
 import { usePayloadSender } from './composables/usePayloadSender'
 import { useYamlDocumentOps } from './composables/useYamlDocumentOps'
+import { useScriptRunner } from './composables/useScriptRunner'
 import { useSettingsState } from './composables/useSettingsState'
 import { useSettingsPersistence } from './composables/useSettingsPersistence'
 import { useSettingsBridge } from './composables/useSettingsBridge'
@@ -355,6 +356,19 @@ const { loadYaml, saveYaml, handleYamlFile, copyYaml } = useYamlDocumentOps({
   scriptFilePath,
   yamlFileInputRef,
   refreshScriptVariables,
+  addScriptLog,
+})
+
+const { openUiYamlModal, closeUiYamlModal, runScript, stopScript } = useScriptRunner({
+  bridge,
+  uiRuntime,
+  uiModalOpen,
+  yamlText,
+  scriptRunning,
+  scriptState,
+  scriptStartMs,
+  scriptElapsedMs,
+  scriptProgress,
   addScriptLog,
 })
 
@@ -1104,41 +1118,6 @@ function connectPrimary() {
 function disconnect() {
   if (!bridge.value) return
   bridge.value.disconnect()
-}
-
-async function openUiYamlModal() {
-  if (!uiModalOpen.value) {
-    uiModalOpen.value = true
-  }
-  uiRuntime.yamlText = yamlText.value
-  await uiRuntime._parseWithBridge()
-}
-
-function closeUiYamlModal() {
-  uiModalOpen.value = false
-}
-
-function runScript() {
-  if (!bridge.value) return
-  const payload = yamlText.value.trim()
-  if (!payload) {
-    addScriptLog('[WARN] YAML is empty, abort run.')
-    return
-  }
-  scriptRunning.value = true
-  scriptState.value = 'starting'
-  scriptStartMs.value = Date.now()
-  scriptElapsedMs.value = 0
-  scriptProgress.value = 0
-  openUiYamlModal()
-  bridge.value.run_script(payload)
-}
-
-function stopScript() {
-  if (!bridge.value) return
-  scriptState.value = 'stopping'
-  bridge.value.stop_script()
-  addScriptLog('[INFO] Stop requested.')
 }
 
 function searchYaml() {
