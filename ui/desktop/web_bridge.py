@@ -72,6 +72,7 @@ class WebBridge(QObject):
         self._traffic: Dict[str, int] = {"tx": 0, "rx": 0}
         self._last_channel_emit = 0.0
         self._connect_lock = threading.Lock()
+        self._save_lock = threading.Lock()
         self._connect_inflight = False
         self._last_status_ts = 0.0
         self._last_error: Optional[str] = None
@@ -899,25 +900,43 @@ class WebBridge(QObject):
 
     def _save_json_atomic(self, path: Path, payload: Any, warn_prefix: str) -> bool:
         tmp_path: Optional[Path] = None
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
-            os.close(fd)
-            tmp_path = Path(tmp_name)
-            with tmp_path.open("w", encoding="utf-8") as handle:
-                json.dump(payload, handle, ensure_ascii=False, indent=2)
-            tmp_path.replace(path)
-            backup = path.with_suffix(path.suffix + ".bak")
-            shutil.copy2(path, backup)
-            return True
-        except Exception as exc:
-            self.log.emit(f"[WARN] {warn_prefix}: {exc}")
-            if tmp_path is not None and tmp_path.exists():
-                try:
-                    tmp_path.unlink()
-                except Exception:
-                    pass
-            return False
+        with self._save_lock:
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+                os.close(fd)
+                tmp_path = Path(tmp_name)
+                with tmp_path.open("w", encoding="utf-8") as handle:
+                    json.dump(payload, handle, ensure_ascii=False, indent=2)
+
+                replaced = False
+                last_exc: Optional[Exception] = None
+                # Windows may transiently lock target files; retry replace briefly.
+                for attempt in range(6):
+                    try:
+                        os.replace(tmp_path, path)
+                        replaced = True
+                        break
+                    except PermissionError as exc:
+                        last_exc = exc
+                        time.sleep(0.03 * (attempt + 1))
+
+                if not replaced:
+                    if last_exc:
+                        raise last_exc
+                    raise RuntimeError("atomic replace failed")
+
+                backup = path.with_suffix(path.suffix + ".bak")
+                shutil.copy2(path, backup)
+                return True
+            except Exception as exc:
+                self.log.emit(f"[WARN] {warn_prefix}: {exc}")
+                if tmp_path is not None and tmp_path.exists():
+                    try:
+                        tmp_path.unlink()
+                    except Exception:
+                        pass
+                return False
 
     def _load_json_with_fallback(self, path: Path, default: Any) -> Any:
         if not path.exists():
