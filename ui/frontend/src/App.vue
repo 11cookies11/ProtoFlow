@@ -17,6 +17,7 @@ import { fallbackPorts, networkDefaults, serialDefaults, supportedBaudRates, uiD
 import { normalizeSerialPortName } from './utils/serialPort'
 import { useChannelState } from './composables/useChannelState'
 import { useSerialInteraction } from './composables/useSerialInteraction'
+import { useSettingsState } from './composables/useSettingsState'
 
 const bridge = ref(null)
 const sidebarRef = ref(null)
@@ -1793,11 +1794,6 @@ function setProtocolTab(tab) {
   protocolTab.value = tab
 }
 
-const settingsDirty = computed(() => {
-  if (!settingsSnapshot.value) return false
-  return JSON.stringify(buildSettingsPayload()) !== JSON.stringify(settingsSnapshot.value)
-})
-
 function normalizeLanguage(value) {
   const raw = String(value || '')
   const lowered = raw.toLowerCase()
@@ -1913,25 +1909,37 @@ function applySettings(payload) {
   baud.value = Number(defaultBaud.value || serialDefaults.baud)
 }
 
+const {
+  settingsDirty,
+  setSnapshot: setSettingsSnapshot,
+  commitCurrent: commitSettingsSnapshot,
+  discard: discardSettings,
+} = useSettingsState({
+  settingsSnapshot,
+  buildPayload: buildSettingsPayload,
+  normalize: normalizeSettings,
+  apply: applySettings,
+})
+
 function loadSettings() {
   if (bridge.value && bridge.value.load_settings) {
     withResult(bridge.value.load_settings(), (payload) => {
       const normalized = normalizeSettings(payload)
       applySettings(normalized)
-      settingsSnapshot.value = normalized
+      setSettingsSnapshot(normalized)
     })
     return
   }
   const normalized = normalizeSettings(null)
   applySettings(normalized)
-  settingsSnapshot.value = normalized
+  setSettingsSnapshot(normalized)
 }
 
 function saveSettings() {
   const payload = buildSettingsPayload()
   settingsSaving.value = true
   const finalize = () => {
-    settingsSnapshot.value = normalizeSettings(payload)
+    commitSettingsSnapshot()
     settingsSaving.value = false
   }
   if (bridge.value && bridge.value.save_settings) {
@@ -1939,11 +1947,6 @@ function saveSettings() {
   } else {
     finalize()
   }
-}
-
-function discardSettings() {
-  if (!settingsSnapshot.value) return
-  applySettings(settingsSnapshot.value)
 }
 
 function chooseDslWorkspace() {
