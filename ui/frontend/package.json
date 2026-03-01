@@ -9,8 +9,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "acceptance:interaction": "node ./scripts/interaction_acceptance.mjs",
     "perf:report": "node ./scripts/perf_report.mjs",
-    "ci:frontend": "npm run test && npm run build && npm run perf:report"
+    "ci:frontend": "npm run test && npm run acceptance:interaction && npm run build && npm run perf:report"
   },
   "dependencies": {
     "@codemirror/lang-yaml": "^6.1.2",

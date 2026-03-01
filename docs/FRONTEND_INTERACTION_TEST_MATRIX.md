@@ -38,4 +38,5 @@
 
 ## Execution Cadence
 - Per PR: run `npm run ci:frontend`
+- Contract gate: `npm run acceptance:interaction`
 - Release candidate: run manual matrix on desktop shell
