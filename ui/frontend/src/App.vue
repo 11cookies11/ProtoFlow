@@ -30,6 +30,7 @@ import { useChannelSync } from './composables/useChannelSync'
 import { useChannelDialog } from './composables/useChannelDialog'
 import { usePayloadSender } from './composables/usePayloadSender'
 import { useCommBatchIngestor } from './composables/useCommBatchIngestor'
+import { useCommLogExport } from './composables/useCommLogExport'
 import { useYamlDocumentOps } from './composables/useYamlDocumentOps'
 import { useScriptRunner } from './composables/useScriptRunner'
 import { useScriptLogHelpers } from './composables/useScriptLogHelpers'
@@ -164,6 +165,11 @@ const { scriptLogBuffer, hasStatusActivity, addCommLog, emitStatus, addScriptLog
 const { parseBridgePayload, addCommBatch } = useCommBatchIngestor({
   commPaused,
   addCommLog,
+})
+const { formatPayload, exportCommLogs } = useCommLogExport({
+  displayMode,
+  commLogs,
+  formatTime,
 })
 const { noPorts, portOptionsList, applyPorts, selectPort: selectChannelPort } = useChannelState(ports, selectedPort)
 const { resolveSerialPort } = useSerialInteraction()
@@ -782,12 +788,6 @@ function toggleYamlCollapsed() {
   yamlCollapsed.value = !yamlCollapsed.value
 }
 
-function formatPayload(item) {
-  if (!item) return ''
-  if (displayMode.value === 'hex' && item.hex) return item.hex
-  return item.text || item.hex || ''
-}
-
 function formatCaptureTime(ts) {
   const date = new Date((ts || 0) * 1000)
   const pad = (value, length = 2) => String(value).padStart(length, '0')
@@ -845,29 +845,6 @@ function ingestCaptureFrame(payload) {
   if (payload && payload.channel) {
     captureMeta.value.channel = payload.channel
   }
-}
-
-function formatCommLine(item) {
-  if (!item) return ''
-  const ts = item.ts ? formatTime(item.ts) : ''
-  const kind = item.kind || ''
-  const payload = formatPayload(item).replace(/\r?\n/g, '\\n')
-  return `${ts}\t${kind}\t${payload}`
-}
-
-function exportCommLogs() {
-  const lines = commLogs.value.map((item) => formatCommLine(item)).filter(Boolean)
-  const payload = lines.join('\n')
-  const name = `io_logs_${new Date().toISOString().replace(/[:.]/g, '-')}.log`
-  const blob = new Blob([payload], { type: 'text/plain' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = name
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(url)
 }
 
 function normalizeQuickCommands(list) {
