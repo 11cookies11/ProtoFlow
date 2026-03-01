@@ -30,6 +30,7 @@ import { useYamlDocumentOps } from './composables/useYamlDocumentOps'
 import { useScriptRunner } from './composables/useScriptRunner'
 import { useScriptLogHelpers } from './composables/useScriptLogHelpers'
 import { useYamlSearch } from './composables/useYamlSearch'
+import { useScriptBridgeSignals } from './composables/useScriptBridgeSignals'
 import { useSettingsState } from './composables/useSettingsState'
 import { useSettingsPersistence } from './composables/useSettingsPersistence'
 import { useSettingsBridge } from './composables/useSettingsBridge'
@@ -393,6 +394,14 @@ const { clearScriptLogs, scrollScriptLogsToBottom, refreshScriptVariables } = us
       scriptVarTimer = null
     }
   },
+})
+
+const { bindScriptBridgeSignals } = useScriptBridgeSignals({
+  scriptRunning,
+  scriptState,
+  scriptProgress,
+  addScriptLog,
+  scheduleSetChannels,
 })
 
 function setSettingsTab(tab) {
@@ -1212,42 +1221,7 @@ function attachBridge(obj) {
     connectionInfo.value = nextInfo
     scheduleChannelRefresh()
   })
-  obj.script_log.connect((line) => addScriptLog(line))
-  obj.script_state.connect((state) => {
-    if (state === '__running__') {
-      scriptRunning.value = true
-      scriptState.value = 'running'
-      return
-    }
-    if (state === '__finished__') {
-      scriptRunning.value = false
-      scriptState.value = 'idle'
-      scriptProgress.value = 100
-      return
-    }
-    if (state === '__stopped__') {
-      scriptRunning.value = false
-      scriptState.value = 'idle'
-      return
-    }
-    if (state === '__error__') {
-      scriptRunning.value = false
-      scriptState.value = 'error'
-      return
-    }
-    scriptState.value = state
-    if (state) {
-      scriptRunning.value = true
-    }
-  })
-  obj.script_progress.connect((value) => {
-    scriptProgress.value = value
-  })
-  if (obj.channel_update) {
-    obj.channel_update.connect((items) => {
-      scheduleSetChannels(items)
-    })
-  }
+  bindScriptBridgeSignals(obj)
   refreshPorts()
   refreshChannels()
   refreshProtocols()
