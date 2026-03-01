@@ -16,8 +16,8 @@ import ProtocolCardsSection from './components/ProtocolCardsSection.vue'
 import ProtocolHeader from './components/ProtocolHeader.vue'
 import ProtocolEditModal from './components/ProtocolEditModal.vue'
 import ProtocolDeleteModal from './components/ProtocolDeleteModal.vue'
+import UiYamlPreviewModal from './components/UiYamlPreviewModal.vue'
 import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
-import LayoutRenderer from './ui/LayoutRenderer.vue'
 import { useUiRuntimeStore } from './stores/uiRuntime'
 import * as i18nCore from './i18n'
 import { fallbackPorts, networkDefaults, serialDefaults, supportedBaudRates, uiDefaults } from './config/runtimeDefaults'
@@ -2159,33 +2159,7 @@ function unlockSidebarWidth() {
       </teleport>
 
       <teleport to="body">
-        <div v-if="uiModalOpen" class="modal-backdrop" @mousedown.self="closeUiYamlModal">
-          <div class="channel-modal ui-yaml-modal" @mousedown.stop @click.stop>
-            <div class="modal-header">
-              <div>
-                <h3>{{ tr('UI YAML 预览') }}</h3>
-                <p>{{ tr('脚本运行中展示 UI 渲染结果') }}</p>
-              </div>
-              <button class="icon-btn" type="button" @click="closeUiYamlModal">
-                <span class="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div class="modal-body ui-yaml-body">
-              <div v-if="uiRuntime.parseError" class="ui-yaml-error">
-                <strong>{{ tr('解析失败') }}</strong>
-                <div>{{ uiRuntime.parseError.message }}</div>
-                <div v-if="uiRuntime.parseError.path" class="muted">Path: {{ uiRuntime.parseError.path }}</div>
-                <div v-if="uiRuntime.parseError.line" class="muted">
-                  Line {{ uiRuntime.parseError.line }}, Column {{ uiRuntime.parseError.column || 0 }}
-                </div>
-              </div>
-              <div v-else-if="uiRuntime.lastGoodConfig">
-                <LayoutRenderer :config="uiRuntime.lastGoodConfig" :widgetsById="uiRuntime.widgetsById" />
-              </div>
-              <div v-else class="empty-state muted">{{ tr('暂无可渲染的 UI 配置') }}</div>
-            </div>
-          </div>
-        </div>
+        <UiYamlPreviewModal :open="uiModalOpen" :runtime="uiRuntime" @close="closeUiYamlModal" />
       </teleport>
 
 </main>
