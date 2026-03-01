@@ -31,6 +31,7 @@ import { useScriptRunner } from './composables/useScriptRunner'
 import { useScriptLogHelpers } from './composables/useScriptLogHelpers'
 import { useYamlSearch } from './composables/useYamlSearch'
 import { useScriptBridgeSignals } from './composables/useScriptBridgeSignals'
+import { useCommBridgeSignals } from './composables/useCommBridgeSignals'
 import { useSettingsState } from './composables/useSettingsState'
 import { useSettingsPersistence } from './composables/useSettingsPersistence'
 import { useSettingsBridge } from './composables/useSettingsBridge'
@@ -402,6 +403,22 @@ const { bindScriptBridgeSignals } = useScriptBridgeSignals({
   scriptProgress,
   addScriptLog,
   scheduleSetChannels,
+})
+
+const { bindCommBridgeSignals } = useCommBridgeSignals({
+  parseBridgePayload,
+  addCommLog,
+  addCommBatch,
+  ingestCaptureFrame,
+  emitStatus,
+  scheduleChannelRefresh,
+  setConnectingFalse: () => {
+    isConnecting.value = false
+  },
+  onConnectionInfo: (nextInfo) => {
+    connectionInfo.value = nextInfo
+  },
+  shouldEmitDisconnected: (reason) => hasStatusActivity || Boolean(reason),
 })
 
 function setSettingsTab(tab) {
@@ -1163,64 +1180,7 @@ function attachBridge(obj) {
       }
     })
   }
-  if (obj.comm_rx && obj.comm_tx) {
-    obj.comm_rx.connect((payload) => {
-      const parsed = parseBridgePayload(payload)
-      addCommLog('RX', parsed)
-    })
-    obj.comm_tx.connect((payload) => {
-      const parsed = parseBridgePayload(payload)
-      addCommLog('TX', parsed)
-    })
-  } else if (obj.comm_batch) {
-    obj.comm_batch.connect((batch) => addCommBatch(batch))
-  }
-  if (obj.protocol_frame) {
-    obj.protocol_frame.connect((payload) => {
-      const ts = payload && payload.ts ? payload.ts : Date.now() / 1000
-      addCommLog('FRAME', { text: JSON.stringify(payload), ts })
-    })
-  }
-  if (obj.capture_frame) {
-    obj.capture_frame.connect((payload) => {
-      const ts = payload && payload.ts ? payload.ts : Date.now() / 1000
-      addCommLog('CAPTURE', { text: JSON.stringify(payload), ts })
-      ingestCaptureFrame(payload)
-    })
-  }
-  obj.comm_status.connect((payload) => {
-    const detail = payload && payload.payload !== undefined ? payload.payload : payload
-    const ts = payload && payload.ts ? payload.ts : Date.now() / 1000
-    isConnecting.value = false
-    if (!detail) {
-      const reason = payload && payload.reason ? String(payload.reason) : ''
-      const message = reason ? `Disconnected: ${reason}` : 'Disconnected'
-      if (hasStatusActivity || reason) {
-        emitStatus(message, ts)
-      }
-      const nextInfo = { state: 'disconnected', detail: '' }
-      connectionInfo.value = nextInfo
-      scheduleChannelRefresh()
-      return
-    }
-    if (typeof detail === 'string') {
-      emitStatus(`Error: ${detail}`, ts)
-      const nextInfo = { state: 'error', detail }
-      connectionInfo.value = nextInfo
-      scheduleChannelRefresh()
-      return
-    }
-    if (detail && typeof detail === 'object') {
-      const target = detail.address || detail.port || detail.type || ''
-      emitStatus(`Connected: ${target}`, ts)
-    }
-    const nextInfo = {
-      state: 'connected',
-      detail: detail.address || detail.port || detail.type || '',
-    }
-    connectionInfo.value = nextInfo
-    scheduleChannelRefresh()
-  })
+  bindCommBridgeSignals(obj)
   bindScriptBridgeSignals(obj)
   refreshPorts()
   refreshChannels()
