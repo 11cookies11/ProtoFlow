@@ -19,6 +19,7 @@ import { normalizeSerialPortName } from './utils/serialPort'
 import { useChannelState } from './composables/useChannelState'
 import { useSerialInteraction } from './composables/useSerialInteraction'
 import { useSettingsState } from './composables/useSettingsState'
+import { useSettingsPersistence } from './composables/useSettingsPersistence'
 
 const bridge = ref(null)
 const sidebarRef = ref(null)
@@ -1791,120 +1792,31 @@ function setProtocolTab(tab) {
   protocolTab.value = tab
 }
 
-function normalizeLanguage(value) {
-  const raw = String(value || '')
-  const lowered = raw.toLowerCase()
-  const map = {
-    'zh-cn': 'zh-CN',
-    'zh-tw': 'zh-TW',
-    'en-us': 'en-US',
-    'ja-jp': 'ja-JP',
-    'ko-kr': 'ko-KR',
-    'fr-fr': 'fr-FR',
-    'de-de': 'de-DE',
-    'es-es': 'es-ES',
-    'pt-br': 'pt-BR',
-    'ru-ru': 'ru-RU',
-    ar: 'ar',
-    hi: 'hi',
-    'it-it': 'it-IT',
-    'nl-nl': 'nl-NL',
-    'th-th': 'th-TH',
-    'vi-vn': 'vi-VN',
-    'id-id': 'id-ID',
-    'tr-tr': 'tr-TR',
-    'pl-pl': 'pl-PL',
-    'uk-ua': 'uk-UA',
-  }
-  let normalized = map[lowered] || ''
-  if (!normalized) {
-    if (raw === '简体中文') normalized = 'zh-CN'
-    else if (raw === '繁體中文' || raw === '繁体中文') normalized = 'zh-TW'
-    else if (raw === 'English (US)') normalized = 'en-US'
-  }
-  if (!normalized) return DEFAULT_LANGUAGE
-  return supportedLanguages.has(normalized) ? normalized : DEFAULT_LANGUAGE
-}
-
-function normalizeTheme(value) {
-  const raw = String(value || '')
-  const lowered = raw.toLowerCase()
-  if (raw === 'system' || lowered === 'system' || raw === '系统默认') return 'system'
-  if (raw === 'dark' || lowered === 'dark' || raw === '深色 (工程模式)') return 'dark'
-  if (raw === 'light' || lowered === 'light' || raw === '浅色') return 'light'
-  return 'light'
-}
-
-function buildSettingsPayload() {
-  return {
-    uiLanguage: uiLanguage.value,
-    uiTheme: uiTheme.value,
-    autoConnectOnStart: !!autoConnectOnStart.value,
-    dslWorkspacePath: dslWorkspacePath.value,
-    quickCommands: quickCommands.value,
-    serial: {
-      defaultBaud: Number(defaultBaud.value || serialDefaults.baud),
-      defaultParity: defaultParity.value,
-      defaultStopBits: defaultStopBits.value,
-    },
-    network: {
-      tcpTimeoutMs: Number(tcpTimeoutMs.value || 0),
-      tcpHeartbeatSec: Number(tcpHeartbeatSec.value || 0),
-      tcpRetryCount: Number(tcpRetryCount.value || 0),
-    },
-  }
-}
-
-function normalizeSettings(payload) {
-  const defaults = {
-    uiLanguage: uiDefaults.language,
-    uiTheme: uiDefaults.theme,
-    autoConnectOnStart: uiDefaults.autoConnectOnStart,
-    dslWorkspacePath: '/usr/local/protoflow/workflows',
-    quickCommands: quickCommands.value,
-    serial: {
-      defaultBaud: serialDefaults.baud,
-      defaultParity: serialDefaults.parity,
-      defaultStopBits: serialDefaults.stopBits,
-    },
-    network: {
-      tcpTimeoutMs: networkDefaults.timeoutMs,
-      tcpHeartbeatSec: networkDefaults.heartbeatSec,
-      tcpRetryCount: networkDefaults.retryCount,
-    },
-  }
-  if (!payload || typeof payload !== 'object') return defaults
-  return {
-    ...defaults,
-    ...payload,
-    uiLanguage: normalizeLanguage(payload.uiLanguage),
-    uiTheme: normalizeTheme(payload.uiTheme),
-    serial: {
-      ...defaults.serial,
-      ...(payload.serial || {}),
-    },
-    network: {
-      ...defaults.network,
-      ...(payload.network || {}),
-    },
-  }
-}
-
-function applySettings(payload) {
-  const normalized = normalizeSettings(payload)
-  uiLanguage.value = normalized.uiLanguage
-  uiTheme.value = normalized.uiTheme
-  autoConnectOnStart.value = !!normalized.autoConnectOnStart
-  dslWorkspacePath.value = normalized.dslWorkspacePath
-  quickCommands.value = normalizeQuickCommands(normalized.quickCommands)
-  defaultBaud.value = Number(normalized.serial.defaultBaud || serialDefaults.baud)
-  defaultParity.value = normalized.serial.defaultParity || serialDefaults.parity
-  defaultStopBits.value = normalized.serial.defaultStopBits || serialDefaults.stopBits
-  tcpTimeoutMs.value = Number(normalized.network.tcpTimeoutMs || 0)
-  tcpHeartbeatSec.value = Number(normalized.network.tcpHeartbeatSec || 0)
-  tcpRetryCount.value = Number(normalized.network.tcpRetryCount || 0)
-  baud.value = Number(defaultBaud.value || serialDefaults.baud)
-}
+const { buildSettingsPayload, normalizeSettings, applySettings } = useSettingsPersistence({
+  refs: {
+    uiLanguage,
+    uiTheme,
+    autoConnectOnStart,
+    dslWorkspacePath,
+    quickCommands,
+    defaultBaud,
+    defaultParity,
+    defaultStopBits,
+    tcpTimeoutMs,
+    tcpHeartbeatSec,
+    tcpRetryCount,
+    baud,
+  },
+  defaults: {
+    uiDefaults,
+    serialDefaults,
+    networkDefaults,
+    defaultLanguage: DEFAULT_LANGUAGE,
+    supportedLanguages,
+    workspaceFallback: '/usr/local/protoflow/workflows',
+  },
+  normalizeQuickCommands,
+})
 
 const {
   settingsDirty,
