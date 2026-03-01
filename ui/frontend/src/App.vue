@@ -9,6 +9,7 @@ import ManualView from './components/ManualView.vue'
 import ScriptsView from './components/ScriptsView.vue'
 import ProxyMonitorView from './components/ProxyMonitorView.vue'
 import DropdownSelect from './components/DropdownSelect.vue'
+import ChannelDialogModal from './components/ChannelDialogModal.vue'
 import SettingsPanels from './components/SettingsPanels.vue'
 import SettingsHeader from './components/SettingsHeader.vue'
 import ProtocolCardsSection from './components/ProtocolCardsSection.vue'
@@ -2102,132 +2103,41 @@ function unlockSidebarWidth() {
             />
         </section>
 
-        <div v-if="channelDialogOpen" class="modal-backdrop">
-          <div class="channel-modal">
-            <div class="modal-header">
-              <div>
-                <h3>{{ channelDialogMode === 'serial' ? tr('串口配置') : tr('新建通道') }}</h3>
-                <p>{{ channelDialogMode === 'serial' ? tr('配置串口连接参数') : tr('配置新的通信连接参数') }}</p>
-              </div>
-              <button class="icon-btn" type="button" @click="closeChannelDialog">
-                <span class="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div class="modal-body">
-              <div v-if="channelDialogMode !== 'serial'" class="channel-type-grid">
-                <button
-                  class="channel-type-card"
-                  :class="{ active: channelType === 'serial' }"
-                  type="button"
-                  @click="channelType = 'serial'"
-                >
-                  <span class="material-symbols-outlined">settings_input_hdmi</span>
-                  <span>{{ tr('串口 (Serial)') }}</span>
-                </button>
-                <button
-                  class="channel-type-card"
-                  :class="{ active: channelType === 'tcp' }"
-                  type="button"
-                  @click="channelType = 'tcp'"
-                >
-                  <span class="material-symbols-outlined">lan</span>
-                  <span>{{ tr('TCP / 网络') }}</span>
-                </button>
-              </div>
-
-              <div class="modal-section" v-if="channelDialogMode !== 'serial'">
-                <div class="section-title">{{ tr('基本信息') }}</div>
-                <div class="form-grid">
-                  <label>{{ tr('通道名称') }}<input v-model="channelName" type="text" :placeholder="tr('例如：传感器A接口')" />
-                  </label>
-                  <label v-if="channelType === 'serial'">
-                    {{ tr('串口端口') }}
-                    <DropdownSelect
-                      v-model="channelPort"
-                      :options="portOptionsList"
-                      :placeholder="ports.length ? tr('选择串口') : tr('无可用串口')"
-                      leading-icon="usb"
-                    />
-                  </label>
-                  <label v-else>
-                    {{ tr('目标地址') }}
-                    <input v-model="channelHost" type="text" :placeholder="tr('例如：192.168.1.10')" />
-                  </label>
-                </div>
-              </div>
-
-              <div class="modal-section first" v-if="channelType === 'serial'">
-                <div class="section-title">{{ tr('串口参数') }}</div>
-                <div class="form-grid triple">
-                  <label>
-                    {{ tr('波特率') }}
-                    <DropdownSelect v-model="channelBaud" :options="supportedBaudRates" />
-                  </label>
-                  <label>
-                    {{ tr('数据位') }}
-                    <DropdownSelect v-model="channelDataBits" :options="['7', '8']" />
-                  </label>
-                  <label>
-                    {{ tr('停止位') }}
-                    <DropdownSelect v-model="channelStopBits" :options="['1', '1.5', '2']" />
-                  </label>
-                </div>
-                <div class="form-grid quad">
-                  <label>
-                    {{ tr('校验位') }}
-                    <DropdownSelect
-                      v-model="channelParity"
-                      :options="[
-                        { label: tr('无校验'), value: 'none' },
-                        { label: tr('奇校验'), value: 'odd' },
-                        { label: tr('偶校验'), value: 'even' },
-                      ]"
-                    />
-                  </label>
-                  <label>
-                    {{ tr('流控') }}
-                    <DropdownSelect
-                      v-model="channelFlowControl"
-                      :options="[
-                        { label: tr('无'), value: 'none' },
-                        { label: 'RTS/CTS', value: 'rtscts' },
-                        { label: 'XON/XOFF', value: 'xonxoff' },
-                      ]"
-                    />
-                  </label>
-                  <label>
-                    {{ tr('读超时 (ms)') }}
-                    <input v-model.number="channelReadTimeout" type="number" min="0" placeholder="1000" />
-                  </label>
-                  <label>
-                    {{ tr('写超时 (ms)') }}
-                    <input v-model.number="channelWriteTimeout" type="number" min="0" placeholder="1000" />
-                  </label>
-                </div>
-            </div>
-
-              <div class="modal-section" v-else>
-                <div class="form-grid">
-                  <label>
-                    {{ tr('TCP 端口') }}
-                    <input v-model.number="channelTcpPort" type="number" />
-                  </label>
-                </div>
-              </div>
-
-              <label class="channel-toggle">
-                <input v-model="channelAutoConnect" type="checkbox" />
-                <span>{{ channelDialogMode === 'serial' ? tr('保存后立即连接') : tr('创建后立即启动连接') }}</span>
-              </label>
-            </div>
-            <div class="modal-footer">
-              <button class="btn btn-outline" type="button" @click="closeChannelDialog">{{ tr('取消') }}</button>
-              <button class="btn btn-primary" type="button" @click="submitChannelDialog">
-                {{ channelDialogMode === 'serial' ? tr('保存配置') : tr('创建通道') }}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ChannelDialogModal
+          :open="channelDialogOpen"
+          :mode="channelDialogMode"
+          :channel-type="channelType"
+          :channel-name="channelName"
+          :channel-port="channelPort"
+          :channel-baud="channelBaud"
+          :channel-data-bits="channelDataBits"
+          :channel-parity="channelParity"
+          :channel-stop-bits="channelStopBits"
+          :channel-flow-control="channelFlowControl"
+          :channel-read-timeout="channelReadTimeout"
+          :channel-write-timeout="channelWriteTimeout"
+          :channel-host="channelHost"
+          :channel-tcp-port="channelTcpPort"
+          :channel-auto-connect="channelAutoConnect"
+          :has-ports="ports.length > 0"
+          :port-options-list="portOptionsList"
+          :supported-baud-rates="supportedBaudRates"
+          @close="closeChannelDialog"
+          @submit="submitChannelDialog"
+          @update:channel-type="channelType = $event"
+          @update:channel-name="channelName = $event"
+          @update:channel-port="channelPort = $event"
+          @update:channel-baud="channelBaud = $event"
+          @update:channel-data-bits="channelDataBits = $event"
+          @update:channel-parity="channelParity = $event"
+          @update:channel-stop-bits="channelStopBits = $event"
+          @update:channel-flow-control="channelFlowControl = $event"
+          @update:channel-read-timeout="channelReadTimeout = $event"
+          @update:channel-write-timeout="channelWriteTimeout = $event"
+          @update:channel-host="channelHost = $event"
+          @update:channel-tcp-port="channelTcpPort = $event"
+          @update:channel-auto-connect="channelAutoConnect = $event"
+        />
 
       <teleport to="body">
         <ProtocolEditModal
