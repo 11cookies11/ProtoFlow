@@ -20,6 +20,7 @@ import { useChannelState } from './composables/useChannelState'
 import { useSerialInteraction } from './composables/useSerialInteraction'
 import { useSettingsState } from './composables/useSettingsState'
 import { useSettingsPersistence } from './composables/useSettingsPersistence'
+import { useSettingsBridge } from './composables/useSettingsBridge'
 
 const bridge = ref(null)
 const sidebarRef = ref(null)
@@ -1830,45 +1831,18 @@ const {
   apply: applySettings,
 })
 
-function loadSettings() {
-  if (bridge.value && bridge.value.load_settings) {
-    withResult(bridge.value.load_settings(), (payload) => {
-      const normalized = normalizeSettings(payload)
-      applySettings(normalized)
-      setSettingsSnapshot(normalized)
-    })
-    return
-  }
-  const normalized = normalizeSettings(null)
-  applySettings(normalized)
-  setSettingsSnapshot(normalized)
-}
-
-function saveSettings() {
-  const payload = buildSettingsPayload()
-  settingsSaving.value = true
-  const finalize = () => {
-    commitSettingsSnapshot()
-    settingsSaving.value = false
-  }
-  if (bridge.value && bridge.value.save_settings) {
-    withResult(bridge.value.save_settings(payload), () => finalize())
-  } else {
-    finalize()
-  }
-}
-
-function chooseDslWorkspace() {
-  if (!bridge.value || !bridge.value.select_directory) return
-  withResult(
-    bridge.value.select_directory(tr('选择工作区'), dslWorkspacePath.value || ''),
-    (value) => {
-      if (value) {
-        dslWorkspacePath.value = value
-      }
-    }
-  )
-}
+const { loadSettings, saveSettings, chooseDslWorkspace } = useSettingsBridge({
+  bridge,
+  settingsSaving,
+  dslWorkspacePath,
+  tr,
+  withResult,
+  normalizeSettings,
+  applySettings,
+  setSettingsSnapshot,
+  buildSettingsPayload,
+  commitSettingsSnapshot,
+})
 
 function scheduleSnapPreview(event) {
   if (!event) return
