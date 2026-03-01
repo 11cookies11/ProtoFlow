@@ -1,0 +1,22 @@
+﻿# Conventional Commit Subject
+# format: type(scope): summary
+
+[中文]
+- 变更内容：
+  - <请填写本次核心改动>
+- 影响范围：
+  - <请填写受影响模块/页面>
+- 兼容性/行为变化：
+  - <请填写是否有行为变化>
+- 依赖/环境：
+  - <请填写依赖、配置或环境要求>
+
+[English]
+- Changes:
+  - <Describe core changes>
+- Impact:
+  - <Describe affected modules/pages>
+- Compatibility / Behavior Changes:
+  - <Describe behavior changes>
+- Dependencies / Environment:
+  - <Describe dependency/config/env requirements>
