@@ -13,7 +13,7 @@ export function useWindowChrome(options: UseWindowChromeOptions) {
   const dragStarted = ref(false)
   const dragStart = ref({ x: 0, y: 0 })
   const snapPreview = ref('')
-  const enableSnapPreview = ref(false)
+  const enableSnapPreview = ref(true)
   let snapPreviewRaf = 0
   let pendingSnapPreview: any = null
 
@@ -48,6 +48,7 @@ export function useWindowChrome(options: UseWindowChromeOptions) {
         options.bridge.value.window_start_move()
       }
     }
+    enableSnapPreview.value = Boolean(options.bridge.value && options.bridge.value.window_apply_snap)
     dragStarted.value = true
     draggingWindow.value = true
     document.body.classList.add('dragging-window')
