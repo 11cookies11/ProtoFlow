@@ -388,6 +388,9 @@ let yamlEditor = null
 let yamlEditorUpdating = false
 let scriptVarTimer = null
 let channelRefreshTimer = null
+let channelUpdateRaf = 0
+let pendingChannelItems = null
+let scriptLogScrollRaf = 0
 let snapPreviewRaf = 0
 let pendingSnapPreview = null
 let attachedBridge = null
@@ -971,6 +974,17 @@ function setChannels(items) {
   }
 }
 
+function scheduleSetChannels(items) {
+  pendingChannelItems = items
+  if (channelUpdateRaf) return
+  channelUpdateRaf = window.requestAnimationFrame(() => {
+    channelUpdateRaf = 0
+    const next = pendingChannelItems
+    pendingChannelItems = null
+    setChannels(next)
+  })
+}
+
 function refreshChannels() {
   if (!bridge.value || !bridge.value.list_channels) return
   withResult(bridge.value.list_channels(), (items) => {
@@ -1552,7 +1566,7 @@ function attachBridge(obj) {
   })
   if (obj.channel_update) {
     obj.channel_update.connect((items) => {
-      setChannels(items)
+      scheduleSetChannels(items)
     })
   }
   refreshPorts()
@@ -1597,16 +1611,28 @@ onBeforeUnmount(() => {
     window.clearTimeout(channelRefreshTimer)
     channelRefreshTimer = null
   }
+  if (channelUpdateRaf) {
+    window.cancelAnimationFrame(channelUpdateRaf)
+    channelUpdateRaf = 0
+  }
+  if (scriptLogScrollRaf) {
+    window.cancelAnimationFrame(scriptLogScrollRaf)
+    scriptLogScrollRaf = 0
+  }
   destroyYamlEditor()
   window.removeEventListener('keydown', handleGlobalKeydown)
 })
 
 watch(
   () => scriptLogs.value.length,
-  async () => {
+  () => {
     if (!scriptAutoScroll.value) return
-    await nextTick()
-    scrollScriptLogsToBottom()
+    if (scriptLogScrollRaf) return
+    scriptLogScrollRaf = window.requestAnimationFrame(async () => {
+      scriptLogScrollRaf = 0
+      await nextTick()
+      scrollScriptLogsToBottom()
+    })
   }
 )
 
