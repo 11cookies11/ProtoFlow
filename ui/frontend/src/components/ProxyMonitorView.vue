@@ -1,9 +1,10 @@
 ﻿<script setup>
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import DropdownSelect from './DropdownSelect.vue'
 import { fallbackPorts, serialDefaults, supportedBaudRates } from '@/config/runtimeDefaults'
 import { normalizeSerialPortList, normalizeSerialPortName } from '@/utils/serialPort'
 import { useCapturePanel } from '@/composables/useCapturePanel'
+import { useWindowedList } from '@/composables/useWindowedList'
 
 const t = inject('t', (key) => key)
 const tr = inject('tr', (text) => text)
@@ -24,6 +25,7 @@ const confirmProxy = ref(null)
 const captureProxy = ref(null)
 const captureView = ref('parsed')
 const { captureOpen, captureFilter, selectedFrame, openCapture, closeCapture } = useCapturePanel()
+const captureTableRef = ref(null)
 
 const proxyName = ref('')
 const connectionMode = ref(tr('透传模式'))
@@ -287,6 +289,23 @@ const filteredFrames = computed(() => {
   return safeFrames.filter((frame) => frame.direction === captureFilter.value)
 })
 
+const frameWindow = useWindowedList({
+  itemCount: computed(() => filteredFrames.value.length),
+  rowHeight: 36,
+  overscan: 12,
+  minVisibleRows: 24,
+})
+
+const visibleFrames = computed(() => {
+  const { start, end } = frameWindow.range.value
+  return filteredFrames.value.slice(start, end)
+})
+
+function syncCaptureWindow() {
+  if (!captureTableRef.value) return
+  frameWindow.updateViewport(captureTableRef.value.clientHeight || 0, captureTableRef.value.scrollTop || 0)
+}
+
 function openEditModal(proxy) {
   formError.value = ''
   modalMode.value = 'edit'
@@ -546,6 +565,18 @@ watch(
   () => captureOpen.value,
   (open) => {
     document.body.classList.toggle('proxy-modal-open', open)
+    if (!open) {
+      frameWindow.reset()
+      return
+    }
+    nextTick(() => syncCaptureWindow())
+  }
+)
+
+watch(
+  () => filteredFrames.value.length,
+  () => {
+    nextTick(() => syncCaptureWindow())
   }
 )
 
@@ -832,7 +863,7 @@ onBeforeUnmount(() => {
 
         <main class="flex-1 flex overflow-hidden">
           <section class="flex-[2] flex flex-col min-w-0 bg-white">
-            <div class="overflow-auto flex-1">
+            <div ref="captureTableRef" class="overflow-auto flex-1" @scroll.passive="syncCaptureWindow">
               <table class="w-full text-left border-separate border-spacing-0">
                 <thead class="sticky top-0 z-10 bg-slate-50 shadow-sm">
                   <tr class="text-[10px] uppercase tracking-wider font-bold text-slate-500">
@@ -846,15 +877,23 @@ onBeforeUnmount(() => {
                   </tr>
                 </thead>
                 <tbody class="text-xs">
+                  <tr v-if="frameWindow.range.topOffset > 0">
+                    <td :colspan="7" :style="{ height: `${frameWindow.range.topOffset}px` }"></td>
+                  </tr>
                   <tr
-                    v-for="(frame, index) in filteredFrames"
-                    :key="frame?.id ?? index"
+                    v-for="(frame, index) in visibleFrames"
+                    :key="frame?.id ?? `${frameWindow.range.start + index}`"
                     class="hover:bg-slate-50 cursor-pointer border-b border-slate-100"
                     :class="{ 'bg-orange-50/40 border-l-4 border-l-orange-400': frame.tone === 'red' }"
                     @click="selectFrame(frame)"
                   >
                     <td class="px-3 py-2 text-slate-400 font-mono">
-                      {{ frame.seq ?? (captureMeta.rangeStart ? captureMeta.rangeStart + index : index + 1) }}
+                      {{
+                        frame.seq ??
+                        (captureMeta.rangeStart
+                          ? captureMeta.rangeStart + frameWindow.range.start + index
+                          : frameWindow.range.start + index + 1)
+                      }}
                     </td>
                     <td class="px-3 py-2 text-slate-500 font-mono">{{ frame.time }}</td>
                     <td class="px-3 py-2 text-center">
@@ -893,6 +932,9 @@ onBeforeUnmount(() => {
                     <td class="px-3 py-2 text-slate-600 italic">
                       {{ frame.summaryText || frame.summary || '' }}
                     </td>
+                  </tr>
+                  <tr v-if="frameWindow.range.bottomOffset > 0">
+                    <td :colspan="7" :style="{ height: `${frameWindow.range.bottomOffset}px` }"></td>
                   </tr>
                 </tbody>
               </table>
