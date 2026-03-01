@@ -1,4 +1,5 @@
 import type { Ref } from 'vue'
+import { withResult } from '../utils/withResult'
 
 type UseBridgeBootstrapOptions = {
   bridge: Ref<any>
@@ -9,14 +10,6 @@ type UseBridgeBootstrapOptions = {
   refreshChannels: () => void
   refreshProtocols: () => void
   loadSettings: () => void
-}
-
-function withResult(value: any, handler: (payload: any) => void) {
-  if (value && typeof value.then === 'function') {
-    value.then(handler)
-    return
-  }
-  handler(value)
 }
 
 export function useBridgeBootstrap(options: UseBridgeBootstrapOptions) {

@@ -22,6 +22,7 @@ import { useUiRuntimeStore } from './stores/uiRuntime'
 import * as i18nCore from './i18n'
 import { fallbackPorts, networkDefaults, serialDefaults, supportedBaudRates, uiDefaults } from './config/runtimeDefaults'
 import { normalizeSerialPortName } from './utils/serialPort'
+import { withResult } from './utils/withResult'
 import { useChannelState } from './composables/useChannelState'
 import { useSerialInteraction } from './composables/useSerialInteraction'
 import { useChannelConnectionActions } from './composables/useChannelConnectionActions'
@@ -1029,14 +1030,6 @@ function addCommBatch(batch) {
       }
       addCommLog(kind, payload)
     }
-  }
-}
-
-function withResult(value, handler) {
-  if (value && typeof value.then === 'function') {
-    value.then(handler)
-  } else {
-    handler(value)
   }
 }
 

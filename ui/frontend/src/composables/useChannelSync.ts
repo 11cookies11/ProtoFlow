@@ -1,4 +1,5 @@
 import type { Ref } from 'vue'
+import { withResult } from '../utils/withResult'
 
 type ConnectionInfo = {
   state: string
@@ -11,14 +12,6 @@ type UseChannelSyncOptions = {
   connectionInfo: Ref<ConnectionInfo>
   isConnecting: Ref<boolean>
   emitStatus: (text: string, ts: number) => void
-}
-
-function withResult(value: any, handler: (payload: any) => void) {
-  if (value && typeof value.then === 'function') {
-    value.then(handler)
-    return
-  }
-  handler(value)
 }
 
 export function useChannelSync(options: UseChannelSyncOptions) {
