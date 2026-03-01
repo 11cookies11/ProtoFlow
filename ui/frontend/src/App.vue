@@ -13,6 +13,8 @@ import SettingsPanels from './components/SettingsPanels.vue'
 import SettingsHeader from './components/SettingsHeader.vue'
 import ProtocolCardsSection from './components/ProtocolCardsSection.vue'
 import ProtocolHeader from './components/ProtocolHeader.vue'
+import ProtocolEditModal from './components/ProtocolEditModal.vue'
+import ProtocolDeleteModal from './components/ProtocolDeleteModal.vue'
 import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
 import LayoutRenderer from './ui/LayoutRenderer.vue'
 import { useUiRuntimeStore } from './stores/uiRuntime'
@@ -1109,6 +1111,14 @@ function openProtocolDetails(card) {
 
 function closeProtocolDialog() {
   protocolDialogOpen.value = false
+}
+
+function updateProtocolDraft({ field, value }) {
+  if (!field) return
+  protocolDraft.value = {
+    ...protocolDraft.value,
+    [field]: value,
+  }
 }
 
 function saveProtocol() {
@@ -2220,84 +2230,22 @@ function unlockSidebarWidth() {
         </div>
 
       <teleport to="body">
-        <div v-if="protocolDialogOpen" class="modal-backdrop" @mousedown.self="closeProtocolDialog">
-          <div class="channel-modal protocol-modal" @mousedown.stop @click.stop>
-            <div class="modal-header">
-              <div>
-                <h3>{{ protocolDialogMode === 'create' ? tr('新建协议') : protocolDialogMode === 'edit' ? tr('配置协议') : tr('协议详情') }}</h3>
-                <p>{{ protocolDialogMode === 'create' ? tr('添加自定义协议元数据，供解析引擎识别。') : tr('查看或更新协议描述与分类。') }}</p>
-              </div>
-              <button class="icon-btn" type="button" @click="closeProtocolDialog">
-                <span class="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div class="modal-body protocol-modal-body">
-              <div class="form-grid protocol-grid">
-                <label>
-                  {{ tr('协议名称') }}
-                  <input v-model="protocolDraft.name" type="text" :disabled="protocolDialogMode === 'view'" />
-                </label>
-                <label>
-                  {{ tr('键名') }}
-                  <input v-model="protocolDraft.key" type="text" :disabled="protocolDialogMode !== 'create'" />
-                </label>
-              </div>
-              <div class="form-grid protocol-grid">
-                <label>
-                  {{ tr('分类') }}
-                  <select v-model="protocolDraft.category" :disabled="protocolDialogMode === 'view'">
-                    <option value="modbus">Modbus</option>
-                    <option value="tcp">TCP/IP</option>
-                    <option value="custom">{{ t('protocol.tab.custom') }}</option>
-                  </select>
-                </label>
-                <label>
-                  {{ tr('状态') }}
-                  <select v-model="protocolDraft.status" :disabled="protocolDialogMode === 'view'">
-                    <option value="available">{{ tr('可用') }}</option>
-                    <option value="custom">{{ t('protocol.tab.custom') }}</option>
-                    <option value="disabled">{{ tr('已禁用') }}</option>
-                  </select>
-                </label>
-              </div>
-              <label class="protocol-textarea">
-                {{ tr('描述') }}
-                <textarea v-model="protocolDraft.desc" rows="3" :disabled="protocolDialogMode === 'view'"></textarea>
-              </label>
-              <div class="modal-section protocol-driver" v-if="protocolEditing && protocolEditing.driver">
-                <div class="section-title">{{ tr('驱动') }}</div>
-                <div class="form-grid protocol-grid">
-                  <label>
-                    {{ tr('驱动类') }}
-                    <input :value="protocolEditing.driver" type="text" disabled />
-                  </label>
-                </div>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button class="btn btn-outline" type="button" @click="closeProtocolDialog">{{ tr('取消') }}</button>
-              <button v-if="protocolDialogMode !== 'view'" class="btn btn-primary" type="button" @click="saveProtocol">{{ tr('保存') }}</button>
-            </div>
-          </div>
-        </div>
+        <ProtocolEditModal
+          :open="protocolDialogOpen"
+          :mode="protocolDialogMode"
+          :draft="protocolDraft"
+          :editing="protocolEditing"
+          @close="closeProtocolDialog"
+          @save="saveProtocol"
+          @update-draft="updateProtocolDraft"
+        />
 
-        <div v-if="protocolDeleteOpen" class="modal-backdrop" @mousedown.self="closeProtocolDelete">
-          <div class="quick-modal quick-modal-sm" @mousedown.stop @click.stop>
-            <div class="modal-header">
-              <div>
-                <h3>{{ tr('删除协议') }}</h3>
-                <p>{{ tr('确认删除自定义协议') }}“{{ protocolDeleting?.name }}”{{ tr('吗？') }}</p>
-              </div>
-              <button class="icon-btn" type="button" @click="closeProtocolDelete">
-                <span class="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div class="modal-footer">
-              <button class="btn btn-outline" type="button" @click="closeProtocolDelete">{{ tr('取消') }}</button>
-              <button class="btn btn-danger" type="button" @click="confirmProtocolDelete">{{ tr('确认删除') }}</button>
-            </div>
-          </div>
-        </div>
+        <ProtocolDeleteModal
+          :open="protocolDeleteOpen"
+          :deleting="protocolDeleting"
+          @close="closeProtocolDelete"
+          @confirm="confirmProtocolDelete"
+        />
       </teleport>
 
       <teleport to="body">
