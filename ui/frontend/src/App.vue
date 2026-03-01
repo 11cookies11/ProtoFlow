@@ -9,6 +9,7 @@ import ManualView from './components/ManualView.vue'
 import ScriptsView from './components/ScriptsView.vue'
 import ProxyMonitorView from './components/ProxyMonitorView.vue'
 import DropdownSelect from './components/DropdownSelect.vue'
+import SettingsPanels from './components/SettingsPanels.vue'
 import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
 import LayoutRenderer from './ui/LayoutRenderer.vue'
 import { useUiRuntimeStore } from './stores/uiRuntime'
@@ -150,10 +151,6 @@ const protocolDraft = ref({
   category: 'custom',
   status: 'custom',
 })
-const settingsGeneralRef = ref(null)
-const settingsPluginsRef = ref(null)
-const settingsRuntimeRef = ref(null)
-const settingsLogsRef = ref(null)
 const uiRuntime = useUiRuntimeStore()
 const uiModalOpen = ref(false)
 const appVersion = ref('')
@@ -2245,110 +2242,20 @@ function unlockSidebarWidth() {
               </button>
             </div>
             </header>
-            <div class="tab-strip secondary">
-              <button :class="{ active: settingsTab === 'general' }" @click="setSettingsTab('general')">{{ t('settings.tab.general') }}</button>
-              <button :class="{ active: settingsTab === 'plugins' }" @click="setSettingsTab('plugins')">{{ t('settings.tab.plugins') }}</button>
-              <button :class="{ active: settingsTab === 'runtime' }" @click="setSettingsTab('runtime')">{{ t('settings.tab.runtime') }}</button>
-              <button :class="{ active: settingsTab === 'logs' }" @click="setSettingsTab('logs')">{{ t('settings.tab.logs') }}</button>
-            </div>
-            <div class="settings-stack">
-              <div v-if="settingsTab === 'general'" class="panel" ref="settingsGeneralRef">
-              <div class="panel-title simple">
-                <span class="material-symbols-outlined">tune</span>{{ t('settings.tab.general') }}
-              </div>
-              <div class="form-grid">
-                <label>
-                  {{ t('settings.language') }}
-                  <DropdownSelect
-                    v-model="uiLanguage"
-                    :options="languageOptions"
-                  />
-                </label>
-                <label>
-                  {{ t('settings.theme') }}
-                  <DropdownSelect
-                    v-model="uiTheme"
-                    :options="themeOptions"
-                  />
-                </label>
-              </div>
-              <div class="toggle-row spaced">
-                <div>
-                  <strong>{{ t('settings.autoConnect.title') }}</strong>
-                  <p>{{ t('settings.autoConnect.desc') }}</p>
-                </div>
-                <label class="switch">
-                  <input v-model="autoConnectOnStart" type="checkbox" />
-                  <span></span>
-                </label>
-              </div>
-            </div>
-              <div v-if="settingsTab === 'plugins'" class="panel" ref="settingsPluginsRef">
-              <div class="panel-title simple">
-                <span class="material-symbols-outlined">extension</span>{{ t('settings.tab.plugins') }}
-              </div>
-              <label class="file-row">
-                {{ t('settings.workspace') }}
-                <div class="file-input">
-                  <span class="material-symbols-outlined">folder_open</span>
-                  <input v-model="dslWorkspacePath" type="text" readonly />
-                </div>
-                <button class="btn btn-outline" type="button" @click="chooseDslWorkspace">{{ t('settings.chooseFolder') }}</button>
-              </label>
-              <div class="divider"></div>
-              <div class="panel-title simple inline">
-                {{ t('settings.plugins.title') }}
-                <button class="link-btn">
-                  <span class="material-symbols-outlined">refresh</span>
-                  {{ t('settings.plugins.refresh') }}
-                </button>
-              </div>
-              <div class="plugin-list">
-                <div class="plugin-item">
-                  <div>
-                    <div class="plugin-title">Modbus TCP/RTU</div>
-                    <div class="plugin-meta">{{ tr('v1.2.4 - 已启用') }}</div>
-                  </div>
-                  <span class="badge badge-green">{{ tr('已启用') }}</span>
-                </div>
-                <div class="plugin-item muted">
-                  <div>
-                    <div class="plugin-title">{{ tr('MQTT 适配器') }}</div>
-                    <div class="plugin-meta">{{ tr('v0.9.8 - 未安装') }}</div>
-                  </div>
-                  <span class="badge badge-gray">{{ tr('未安装') }}</span>
-                </div>
-              </div>
-              <div class="toggle-row spaced">
-                <div>
-                  <strong>{{ t('settings.autoConnect.title') }}</strong>
-                  <p>{{ t('settings.autoConnect.desc') }}</p>
-                </div>
-                <label class="switch">
-                  <input v-model="autoConnectOnStart" type="checkbox" />
-                  <span></span>
-                </label>
-              </div>
-            </div>
-
-              <div v-if="settingsTab === 'runtime'" class="panel" ref="settingsRuntimeRef">
-              <div class="panel-title simple">
-                <span class="material-symbols-outlined">tune</span>{{ t('settings.tab.runtime') }}
-              </div>
-              <div class="empty-state muted">
-                {{ tr('暂无可配置项，运行时设置将随着模块扩展开放。') }}
-              </div>
-            </div>
-
-              <div v-if="settingsTab === 'logs'" class="panel" ref="settingsLogsRef">
-              <div class="panel-title simple">
-                <span class="material-symbols-outlined">folder_open</span>{{ t('settings.tab.logs') }}
-              </div>
-              <div class="empty-state muted">
-                {{ tr('日志采集与归档策略将在后续版本中提供。') }}
-              </div>
-            </div>
-          </div>
+            <SettingsPanels
+              :settings-tab="settingsTab"
+              :ui-language="uiLanguage"
+              :ui-theme="uiTheme"
+              :auto-connect-on-start="autoConnectOnStart"
+              :dsl-workspace-path="dslWorkspacePath"
+              :language-options="languageOptions"
+              :theme-options="themeOptions"
+              @set-tab="setSettingsTab"
+              @choose-dsl-workspace="chooseDslWorkspace"
+              @update:ui-language="uiLanguage = $event"
+              @update:ui-theme="uiTheme = $event"
+              @update:auto-connect-on-start="autoConnectOnStart = $event"
+            />
         </section>
 
         <div v-if="channelDialogOpen" class="modal-backdrop">
