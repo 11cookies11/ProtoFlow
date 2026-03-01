@@ -25,6 +25,7 @@ import { normalizeSerialPortName } from './utils/serialPort'
 import { useChannelState } from './composables/useChannelState'
 import { useSerialInteraction } from './composables/useSerialInteraction'
 import { useChannelConnectionActions } from './composables/useChannelConnectionActions'
+import { useChannelSync } from './composables/useChannelSync'
 import { useChannelDialog } from './composables/useChannelDialog'
 import { usePayloadSender } from './composables/usePayloadSender'
 import { useYamlDocumentOps } from './composables/useYamlDocumentOps'
@@ -223,6 +224,14 @@ const { selectPort, connectSerial, connectTcp, connectPrimary, disconnect } = us
   resolveSerialPort,
   selectChannelPort,
 })
+const { setChannels, scheduleSetChannels, refreshChannels, scheduleChannelRefresh, disposeChannelSync } =
+  useChannelSync({
+    bridge,
+    channels,
+    connectionInfo,
+    isConnecting,
+    emitStatus,
+  })
 
 const sliceTail = (items, limit) => {
   if (!Array.isArray(items)) return []
@@ -547,9 +556,6 @@ let scriptTimer = null
 let yamlEditor = null
 let yamlEditorUpdating = false
 let scriptVarTimer = null
-let channelRefreshTimer = null
-let channelUpdateRaf = 0
-let pendingChannelItems = null
 let scriptLogScrollRaf = 0
 let attachedBridge = null
 const SCROLL_LOCK_SELECTORS = [
@@ -1109,56 +1115,6 @@ function refreshPorts() {
   })
 }
 
-function setChannels(items) {
-  channels.value = Array.isArray(items) ? items : []
-  const primary = channels.value[0]
-  if (!primary) return
-  if (primary.status === 'connected') {
-    const target = primary.address || primary.port || primary.type || ''
-    emitStatus(`Connected: ${target}`, Date.now() / 1000)
-    connectionInfo.value = {
-      state: 'connected',
-      detail: primary.address || primary.port || primary.type || '',
-    }
-    hasStatusActivity = true
-    isConnecting.value = false
-    return
-  }
-  if (primary.status === 'error') {
-    emitStatus(`Error: ${primary.error || ''}`, Date.now() / 1000)
-    connectionInfo.value = { state: 'error', detail: primary.error || '' }
-    isConnecting.value = false
-    return
-  }
-}
-
-function scheduleSetChannels(items) {
-  pendingChannelItems = items
-  if (channelUpdateRaf) return
-  channelUpdateRaf = window.requestAnimationFrame(() => {
-    channelUpdateRaf = 0
-    const next = pendingChannelItems
-    pendingChannelItems = null
-    setChannels(next)
-  })
-}
-
-function refreshChannels() {
-  if (!bridge.value || !bridge.value.list_channels) return
-  withResult(bridge.value.list_channels(), (items) => {
-    setChannels(items)
-  })
-}
-
-
-function scheduleChannelRefresh() {
-  if (channelRefreshTimer) return
-  channelRefreshTimer = window.setTimeout(() => {
-    channelRefreshTimer = null
-    refreshChannels()
-  }, 150)
-}
-
 function handleChannelRefresh() {
   refreshChannels()
   refreshPorts()
@@ -1215,14 +1171,7 @@ onBeforeUnmount(() => {
     window.cancelAnimationFrame(logFlushHandle)
     logFlushHandle = 0
   }
-  if (channelRefreshTimer) {
-    window.clearTimeout(channelRefreshTimer)
-    channelRefreshTimer = null
-  }
-  if (channelUpdateRaf) {
-    window.cancelAnimationFrame(channelUpdateRaf)
-    channelUpdateRaf = 0
-  }
+  disposeChannelSync()
   if (scriptLogScrollRaf) {
     window.cancelAnimationFrame(scriptLogScrollRaf)
     scriptLogScrollRaf = 0
