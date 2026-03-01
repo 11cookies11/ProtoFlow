@@ -28,6 +28,7 @@ import { useChannelDialog } from './composables/useChannelDialog'
 import { usePayloadSender } from './composables/usePayloadSender'
 import { useYamlDocumentOps } from './composables/useYamlDocumentOps'
 import { useScriptRunner } from './composables/useScriptRunner'
+import { useScriptLogHelpers } from './composables/useScriptLogHelpers'
 import { useYamlSearch } from './composables/useYamlSearch'
 import { useSettingsState } from './composables/useSettingsState'
 import { useSettingsPersistence } from './composables/useSettingsPersistence'
@@ -377,6 +378,21 @@ const { searchYaml } = useYamlSearch({
   tr,
   addScriptLog,
   getEditor: () => yamlEditor,
+})
+
+const { clearScriptLogs, scrollScriptLogsToBottom, refreshScriptVariables } = useScriptLogHelpers({
+  scriptLogs,
+  scriptLogBuffer,
+  scriptLogRef,
+  scriptVariablesList,
+  yamlText,
+  parseScriptVariables,
+  clearScriptVarTimer: () => {
+    if (scriptVarTimer) {
+      window.clearTimeout(scriptVarTimer)
+      scriptVarTimer = null
+    }
+  },
 })
 
 function setSettingsTab(tab) {
@@ -1125,27 +1141,6 @@ function connectPrimary() {
 function disconnect() {
   if (!bridge.value) return
   bridge.value.disconnect()
-}
-
-function clearScriptLogs() {
-  scriptLogs.value = []
-  scriptLogBuffer.length = 0
-}
-
-function scrollScriptLogsToBottom() {
-  if (!scriptLogRef.value) return
-  const root = scriptLogRef.value.rootEl
-  const el = root && root.value ? root.value : root
-  if (!el) return
-  el.scrollTop = el.scrollHeight
-}
-
-function refreshScriptVariables() {
-  if (scriptVarTimer) {
-    window.clearTimeout(scriptVarTimer)
-    scriptVarTimer = null
-  }
-  scriptVariablesList.value = parseScriptVariables(yamlText.value)
 }
 
 function attachBridge(obj) {
