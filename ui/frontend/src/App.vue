@@ -39,6 +39,7 @@ import { useSettingsState } from './composables/useSettingsState'
 import { useSettingsPersistence } from './composables/useSettingsPersistence'
 import { useSettingsBridge } from './composables/useSettingsBridge'
 import { useProtocolManager } from './composables/useProtocolManager'
+import { useBridgeBootstrap } from './composables/useBridgeBootstrap'
 
 const bridge = ref(null)
 const sidebarRef = ref(null)
@@ -557,7 +558,6 @@ let yamlEditor = null
 let yamlEditorUpdating = false
 let scriptVarTimer = null
 let scriptLogScrollRaf = 0
-let attachedBridge = null
 const SCROLL_LOCK_SELECTORS = [
   '.page',
   '.modal-body',
@@ -1120,32 +1120,8 @@ function handleChannelRefresh() {
   refreshPorts()
 }
 
-function attachBridge(obj) {
-  if (!obj || attachedBridge === obj) return
-  attachedBridge = obj
-  bridge.value = obj
-  if (obj.get_app_version) {
-    withResult(obj.get_app_version(), (value) => {
-      if (value) {
-        appVersion.value = String(value).trim()
-      }
-    })
-  }
-  bindCommBridgeSignals(obj)
-  bindScriptBridgeSignals(obj)
-  refreshPorts()
-  refreshChannels()
-  refreshProtocols()
-  loadSettings()
-}
-
 onMounted(() => {
-  const timer = setInterval(() => {
-    if (window.bridge) {
-      attachBridge(window.bridge)
-      clearInterval(timer)
-    }
-  }, 200)
+  startBridgeBootstrap()
   scriptTimer = window.setInterval(() => {
     if (scriptRunning.value && scriptStartMs.value) {
       scriptElapsedMs.value = Date.now() - scriptStartMs.value
@@ -1171,6 +1147,7 @@ onBeforeUnmount(() => {
     window.cancelAnimationFrame(logFlushHandle)
     logFlushHandle = 0
   }
+  disposeBridgeBootstrap()
   disposeChannelSync()
   if (scriptLogScrollRaf) {
     window.cancelAnimationFrame(scriptLogScrollRaf)
@@ -1325,6 +1302,16 @@ const { loadSettings, saveSettings, chooseDslWorkspace } = useSettingsBridge({
   setSettingsSnapshot,
   buildSettingsPayload,
   commitSettingsSnapshot,
+})
+const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
+  bridge,
+  appVersion,
+  bindCommBridgeSignals,
+  bindScriptBridgeSignals,
+  refreshPorts,
+  refreshChannels,
+  refreshProtocols,
+  loadSettings,
 })
 
 </script>
