@@ -32,6 +32,7 @@ import { useScriptLogHelpers } from './composables/useScriptLogHelpers'
 import { useYamlSearch } from './composables/useYamlSearch'
 import { useScriptBridgeSignals } from './composables/useScriptBridgeSignals'
 import { useCommBridgeSignals } from './composables/useCommBridgeSignals'
+import { useWindowChrome } from './composables/useWindowChrome'
 import { useSettingsState } from './composables/useSettingsState'
 import { useSettingsPersistence } from './composables/useSettingsPersistence'
 import { useSettingsBridge } from './composables/useSettingsBridge'
@@ -97,12 +98,6 @@ const appendCR = ref(true)
 const appendLF = ref(true)
 const loopSend = ref(false)
 const isConnecting = ref(false)
-const draggingWindow = ref(false)
-const dragArmed = ref(false)
-const dragStarted = ref(false)
-const dragStart = ref({ x: 0, y: 0 })
-const snapPreview = ref('')
-const enableSnapPreview = ref(false)
 const portPlaceholder = serialDefaults.portPlaceholder
 const channelDialogOpen = ref(false)
 const channelDialogMode = ref('create')
@@ -421,6 +416,25 @@ const { bindCommBridgeSignals } = useCommBridgeSignals({
   shouldEmitDisconnected: (reason) => hasStatusActivity || Boolean(reason),
 })
 
+const {
+  draggingWindow,
+  snapPreview,
+  armWindowMove,
+  maybeStartWindowMove,
+  minimizeWindow,
+  toggleMaximize,
+  closeWindow,
+  applyWindowSnap,
+  showSystemMenu,
+  startResize,
+  disposeWindowChrome,
+} = useWindowChrome({
+  bridge,
+  sidebarRef,
+  lockPageScroll,
+  unlockPageScroll,
+})
+
 function setSettingsTab(tab) {
   settingsTab.value = tab
 }
@@ -524,8 +538,6 @@ let channelRefreshTimer = null
 let channelUpdateRaf = 0
 let pendingChannelItems = null
 let scriptLogScrollRaf = 0
-let snapPreviewRaf = 0
-let pendingSnapPreview = null
 let attachedBridge = null
 const SCROLL_LOCK_SELECTORS = [
   '.page',
@@ -1232,6 +1244,7 @@ onBeforeUnmount(() => {
     window.cancelAnimationFrame(scriptLogScrollRaf)
     scriptLogScrollRaf = 0
   }
+  disposeWindowChrome()
   destroyYamlEditor()
   window.removeEventListener('keydown', handleGlobalKeydown)
 })
@@ -1318,72 +1331,6 @@ watch(
   }
 )
 
-function armWindowMove(event) {
-  if (!event) return
-  dragArmed.value = true
-  dragStarted.value = false
-  dragStart.value = { x: event.screenX, y: event.screenY }
-}
-
-function maybeStartWindowMove(event) {
-  if (!dragArmed.value || dragStarted.value || !event) return
-  const dx = Math.abs(event.screenX - dragStart.value.x)
-  const dy = Math.abs(event.screenY - dragStart.value.y)
-  if (dx < 10 && dy < 10) return
-  lockSidebarWidth()
-  if (bridge.value) {
-    if (bridge.value.window_start_move_at) {
-      bridge.value.window_start_move_at(Math.round(event.screenX), Math.round(event.screenY))
-    } else {
-      bridge.value.window_start_move()
-    }
-  }
-  dragStarted.value = true
-  draggingWindow.value = true
-  document.body.classList.add('dragging-window')
-  lockPageScroll()
-  snapPreview.value = ''
-  attachDragListeners()
-}
-
-function minimizeWindow() {
-  if (bridge.value) {
-    bridge.value.window_minimize()
-  }
-}
-
-function toggleMaximize() {
-  if (bridge.value) {
-    bridge.value.window_toggle_maximize()
-  }
-}
-
-function closeWindow() {
-  if (bridge.value) {
-    bridge.value.window_close()
-  }
-}
-
-function applyWindowSnap(event) {
-  if (bridge.value && event && dragStarted.value) {
-    bridge.value.window_apply_snap(Math.round(event.screenX), Math.round(event.screenY))
-  }
-  clearDragState()
-}
-
-function showSystemMenu(event) {
-  if (bridge.value && event) {
-    bridge.value.window_show_system_menu(Math.round(event.screenX), Math.round(event.screenY))
-  }
-}
-
-function startResize(edge, event) {
-  if (!bridge.value || !edge || !event) return
-  document.body.classList.add('resizing')
-  lockPageScroll()
-  bridge.value.window_start_resize(edge)
-}
-
 function selectPort(item) {
   if (!item) return
   selectChannelPort(item)
@@ -1452,101 +1399,6 @@ const { loadSettings, saveSettings, chooseDslWorkspace } = useSettingsBridge({
   buildSettingsPayload,
   commitSettingsSnapshot,
 })
-
-function scheduleSnapPreview(event) {
-  if (!event) return
-  pendingSnapPreview = {
-    x: event.clientX,
-    y: event.clientY,
-    screenX: event.screenX,
-    screenY: event.screenY,
-    buttons: event.buttons,
-  }
-  if (snapPreviewRaf) return
-  snapPreviewRaf = window.requestAnimationFrame(() => {
-    snapPreviewRaf = 0
-    if (!pendingSnapPreview) return
-    const payload = pendingSnapPreview
-    pendingSnapPreview = null
-    updateSnapPreview(payload)
-  })
-}
-
-function updateSnapPreview(payload) {
-  if (!draggingWindow.value || !payload) return
-  if (payload.buttons !== 1) {
-    applyWindowSnap(payload)
-    return
-  }
-  if (!enableSnapPreview.value) {
-    snapPreview.value = ''
-    return
-  }
-  const margin = 24
-  const x = payload.x
-  const y = payload.y
-  const width = window.innerWidth
-  if (y <= margin) {
-    snapPreview.value = 'max'
-  } else if (x <= margin) {
-    snapPreview.value = 'left'
-  } else if (x >= width - margin) {
-    snapPreview.value = 'right'
-  } else {
-    snapPreview.value = ''
-  }
-}
-
-function handleDragEnd(event) {
-  if (!draggingWindow.value) return
-  applyWindowSnap(event)
-}
-
-function attachDragListeners() {
-  window.addEventListener('mousemove', scheduleSnapPreview)
-  window.addEventListener('mouseup', handleDragEnd)
-  window.addEventListener('blur', handleDragCancel)
-  document.addEventListener('visibilitychange', handleDragCancel)
-}
-
-function detachDragListeners() {
-  window.removeEventListener('mousemove', scheduleSnapPreview)
-  window.removeEventListener('mouseup', handleDragEnd)
-  window.removeEventListener('blur', handleDragCancel)
-  document.removeEventListener('visibilitychange', handleDragCancel)
-}
-
-function handleDragCancel() {
-  clearDragState()
-}
-
-function clearDragState() {
-  draggingWindow.value = false
-  dragArmed.value = false
-  dragStarted.value = false
-  snapPreview.value = ''
-  pendingSnapPreview = null
-  unlockSidebarWidth()
-  if (snapPreviewRaf) {
-    window.cancelAnimationFrame(snapPreviewRaf)
-    snapPreviewRaf = 0
-  }
-  document.body.classList.remove('dragging-window')
-  document.body.classList.remove('resizing')
-  unlockPageScroll()
-  detachDragListeners()
-}
-
-function lockSidebarWidth() {
-  const sidebar = sidebarRef.value
-  if (!sidebar || !sidebar.getBoundingClientRect) return
-  const width = Math.round(sidebar.getBoundingClientRect().width)
-  document.documentElement.style.setProperty('--sidebar-width', `${width}px`)
-}
-
-function unlockSidebarWidth() {
-  document.documentElement.style.removeProperty('--sidebar-width')
-}
 
 </script>
 
