@@ -3,7 +3,7 @@
 export const supportedBaudRates = [9600, 19200, 38400, 57600, 115200]
 
 export const serialDefaults = {
-  portPlaceholder: 'COMx',
+  portPlaceholder: 'COM1',
   baud: 115200,
   dataBits: '8',
   stopBits: '1',

@@ -63,7 +63,7 @@ class WebWindow(QMainWindow):
     def __init__(self, bus=None, comm=None, proxy_manager=None) -> None:
         super().__init__()
         self.setWindowTitle("ProtoFlow Web UI")
-        self.resize(1200, 800)
+        self._apply_initial_geometry()
         self._normal_geometry = self.geometry()
         self._titlebar_height = 36
         self._win_style_applied = False
@@ -111,6 +111,17 @@ class WebWindow(QMainWindow):
         )
         view.load(QUrl.fromLocalFile(str(index_path)))
         view.page().profile().downloadRequested.connect(self._handle_download)
+
+    def _apply_initial_geometry(self) -> None:
+        screen = QGuiApplication.primaryScreen()
+        if not screen:
+            self.resize(1200, 800)
+            return
+        rect = screen.availableGeometry()
+        target_w = max(960, min(int(rect.width() * 0.9), rect.width()))
+        target_h = max(600, min(int(rect.height() * 0.9), rect.height()))
+        self.resize(target_w, target_h)
+        self.move(rect.x() + (rect.width() - target_w) // 2, rect.y() + (rect.height() - target_h) // 2)
 
     def nativeEvent(self, event_type, message):  # type: ignore[override]
         if not self._native_caption_enabled:
