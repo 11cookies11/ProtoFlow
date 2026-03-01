@@ -109,4 +109,26 @@ describe('useWindowChrome', () => {
 
     chrome.disposeWindowChrome()
   })
+
+  it('ignores arm request when mousedown is part of double-click', () => {
+    let moveAt = 0
+    const chrome = useWindowChrome({
+      bridge: ref({
+        window_start_move_at: () => {
+          moveAt += 1
+        },
+      }),
+      sidebarRef: ref(null),
+      lockPageScroll: () => {},
+      unlockPageScroll: () => {},
+    })
+
+    chrome.armWindowMove({ screenX: 10, screenY: 10, detail: 2 })
+    window.dispatchEvent(new MouseEvent('mousemove', { screenX: 30, screenY: 30, buttons: 1, bubbles: true }))
+
+    expect(moveAt).toBe(0)
+    expect(chrome.draggingWindow.value).toBe(false)
+
+    chrome.disposeWindowChrome()
+  })
 })

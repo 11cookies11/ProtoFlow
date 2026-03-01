@@ -28,6 +28,7 @@ export function useWindowChrome(options: UseWindowChromeOptions) {
 
   function armWindowMove(event: any) {
     if (!event) return
+    if (event.detail && event.detail > 1) return
     dragArmed.value = true
     dragStarted.value = false
     dragStart.value = { x: event.screenX, y: event.screenY }
@@ -156,6 +157,13 @@ export function useWindowChrome(options: UseWindowChromeOptions) {
     clearDragState()
   }
 
+  function cancelWindowMoveArm() {
+    if (draggingWindow.value) return
+    dragArmed.value = false
+    dragStarted.value = false
+    detachArmedListeners()
+  }
+
   return {
     draggingWindow,
     snapPreview,
@@ -167,6 +175,7 @@ export function useWindowChrome(options: UseWindowChromeOptions) {
     applyWindowSnap,
     showSystemMenu,
     startResize,
+    cancelWindowMoveArm,
     disposeWindowChrome,
   }
 }

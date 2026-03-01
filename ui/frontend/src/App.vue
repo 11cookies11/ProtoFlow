@@ -488,6 +488,7 @@ const {
   closeWindow,
   showSystemMenu,
   startResize,
+  cancelWindowMoveArm,
   disposeWindowChrome,
 } = useWindowChrome({
   bridge,
@@ -495,6 +496,11 @@ const {
   lockPageScroll,
   unlockPageScroll,
 })
+
+function handleTitlebarDoubleClick() {
+  cancelWindowMoveArm()
+  toggleMaximize()
+}
 
 function setSettingsTab(tab) {
   settingsTab.value = tab
@@ -1068,7 +1074,7 @@ const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
 
     <header
       class="app-titlebar"
-      @dblclick="toggleMaximize"
+      @dblclick="handleTitlebarDoubleClick"
       @mousedown.left="armWindowMove"
       @contextmenu.prevent="showSystemMenu"
     >
