@@ -7,14 +7,14 @@ import os
 import sys
 
 try:
-    from PySide6.QtCore import QPoint, Qt, QUrl
+    from PySide6.QtCore import QEvent, QPoint, QTimer, Qt, QUrl
     from PySide6.QtGui import QAction, QGuiApplication, QIcon
     from PySide6.QtWebChannel import QWebChannel
     from PySide6.QtWebEngineCore import QWebEnginePage
     from PySide6.QtWidgets import QFileDialog, QMainWindow, QMenu
     from PySide6.QtWebEngineWidgets import QWebEngineView
 except ImportError:  # pragma: no cover
-    from PyQt6.QtCore import QPoint, Qt, QUrl  # type: ignore
+    from PyQt6.QtCore import QEvent, QPoint, QTimer, Qt, QUrl  # type: ignore
     from PyQt6.QtGui import QAction, QGuiApplication, QIcon  # type: ignore
     from PyQt6.QtWebChannel import QWebChannel  # type: ignore
     from PyQt6.QtWebEngineCore import QWebEnginePage  # type: ignore
@@ -80,6 +80,8 @@ class WebWindow(QMainWindow):
         view = QWebEngineView(self)
         page = LoggingWebPage(view)
         view.setPage(page)
+        self._view = view
+        self._stabilize_pending = False
         self.setCentralWidget(view)
 
         channel = QWebChannel(view)
@@ -219,6 +221,7 @@ class WebWindow(QMainWindow):
         if at_top and not (at_left or at_right):
             self._remember_normal_geometry()
             self.showMaximized()
+            self._stabilize_webview_after_resize()
             return True
         if at_top and at_left:
             self.setGeometry(rect.x(), rect.y(), rect.width() // 2, rect.height() // 2)
@@ -236,6 +239,7 @@ class WebWindow(QMainWindow):
         else:
             self._remember_normal_geometry()
             self.setGeometry(rect)
+        self._stabilize_webview_after_resize()
         return True
 
     def _start_move(self, screen_x: int, screen_y: int) -> None:
@@ -248,6 +252,7 @@ class WebWindow(QMainWindow):
             self.showNormal()
             self.setWindowState(self.windowState() & ~Qt.WindowMaximized)
             self.setGeometry(self.x(), self.y(), normal.width(), normal.height())
+            self._stabilize_webview_after_resize()
         if handle and hasattr(handle, "startSystemMove"):
             handle.startSystemMove()
 
@@ -325,6 +330,31 @@ class WebWindow(QMainWindow):
         else:
             self._remember_normal_geometry()
             self.showMaximized()
+        self._stabilize_webview_after_resize()
+
+    def _stabilize_webview_after_resize(self) -> None:
+        if self._stabilize_pending:
+            return
+        self._stabilize_pending = True
+
+        def _refresh():
+            self._stabilize_pending = False
+            view = getattr(self, "_view", None)
+            if view is None:
+                return
+            view.setUpdatesEnabled(False)
+            view.resize(self.size())
+            view.setUpdatesEnabled(True)
+            view.update()
+            view.repaint()
+
+        QTimer.singleShot(0, _refresh)
+        QTimer.singleShot(80, _refresh)
+
+    def changeEvent(self, event):  # type: ignore[override]
+        super().changeEvent(event)
+        if event.type() == QEvent.WindowStateChange:
+            self._stabilize_webview_after_resize()
 
     def _mouse_pos(self, event) -> QPoint:
         pos = event.globalPosition().toPoint()
