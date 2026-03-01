@@ -26,6 +26,7 @@ import { useChannelState } from './composables/useChannelState'
 import { useSerialInteraction } from './composables/useSerialInteraction'
 import { useChannelDialog } from './composables/useChannelDialog'
 import { usePayloadSender } from './composables/usePayloadSender'
+import { useYamlDocumentOps } from './composables/useYamlDocumentOps'
 import { useSettingsState } from './composables/useSettingsState'
 import { useSettingsPersistence } from './composables/useSettingsPersistence'
 import { useSettingsBridge } from './composables/useSettingsBridge'
@@ -344,6 +345,17 @@ const { sendPayload, sendQuickCommand } = usePayloadSender({
   sendHex,
   appendCR,
   appendLF,
+})
+
+const { loadYaml, saveYaml, handleYamlFile, copyYaml } = useYamlDocumentOps({
+  bridge,
+  withResult,
+  yamlText,
+  scriptFileName,
+  scriptFilePath,
+  yamlFileInputRef,
+  refreshScriptVariables,
+  addScriptLog,
 })
 
 function setSettingsTab(tab) {
@@ -1127,90 +1139,6 @@ function stopScript() {
   scriptState.value = 'stopping'
   bridge.value.stop_script()
   addScriptLog('[INFO] Stop requested.')
-}
-
-function loadYaml() {
-  if (bridge.value && bridge.value.load_yaml) {
-    withResult(bridge.value.load_yaml(), (payload) => {
-      if (!payload || !payload.text) return
-      yamlText.value = payload.text
-      scriptFileName.value = payload.name || scriptFileName.value
-      scriptFilePath.value = payload.path || scriptFilePath.value
-      refreshScriptVariables()
-      addScriptLog(`[INFO] Loaded: ${scriptFileName.value}`)
-    })
-    return
-  }
-  if (!yamlFileInputRef.value) return
-  yamlFileInputRef.value.value = ''
-  yamlFileInputRef.value.click()
-}
-
-function saveYaml() {
-  const payload = yamlText.value.trim()
-  if (!payload) {
-    addScriptLog('[WARN] YAML is empty, not saved.')
-    return
-  }
-  if (bridge.value && bridge.value.save_yaml) {
-    withResult(bridge.value.save_yaml(payload, scriptFileName.value || 'workflow.yaml'), (info) => {
-      if (!info) return
-      if (info.name) scriptFileName.value = info.name
-      if (info.path) scriptFilePath.value = info.path
-      addScriptLog(`[INFO] Saved: ${scriptFileName.value}`)
-    })
-    return
-  }
-  const name = scriptFileName.value || 'script.yaml'
-  const blob = new Blob([payload], { type: 'text/yaml' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = name
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(url)
-  addScriptLog(`[INFO] Saved: ${name}`)
-}
-
-function handleYamlFile(event) {
-  const file = event && event.target && event.target.files ? event.target.files[0] : null
-  if (!file) return
-  const reader = new FileReader()
-  reader.onload = () => {
-    const text = typeof reader.result === 'string' ? reader.result : ''
-    yamlText.value = text
-    scriptFileName.value = file.name
-    scriptFilePath.value = file.name
-    refreshScriptVariables()
-    addScriptLog(`[INFO] Loaded: ${file.name}`)
-  }
-  reader.readAsText(file)
-}
-
-async function copyYaml() {
-  const payload = yamlText.value.trim()
-  if (!payload) {
-    addScriptLog('[WARN] YAML is empty, nothing to copy.')
-    return
-  }
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    try {
-      await navigator.clipboard.writeText(payload)
-      addScriptLog('[INFO] YAML copied to clipboard.')
-      return
-    } catch (err) {
-      addScriptLog('[WARN] Clipboard API failed, falling back.')
-    }
-  }
-  const temp = document.createElement('textarea')
-  temp.value = payload
-  document.body.appendChild(temp)
-  temp.select()
-  document.execCommand('copy')
-  temp.remove()
-  addScriptLog('[INFO] YAML copied to clipboard.')
 }
 
 function searchYaml() {
