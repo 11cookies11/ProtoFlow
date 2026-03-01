@@ -3,6 +3,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import DropdownSelect from './DropdownSelect.vue'
 import { fallbackPorts, serialDefaults, supportedBaudRates } from '@/config/runtimeDefaults'
 import { normalizeSerialPortList, normalizeSerialPortName } from '@/utils/serialPort'
+import { useCapturePanel } from '@/composables/useCapturePanel'
 
 const t = inject('t', (key) => key)
 const tr = inject('tr', (text) => text)
@@ -18,13 +19,11 @@ const activeFilter = ref(filterTabs.value[0]?.id ?? 'all')
 const modalOpen = ref(false)
 const modalProxy = ref(null)
 const modalMode = ref('edit')
-const captureOpen = ref(false)
 const confirmOpen = ref(false)
 const confirmProxy = ref(null)
 const captureProxy = ref(null)
-const captureFilter = ref('all')
 const captureView = ref('parsed')
-const selectedFrame = ref(null)
+const { captureOpen, captureFilter, selectedFrame, openCapture, closeCapture } = useCapturePanel()
 
 const proxyName = ref('')
 const connectionMode = ref(tr('透传模式'))
@@ -328,9 +327,7 @@ function openCaptureModal(proxy) {
     })
   }
   captureProxy.value = proxy
-  captureFilter.value = 'all'
-  selectedFrame.value = captureFrames.value[0] || null
-  captureOpen.value = true
+  openCapture(captureFrames.value[0] || null)
 }
 
 function closeModal() {
@@ -342,7 +339,7 @@ function closeCaptureModal() {
   if (bridge && bridge.value && bridge.value.stop_capture) {
     bridge.value.stop_capture()
   }
-  captureOpen.value = false
+  closeCapture()
 }
 
 function selectFrame(frame) {
