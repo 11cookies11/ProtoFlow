@@ -144,6 +144,10 @@ class WebWindow(QMainWindow):
         item.accept()
 
     def _apply_snap(self, screen_x: int, screen_y: int) -> bool:
+        if sys.platform == "win32":
+            # On Windows, rely on native startSystemMove snapping so the OS can
+            # keep snap-group state and show Snap Assist suggestions.
+            return False
         screen = QGuiApplication.screenAt(QPoint(screen_x, screen_y))
         if not screen:
             screen = self.screen() if hasattr(self, "screen") else None
