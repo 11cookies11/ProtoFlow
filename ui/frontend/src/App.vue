@@ -31,6 +31,8 @@ import { useChannelDialog } from './composables/useChannelDialog'
 import { usePayloadSender } from './composables/usePayloadSender'
 import { useCommBatchIngestor } from './composables/useCommBatchIngestor'
 import { useCommLogExport } from './composables/useCommLogExport'
+import { useCaptureFrames } from './composables/useCaptureFrames'
+import { useQuickCommands } from './composables/useQuickCommands'
 import { useYamlDocumentOps } from './composables/useYamlDocumentOps'
 import { useScriptRunner } from './composables/useScriptRunner'
 import { useScriptLogHelpers } from './composables/useScriptLogHelpers'
@@ -171,6 +173,11 @@ const { formatPayload, exportCommLogs } = useCommLogExport({
   commLogs,
   formatTime,
 })
+const { ingestCaptureFrame } = useCaptureFrames({
+  captureFrames,
+  captureMeta,
+  maxCaptureFrames: MAX_CAPTURE_FRAMES,
+})
 const { noPorts, portOptionsList, applyPorts, selectPort: selectChannelPort } = useChannelState(ports, selectedPort)
 const { resolveSerialPort } = useSerialInteraction()
 
@@ -192,6 +199,31 @@ const quickDraft = ref({
   mode: 'text',
   appendCR: true,
   appendLF: true,
+})
+const {
+  normalizeQuickCommands,
+  openQuickDeleteDialog,
+  closeQuickDeleteDialog,
+  confirmQuickDelete,
+  openQuickCommandDialog,
+  closeQuickCommandDialog,
+  saveQuickCommand,
+  addQuickCommand,
+  editQuickCommand,
+  removeQuickCommand,
+  countQuickPayload,
+} = useQuickCommands({
+  quickCommands,
+  quickDialogOpen,
+  quickDialogMode,
+  quickEditingId,
+  quickDeleteOpen,
+  quickDeleting,
+  quickDraft,
+  sendMode,
+  appendCR,
+  appendLF,
+  tr,
 })
 
 const channels = ref([])
@@ -786,196 +818,6 @@ function destroyYamlEditor() {
 
 function toggleYamlCollapsed() {
   yamlCollapsed.value = !yamlCollapsed.value
-}
-
-function formatCaptureTime(ts) {
-  const date = new Date((ts || 0) * 1000)
-  const pad = (value, length = 2) => String(value).padStart(length, '0')
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(
-    date.getMilliseconds(),
-    3
-  )}`
-}
-
-function mapCaptureFrame(payload) {
-  if (!payload || typeof payload !== 'object') return null
-  const protocol = payload.protocol || {}
-  const unknown = Boolean(protocol.unknown)
-  const hasErrors = Array.isArray(payload.errors) && payload.errors.length > 0
-  const direction = payload.direction || 'RX'
-  const tone = unknown || hasErrors ? 'red' : direction === 'TX' ? 'blue' : 'green'
-  return {
-    id: payload.id || `cap-${Date.now()}`,
-    direction,
-    time: formatCaptureTime(payload.timestamp || Date.now() / 1000),
-    size: payload.length || 0,
-    note: payload.raw_hex || '',
-    summary: payload.summary || '',
-    summaryText: payload.summary || '',
-    tone,
-    warn: unknown || hasErrors,
-    channel: payload.channel || '',
-    baud: payload.baud || '',
-    protocolLabel: protocol.name || (unknown ? 'Unknown' : ''),
-    protocolType: unknown
-      ? 'unknown'
-      : (protocol.name || '').toLowerCase().includes('modbus')
-        ? 'modbus'
-        : 'custom',
-    protocolTooltip: protocol.name ? `${protocol.name}${protocol.version ? ` ${protocol.version}` : ''}` : '',
-    hexDump: payload.hex_dump || null,
-    tree: payload.tree || [],
-  }
-}
-
-function ingestCaptureFrame(payload) {
-  const frame = mapCaptureFrame(payload)
-  if (!frame) return
-  captureFrames.value.push(frame)
-  if (captureFrames.value.length > MAX_CAPTURE_FRAMES) {
-    captureFrames.value.splice(0, captureFrames.value.length - MAX_CAPTURE_FRAMES)
-  }
-  captureMeta.value.totalFrames += 1
-  captureMeta.value.rangeEnd = captureMeta.value.totalFrames
-  captureMeta.value.rangeStart = Math.max(1, captureMeta.value.totalFrames - captureFrames.value.length + 1)
-  captureMeta.value.bufferUsed = Math.min(
-    100,
-    Math.round((captureFrames.value.length / MAX_CAPTURE_FRAMES) * 100)
-  )
-  if (payload && payload.channel) {
-    captureMeta.value.channel = payload.channel
-  }
-}
-
-function normalizeQuickCommands(list) {
-  if (!Array.isArray(list)) return quickCommands.value
-  const normalized = []
-  list.forEach((item, index) => {
-    if (!item) return
-    if (typeof item === 'string') {
-      normalized.push({
-        id: `qc_${index}`,
-        name: item,
-        payload: item,
-        mode: 'text',
-        appendCR: true,
-        appendLF: true,
-      })
-      return
-    }
-    const name = String(item.name || item.payload || '').trim()
-    const payload = String(item.payload || item.name || '').trim()
-    if (!name || !payload) return
-    normalized.push({
-      id: item.id || `qc_${index}`,
-      name,
-      payload,
-      mode: item.mode === 'hex' ? 'hex' : 'text',
-      appendCR: item.appendCR ?? true,
-      appendLF: item.appendLF ?? true,
-    })
-  })
-  return normalized.length ? normalized : quickCommands.value
-}
-
-function addQuickCommand() {
-  openQuickCommandDialog()
-}
-
-function editQuickCommand(cmd) {
-  openQuickCommandDialog(cmd)
-}
-
-function removeQuickCommand(cmd) {
-  openQuickDeleteDialog(cmd)
-}
-
-function openQuickDeleteDialog(cmd) {
-  if (!cmd) return
-  quickDeleting.value = cmd
-  quickDeleteOpen.value = true
-}
-
-function closeQuickDeleteDialog() {
-  quickDeleteOpen.value = false
-  quickDeleting.value = null
-}
-
-function confirmQuickDelete() {
-  if (!quickDeleting.value) return
-  quickCommands.value = quickCommands.value.filter((item) => item.id !== quickDeleting.value.id)
-  closeQuickDeleteDialog()
-}
-
-function openQuickCommandDialog(cmd) {
-  if (cmd) {
-    quickDialogMode.value = 'edit'
-    quickEditingId.value = cmd.id
-    quickDraft.value = {
-      name: cmd.name || '',
-      payload: cmd.payload || cmd.name || '',
-      mode: cmd.mode === 'hex' ? 'hex' : 'text',
-      appendCR: cmd.appendCR ?? true,
-      appendLF: cmd.appendLF ?? true,
-    }
-  } else {
-    quickDialogMode.value = 'create'
-    quickEditingId.value = ''
-    quickDraft.value = {
-      name: '',
-      payload: '',
-      mode: sendMode.value === 'hex' ? 'hex' : 'text',
-      appendCR: appendCR.value,
-      appendLF: appendLF.value,
-    }
-  }
-  quickDialogOpen.value = true
-}
-
-function closeQuickCommandDialog() {
-  quickDialogOpen.value = false
-}
-
-function saveQuickCommand() {
-  const name = String(quickDraft.value.name || '').trim()
-  const payload = String(quickDraft.value.payload || '').trim()
-  if (!name || !payload) {
-    window.alert(tr('请输入指令名称和内容'))
-    return
-  }
-  const record = {
-    name,
-    payload: quickDraft.value.payload,
-    mode: quickDraft.value.mode === 'hex' ? 'hex' : 'text',
-    appendCR: quickDraft.value.appendCR ?? true,
-    appendLF: quickDraft.value.appendLF ?? true,
-  }
-  if (quickDialogMode.value === 'edit' && quickEditingId.value) {
-    const target = quickCommands.value.find((item) => item.id === quickEditingId.value)
-    if (target) {
-      Object.assign(target, record)
-    } else {
-      quickCommands.value.push({
-        id: quickEditingId.value,
-        ...record,
-      })
-    }
-  } else {
-    quickCommands.value.push({
-      id: `qc_${Date.now()}_${Math.random().toString(16).slice(2, 6)}`,
-      ...record,
-    })
-  }
-  closeQuickCommandDialog()
-}
-
-function countQuickPayload(payload, mode) {
-  const value = String(payload || '')
-  if (mode === 'hex') {
-    const cleaned = value.replace(/[^0-9a-fA-F]/g, '')
-    return Math.floor(cleaned.length / 2)
-  }
-  return value.length
 }
 
 function refreshPorts() {
