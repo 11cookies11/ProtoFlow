@@ -10,6 +10,7 @@ import ScriptsView from './components/ScriptsView.vue'
 import ProxyMonitorView from './components/ProxyMonitorView.vue'
 import DropdownSelect from './components/DropdownSelect.vue'
 import SettingsPanels from './components/SettingsPanels.vue'
+import SettingsHeader from './components/SettingsHeader.vue'
 import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
 import LayoutRenderer from './ui/LayoutRenderer.vue'
 import { useUiRuntimeStore } from './stores/uiRuntime'
@@ -2116,18 +2117,12 @@ function unlockSidebarWidth() {
         </section>
 
 <section v-else class="page">
-          <header class="page-header spaced">
-            <div>
-              <h2>{{ t('header.settings.title') }}</h2>
-                  <p>{{ t('header.settings.desc') }}</p>
-            </div>
-            <div class="header-actions">
-              <button class="btn btn-outline" :disabled="!settingsDirty" @click="discardSettings">{{ t('action.discardChanges') }}</button>
-              <button class="btn btn-primary" :disabled="!settingsDirty || settingsSaving" @click="saveSettings">
-                <span class="material-symbols-outlined">save</span>{{ t('action.saveChanges') }}
-              </button>
-            </div>
-            </header>
+            <SettingsHeader
+              :settings-dirty="settingsDirty"
+              :settings-saving="settingsSaving"
+              @discard="discardSettings"
+              @save="saveSettings"
+            />
             <SettingsPanels
               :settings-tab="settingsTab"
               :ui-language="uiLanguage"
