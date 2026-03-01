@@ -412,6 +412,21 @@ const { sendPayload, sendQuickCommand } = usePayloadSender({
   appendLF,
 })
 
+const { clearScriptLogs, scrollScriptLogsToBottom, refreshScriptVariables } = useScriptLogHelpers({
+  scriptLogs,
+  scriptLogBuffer,
+  scriptLogRef,
+  scriptVariablesList,
+  yamlText,
+  parseScriptVariables,
+  clearScriptVarTimer: () => {
+    if (scriptVarTimer) {
+      window.clearTimeout(scriptVarTimer)
+      scriptVarTimer = null
+    }
+  },
+})
+
 const { loadYaml, saveYaml, handleYamlFile, copyYaml } = useYamlDocumentOps({
   bridge,
   withResult,
@@ -440,21 +455,6 @@ const { searchYaml } = useYamlSearch({
   tr,
   addScriptLog,
   getEditor: () => yamlEditor,
-})
-
-const { clearScriptLogs, scrollScriptLogsToBottom, refreshScriptVariables } = useScriptLogHelpers({
-  scriptLogs,
-  scriptLogBuffer,
-  scriptLogRef,
-  scriptVariablesList,
-  yamlText,
-  parseScriptVariables,
-  clearScriptVarTimer: () => {
-    if (scriptVarTimer) {
-      window.clearTimeout(scriptVarTimer)
-      scriptVarTimer = null
-    }
-  },
 })
 
 const { bindScriptBridgeSignals } = useScriptBridgeSignals({
