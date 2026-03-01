@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 from pathlib import Path
+import ctypes
 import logging
 import os
 import sys
@@ -22,6 +23,22 @@ except ImportError:  # pragma: no cover
 
 from ui.desktop.web_bridge import WebBridge
 from ui.desktop.win_snap import apply_snap_styles
+
+if sys.platform == "win32":
+    WM_NCHITTEST = 0x0084
+    HTCAPTION = 2
+
+    class MSG(ctypes.Structure):
+        _fields_ = [
+            ("hwnd", ctypes.c_void_p),
+            ("message", ctypes.c_uint),
+            ("wParam", ctypes.c_size_t),
+            ("lParam", ctypes.c_ssize_t),
+            ("time", ctypes.c_uint),
+            ("pt_x", ctypes.c_long),
+            ("pt_y", ctypes.c_long),
+            ("lPrivate", ctypes.c_uint),
+        ]
 
 class LoggingWebPage(QWebEnginePage):
     def javaScriptConsoleMessage(self, level, message, line_number, source_id):  # type: ignore[override]
@@ -48,8 +65,9 @@ class WebWindow(QMainWindow):
         self.setWindowTitle("ProtoFlow Web UI")
         self.resize(1200, 800)
         self._normal_geometry = self.geometry()
-        self._titlebar_height = 30
+        self._titlebar_height = 36
         self._win_style_applied = False
+        self._native_caption_enabled = sys.platform == "win32" and os.environ.get("PROTOFLOW_NATIVE_CAPTION", "1") != "0"
 
         self.setMinimumSize(960, 600)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowSystemMenuHint)
@@ -87,6 +105,41 @@ class WebWindow(QMainWindow):
         )
         view.load(QUrl.fromLocalFile(str(index_path)))
         view.page().profile().downloadRequested.connect(self._handle_download)
+
+    def nativeEvent(self, event_type, message):  # type: ignore[override]
+        if not self._native_caption_enabled:
+            return super().nativeEvent(event_type, message)
+        try:
+            msg = MSG.from_address(int(message))
+        except Exception:
+            return super().nativeEvent(event_type, message)
+        if msg.message != WM_NCHITTEST:
+            return super().nativeEvent(event_type, message)
+        hit = self._hit_test_native_caption(msg.lParam)
+        if hit is None:
+            return False, 0
+        return True, hit
+
+    def _hit_test_native_caption(self, l_param: int):
+        # lParam packs signed x/y screen coordinates.
+        x = ctypes.c_short(l_param & 0xFFFF).value
+        y = ctypes.c_short((l_param >> 16) & 0xFFFF).value
+        local = self.mapFromGlobal(QPoint(x, y))
+        lx = local.x()
+        ly = local.y()
+        width = self.width()
+        height = self.height()
+        if lx < 0 or ly < 0 or lx >= width or ly >= height:
+            return None
+        if not (0 <= ly < self._titlebar_height):
+            return None
+        # Gray rollout: only expose a narrow center band as native caption.
+        band = max(220, int(width * 0.28))
+        start = (width - band) // 2
+        end = start + band
+        if start <= lx < end:
+            return HTCAPTION
+        return None
 
     @staticmethod
     def _find_existing_path(*candidates: Path) -> Path:
@@ -144,6 +197,8 @@ class WebWindow(QMainWindow):
         item.accept()
 
     def _apply_snap(self, screen_x: int, screen_y: int) -> bool:
+        if self._native_caption_enabled:
+            return False
         screen = QGuiApplication.screenAt(QPoint(screen_x, screen_y))
         if not screen:
             screen = self.screen() if hasattr(self, "screen") else None
