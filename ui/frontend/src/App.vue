@@ -27,6 +27,7 @@ import { useSerialInteraction } from './composables/useSerialInteraction'
 import { useSettingsState } from './composables/useSettingsState'
 import { useSettingsPersistence } from './composables/useSettingsPersistence'
 import { useSettingsBridge } from './composables/useSettingsBridge'
+import { useProtocolManager } from './composables/useProtocolManager'
 
 const bridge = ref(null)
 const sidebarRef = ref(null)
@@ -145,20 +146,6 @@ const uiLabels = computed(() => ({
   workspace: t('nav.workspace'),
 }))
 const channelTab = ref('all')
-const protocolTab = ref('all')
-const protocolDialogOpen = ref(false)
-const protocolDialogMode = ref('create')
-const protocolEditing = ref(null)
-const protocolDeleteOpen = ref(false)
-const protocolDeleting = ref(null)
-const protocolDraft = ref({
-  id: '',
-  key: '',
-  name: '',
-  desc: '',
-  category: 'custom',
-  status: 'custom',
-})
 const uiRuntime = useUiRuntimeStore()
 const uiModalOpen = ref(false)
 const appVersion = ref('')
@@ -218,8 +205,6 @@ const channelCards = computed(() => {
     }
   })
 })
-
-const protocolCards = ref([])
 
 const isConnected = computed(() => connectionInfo.value.state === 'connected')
 
@@ -289,9 +274,30 @@ const filteredChannelCards = computed(() => {
   if (channelTab.value === 'all') return channelCards.value
   return channelCards.value.filter((card) => card.category === channelTab.value)
 })
-const filteredProtocolCards = computed(() => {
-  if (protocolTab.value === 'all') return protocolCards.value
-  return protocolCards.value.filter((card) => card.category === protocolTab.value)
+
+const {
+  protocolTab,
+  protocolDialogOpen,
+  protocolDialogMode,
+  protocolEditing,
+  protocolDeleteOpen,
+  protocolDeleting,
+  protocolDraft,
+  filteredProtocolCards,
+  refreshProtocols,
+  openCreateProtocol,
+  openProtocolDetails,
+  closeProtocolDialog,
+  updateProtocolDraft,
+  saveProtocol,
+  openProtocolDelete,
+  closeProtocolDelete,
+  confirmProtocolDelete,
+  setProtocolTab,
+} = useProtocolManager({
+  bridge,
+  tr,
+  withResult,
 })
 
 function setSettingsTab(tab) {
@@ -1007,177 +1013,6 @@ function scheduleChannelRefresh() {
   }, 150)
 }
 
-function protocolCategory(key) {
-  const name = String(key || "").toLowerCase()
-  if (name.startsWith("modbus_")) return "modbus"
-  if (name.includes("tcp")) return "tcp"
-  return "custom"
-}
-
-function prettyProtocolName(key, fallback) {
-  const value = String(key || "").trim()
-  if (!value) return fallback || tr('协议')
-  const parts = value.split("_").map((part) => {
-    const upper = part.toUpperCase()
-    if (["RTU", "TCP", "SCPI", "AT", "XMODEM", "YMODEM"].includes(upper)) return upper
-    if (upper.length <= 2) return upper
-    return part.charAt(0).toUpperCase() + part.slice(1)
-  })
-  return parts.join(" ")
-}
-
-function protocolStatusInfo(status) {
-  if (status === "available") {
-    return { text: tr('可用'), className: 'badge-green' }
-  }
-  if (status === "custom") {
-    return { text: tr('自定义'), className: 'badge-blue' }
-  }
-  if (status === "disabled") {
-    return { text: tr('已禁用'), className: 'badge-gray' }
-  }
-  return { text: status || tr('未知'), className: 'badge-gray' }
-}
-
-function setProtocols(items) {
-  const list = Array.isArray(items) ? items : []
-  protocolCards.value = list.map((item) => {
-    const key = String(item.key || item.id || "")
-    const driver = String(item.driver || "")
-    const name = String(item.name || "")
-    const category = String(item.category || protocolCategory(key))
-    const status = String(item.status || "available")
-    const source = String(item.source || "builtin")
-    const desc = String(item.desc || "")
-    const statusInfo = protocolStatusInfo(status)
-    return {
-      id: key || driver || Math.random().toString(36).slice(2),
-      key,
-      name: name || prettyProtocolName(key, driver),
-      driver,
-      category,
-      desc,
-      statusText: statusInfo.text,
-      statusClass: statusInfo.className,
-      status,
-      source,
-      rows: [
-        { label: tr('键名'), value: key || '--' },
-        { label: tr('驱动'), value: driver || '--' },
-        { label: tr('分类'), value: category || '--' },
-      ],
-    }
-  })
-}
-
-function refreshProtocols() {
-  if (!bridge.value || !bridge.value.list_protocols) return
-  withResult(bridge.value.list_protocols(), (items) => {
-    setProtocols(items)
-  })
-}
-
-function resetProtocolDraft() {
-  protocolDraft.value = {
-    id: "",
-    key: "",
-    name: "",
-    desc: "",
-    category: "custom",
-    status: "custom",
-  }
-}
-
-function openCreateProtocol() {
-  protocolDialogMode.value = "create"
-  protocolEditing.value = null
-  resetProtocolDraft()
-  protocolDialogOpen.value = true
-}
-
-function openProtocolDetails(card) {
-  if (!card) return
-  protocolEditing.value = card
-  protocolDialogMode.value = card.source === "custom" ? "edit" : "view"
-  protocolDraft.value = {
-    id: card.id || "",
-    key: card.key || "",
-    name: card.name || "",
-    desc: card.desc || "",
-    category: card.category || "custom",
-    status: card.status || "available",
-  }
-  protocolDialogOpen.value = true
-}
-
-function closeProtocolDialog() {
-  protocolDialogOpen.value = false
-}
-
-function updateProtocolDraft({ field, value }) {
-  if (!field) return
-  protocolDraft.value = {
-    ...protocolDraft.value,
-    [field]: value,
-  }
-}
-
-function saveProtocol() {
-  if (!bridge.value) {
-    protocolDialogOpen.value = false
-    return
-  }
-  const payload = {
-    id: protocolDraft.value.id,
-    key: protocolDraft.value.key,
-    name: protocolDraft.value.name,
-    desc: protocolDraft.value.desc,
-    category: protocolDraft.value.category,
-    status: protocolDraft.value.status,
-  }
-  if (protocolDialogMode.value === "create") {
-    if (!bridge.value.create_protocol) return
-    withResult(bridge.value.create_protocol(payload), () => {
-      refreshProtocols()
-      protocolDialogOpen.value = false
-    })
-    return
-  }
-  if (protocolDialogMode.value === "edit") {
-    if (!bridge.value.update_protocol) return
-    withResult(bridge.value.update_protocol(payload), () => {
-      refreshProtocols()
-      protocolDialogOpen.value = false
-    })
-    return
-  }
-  protocolDialogOpen.value = false
-}
-
-function openProtocolDelete(card) {
-  if (!card || card.source !== "custom") return
-  protocolDeleting.value = card
-  protocolDeleteOpen.value = true
-}
-
-function closeProtocolDelete() {
-  protocolDeleteOpen.value = false
-  protocolDeleting.value = null
-}
-
-function confirmProtocolDelete() {
-  if (!bridge.value || !bridge.value.delete_protocol || !protocolDeleting.value) {
-    closeProtocolDelete()
-    return
-  }
-  const id = protocolDeleting.value.id
-  withResult(bridge.value.delete_protocol(id), () => {
-    refreshProtocols()
-    closeProtocolDelete()
-  })
-}
-
-
 function handleChannelRefresh() {
   refreshChannels()
   refreshPorts()
@@ -1801,10 +1636,6 @@ function handleGlobalKeydown(event) {
 
 function setChannelTab(tab) {
   channelTab.value = tab
-}
-
-function setProtocolTab(tab) {
-  protocolTab.value = tab
 }
 
 const { buildSettingsPayload, normalizeSettings, applySettings } = useSettingsPersistence({
