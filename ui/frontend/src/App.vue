@@ -29,6 +29,7 @@ import { useChannelConnectionActions } from './composables/useChannelConnectionA
 import { useChannelSync } from './composables/useChannelSync'
 import { useChannelDialog } from './composables/useChannelDialog'
 import { usePayloadSender } from './composables/usePayloadSender'
+import { useCommBatchIngestor } from './composables/useCommBatchIngestor'
 import { useYamlDocumentOps } from './composables/useYamlDocumentOps'
 import { useScriptRunner } from './composables/useScriptRunner'
 import { useScriptLogHelpers } from './composables/useScriptLogHelpers'
@@ -160,6 +161,10 @@ const { scriptLogBuffer, hasStatusActivity, addCommLog, emitStatus, addScriptLog
     maxCommLogs: MAX_COMM_LOGS,
     maxScriptLogs: MAX_SCRIPT_LOGS,
   })
+const { parseBridgePayload, addCommBatch } = useCommBatchIngestor({
+  commPaused,
+  addCommLog,
+})
 const { noPorts, portOptionsList, applyPorts, selectPort: selectChannelPort } = useChannelState(ports, selectedPort)
 const { resolveSerialPort } = useSerialInteraction()
 
@@ -783,15 +788,6 @@ function formatPayload(item) {
   return item.text || item.hex || ''
 }
 
-function parseBridgePayload(payload) {
-  if (typeof payload !== 'string') return payload
-  try {
-    return JSON.parse(payload)
-  } catch (err) {
-    return { text: String(payload) }
-  }
-}
-
 function formatCaptureTime(ts) {
   const date = new Date((ts || 0) * 1000)
   const pad = (value, length = 2) => String(value).padStart(length, '0')
@@ -1003,34 +999,6 @@ function countQuickPayload(payload, mode) {
     return Math.floor(cleaned.length / 2)
   }
   return value.length
-}
-
-function addCommBatch(batch) {
-  if (commPaused.value) return
-  batch = parseBridgePayload(batch)
-  if (!Array.isArray(batch)) return
-  for (const item of batch) {
-    if (!item) continue
-    const kind = item.kind || 'RX'
-    if (kind === 'FRAME') {
-      addCommLog('FRAME', { text: JSON.stringify(item.payload), ts: item.ts })
-    } else {
-      let payload = item.payload || {}
-      if (
-        payload &&
-        typeof payload === 'object' &&
-        !payload.text &&
-        !payload.hex &&
-        (item.text || item.hex)
-      ) {
-        payload = { text: item.text || '', hex: item.hex || '', ts: item.ts || payload.ts }
-      }
-      if (payload && typeof payload === 'object' && !payload.text && !payload.hex) {
-        payload = { text: JSON.stringify(item), ts: item.ts || payload.ts }
-      }
-      addCommLog(kind, payload)
-    }
-  }
 }
 
 function refreshPorts() {
