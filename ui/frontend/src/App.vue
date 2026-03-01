@@ -28,6 +28,7 @@ import { useChannelDialog } from './composables/useChannelDialog'
 import { usePayloadSender } from './composables/usePayloadSender'
 import { useYamlDocumentOps } from './composables/useYamlDocumentOps'
 import { useScriptRunner } from './composables/useScriptRunner'
+import { useYamlSearch } from './composables/useYamlSearch'
 import { useSettingsState } from './composables/useSettingsState'
 import { useSettingsPersistence } from './composables/useSettingsPersistence'
 import { useSettingsBridge } from './composables/useSettingsBridge'
@@ -370,6 +371,12 @@ const { openUiYamlModal, closeUiYamlModal, runScript, stopScript } = useScriptRu
   scriptElapsedMs,
   scriptProgress,
   addScriptLog,
+})
+
+const { searchYaml } = useYamlSearch({
+  tr,
+  addScriptLog,
+  getEditor: () => yamlEditor,
 })
 
 function setSettingsTab(tab) {
@@ -1118,29 +1125,6 @@ function connectPrimary() {
 function disconnect() {
   if (!bridge.value) return
   bridge.value.disconnect()
-}
-
-function searchYaml() {
-  const keyword = window.prompt(tr('搜索关键词'))
-  if (!keyword) return
-  if (yamlEditor) {
-    const doc = yamlEditor.state.doc.toString()
-    const lower = doc.toLowerCase()
-    const idx = lower.indexOf(keyword.toLowerCase())
-    if (idx === -1) {
-      addScriptLog(`[INFO] Not found: ${keyword}`)
-      return
-    }
-    yamlEditor.dispatch({
-      selection: { anchor: idx, head: idx + keyword.length },
-      scrollIntoView: true,
-    })
-    return
-  }
-  const found = window.find(keyword)
-  if (!found) {
-    addScriptLog(`[INFO] Not found: ${keyword}`)
-  }
 }
 
 function clearScriptLogs() {
