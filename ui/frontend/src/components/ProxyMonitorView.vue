@@ -1,11 +1,11 @@
 ﻿<script setup>
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import DropdownSelect from './DropdownSelect.vue'
 import ProxyCaptureTable from './proxy/ProxyCaptureTable.vue'
 import ProxyCaptureDetails from './proxy/ProxyCaptureDetails.vue'
 import ProxyCaptureToolbar from './proxy/ProxyCaptureToolbar.vue'
 import ProxyCaptureFooter from './proxy/ProxyCaptureFooter.vue'
 import ProxyDeleteConfirmModal from './proxy/ProxyDeleteConfirmModal.vue'
+import ProxyEditModal from './proxy/ProxyEditModal.vue'
 import { fallbackPorts, serialDefaults, supportedBaudRates } from '@/config/runtimeDefaults'
 import { normalizeSerialPortList, normalizeSerialPortName } from '@/utils/serialPort'
 import { useCapturePanel } from '@/composables/useCapturePanel'
@@ -716,111 +716,35 @@ onBeforeUnmount(() => {
   </section>
 
   <teleport to="body">
-    <div v-if="modalOpen" class="proxy-modal-overlay">
-      <div class="proxy-modal" @mousedown.stop @click.stop>
-        <div class="proxy-modal-header">
-          <div class="proxy-modal-title">
-            <div class="proxy-modal-icon">
-              <span class="material-symbols-outlined">edit_square</span>
-            </div>
-            <h2>{{ modalMode === 'create' ? tr('新建转发对') : tr('编辑转发代理') }}</h2>
-          </div>
-          <button class="proxy-modal-close" type="button" @click="closeModal">
-            <span class="material-symbols-outlined">close</span>
-          </button>
-        </div>
-        <div class="proxy-modal-body">
-          <div class="proxy-modal-stack">
-            <div class="proxy-modal-grid">
-              <div class="proxy-field">
-                <label>{{ tr('代理名称') }}</label>
-                <input type="text" v-model="proxyName" />
-              </div>
-              <div class="proxy-field">
-                <label>{{ tr('连接模式') }}</label>
-                <DropdownSelect v-model="connectionMode" class="proxy-select" :options="connectionOptions" />
-              </div>
-            </div>
-            <div class="proxy-port-map">
-              <div class="proxy-field">
-                <label>
-                <span class="material-symbols-outlined">computer</span>{{ tr('主机端口') }}</label>
-                <DropdownSelect v-model="hostPort" class="proxy-select" :options="portOptions" />
-              </div>
-              <div class="proxy-field">
-                <label>
-                  <span class="material-symbols-outlined">settings_input_component</span>{{ tr('设备端口') }}</label>
-                <DropdownSelect v-model="devicePort" class="proxy-select" :options="portOptions" />
-              </div>
-            </div>
-            <div v-if="formError" class="text-xs text-rose-500 -mt-1">{{ formError }}</div>
-            <div class="proxy-section">
-              <div class="proxy-section-title">
-                <span class="material-symbols-outlined">settings_ethernet</span>{{ tr('串口参数配置') }}<span>{{ tr('（两端需一致）') }}</span>
-              </div>
-              <div class="proxy-section-grid">
-                <div class="proxy-field">
-                  <label>{{ tr('波特率') }}</label>
-                  <DropdownSelect v-model="baudRate" class="proxy-select" :options="baudOptions" />
-                </div>
-                <div class="proxy-field">
-                  <label>{{ tr('数据位') }}</label>
-                  <div class="proxy-segmented">
-                    <button type="button" :class="{ active: dataBits === '5' }" @click="dataBits = '5'">5</button>
-                    <button type="button" :class="{ active: dataBits === '6' }" @click="dataBits = '6'">6</button>
-                    <button type="button" :class="{ active: dataBits === '7' }" @click="dataBits = '7'">7</button>
-                    <button type="button" :class="{ active: dataBits === '8' }" @click="dataBits = '8'">8</button>
-                  </div>
-                </div>
-                <div class="proxy-field">
-                  <label>{{ tr('校验位') }}</label>
-                  <DropdownSelect v-model="parity" class="proxy-select" :options="parityOptions" />
-                </div>
-                <div class="proxy-field">
-                  <label>{{ tr('停止位') }}</label>
-                  <div class="proxy-segmented">
-                    <button type="button" :class="{ active: stopBits === '1' }" @click="stopBits = '1'">1</button>
-                    <button type="button" :class="{ active: stopBits === '1.5' }" @click="stopBits = '1.5'">1.5</button>
-                    <button type="button" :class="{ active: stopBits === '2' }" @click="stopBits = '2'">2</button>
-                  </div>
-                </div>
-                <div class="proxy-field proxy-span-2">
-                  <label>{{ tr('流控') }}</label>
-                  <div class="proxy-segmented">
-                    <button type="button" :class="{ active: flowControl === 'none' }" @click="flowControl = 'none'">None</button>
-                    <button type="button" :class="{ active: flowControl === 'rtscts' }" @click="flowControl = 'rtscts'">RTS/CTS</button>
-                    <button type="button" :class="{ active: flowControl === 'xonxoff' }" @click="flowControl = 'xonxoff'">XON/XOFF</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="proxy-section proxy-modal-advanced">
-              <div class="proxy-section-title muted">
-                <span class="material-symbols-outlined">settings_suggest</span>{{ tr('高级选项') }}</div>
-              <div class="proxy-toggle-row">
-                <label>
-                  <span class="proxy-toggle">
-                    <input type="checkbox" checked />
-                    <span></span>
-                  </span>{{ tr('自动重连') }}</label>
-                <label>
-                  <span class="proxy-toggle">
-                    <input type="checkbox" />
-                    <span></span>
-                  </span>{{ tr('详细日志') }}</label>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="proxy-modal-footer">
-          <div></div>
-          <div class="proxy-footer-actions">
-            <button class="proxy-btn ghost" type="button" @click="closeModal">{{ tr('取消') }}</button>
-            <button class="proxy-btn primary" type="button" @click="saveProxy">{{ tr('保存') }}</button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ProxyEditModal
+      :open="modalOpen"
+      :mode="modalMode"
+      :form-error="formError"
+      :proxy-name="proxyName"
+      :connection-mode="connectionMode"
+      :host-port="hostPort"
+      :device-port="devicePort"
+      :baud-rate="baudRate"
+      :data-bits="dataBits"
+      :stop-bits="stopBits"
+      :parity="parity"
+      :flow-control="flowControl"
+      :connection-options="connectionOptions"
+      :port-options="portOptions"
+      :baud-options="baudOptions"
+      :parity-options="parityOptions"
+      @close="closeModal"
+      @save="saveProxy"
+      @update:proxy-name="proxyName = $event"
+      @update:connection-mode="connectionMode = $event"
+      @update:host-port="hostPort = $event"
+      @update:device-port="devicePort = $event"
+      @update:baud-rate="baudRate = $event"
+      @update:data-bits="dataBits = $event"
+      @update:stop-bits="stopBits = $event"
+      @update:parity="parity = $event"
+      @update:flow-control="flowControl = $event"
+    />
 
     <div v-if="captureOpen" class="proxy-modal-overlay proxy-capture" @mousedown.self="closeCaptureModal">
       <div
