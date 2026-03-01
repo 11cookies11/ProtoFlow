@@ -67,7 +67,9 @@ class WebWindow(QMainWindow):
         self._normal_geometry = self.geometry()
         self._titlebar_height = 36
         self._win_style_applied = False
-        self._native_caption_enabled = sys.platform == "win32" and os.environ.get("PROTOFLOW_NATIVE_CAPTION", "1") != "0"
+        # Stable default: manual snap fallback enabled.
+        # Set PROTOFLOW_NATIVE_CAPTION=1 to opt into the native caption experiment.
+        self._native_caption_enabled = sys.platform == "win32" and os.environ.get("PROTOFLOW_NATIVE_CAPTION", "0") == "1"
 
         self.setMinimumSize(960, 600)
         self.setWindowFlags(
