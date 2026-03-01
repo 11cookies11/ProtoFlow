@@ -2,7 +2,7 @@
 
 export type WindowedListOptions = {
   itemCount: ComputedRef<number>
-  rowHeight: number
+  rowHeight: number | ComputedRef<number>
   overscan?: number
   minVisibleRows?: number
 }
@@ -40,7 +40,7 @@ export function useWindowedList(options: WindowedListOptions) {
   const range = computed(() =>
     calculateWindowRange(
       options.itemCount.value,
-      options.rowHeight,
+      typeof options.rowHeight === 'number' ? options.rowHeight : options.rowHeight.value,
       viewportHeight.value,
       scrollTop.value,
       overscan,
