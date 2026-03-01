@@ -24,6 +24,7 @@ import { fallbackPorts, networkDefaults, serialDefaults, supportedBaudRates, uiD
 import { normalizeSerialPortName } from './utils/serialPort'
 import { useChannelState } from './composables/useChannelState'
 import { useSerialInteraction } from './composables/useSerialInteraction'
+import { useChannelDialog } from './composables/useChannelDialog'
 import { useSettingsState } from './composables/useSettingsState'
 import { useSettingsPersistence } from './composables/useSettingsPersistence'
 import { useSettingsBridge } from './composables/useSettingsBridge'
@@ -298,6 +299,41 @@ const {
   bridge,
   tr,
   withResult,
+})
+
+const { handleNewChannel, openChannelSettings, closeChannelDialog, submitChannelDialog } = useChannelDialog({
+  refs: {
+    channelDialogOpen,
+    channelDialogMode,
+    channelType,
+    channelName,
+    channelPort,
+    channelBaud,
+    channelDataBits,
+    channelParity,
+    channelStopBits,
+    channelFlowControl,
+    channelReadTimeout,
+    channelWriteTimeout,
+    channelHost,
+    channelTcpPort,
+    channelAutoConnect,
+    selectedPort,
+    ports,
+    defaultBaud,
+    defaultParity,
+    defaultStopBits,
+    tcpHost,
+    tcpPort,
+    autoConnectOnStart,
+  },
+  defaults: {
+    fallbackPorts,
+    serialDefaults: { baud: serialDefaults.baud },
+    networkDefaults: { host: networkDefaults.host },
+  },
+  bridge,
+  normalizeSerialPortName,
 })
 
 function setSettingsTab(tab) {
@@ -1016,52 +1052,6 @@ function scheduleChannelRefresh() {
 function handleChannelRefresh() {
   refreshChannels()
   refreshPorts()
-}
-
-function handleNewChannel() {
-  channelDialogMode.value = 'create'
-  channelType.value = 'serial'
-  channelName.value = ''
-  channelPort.value = normalizeSerialPortName(selectedPort.value || ports.value[0] || fallbackPorts[0])
-  channelBaud.value = Number(defaultBaud.value || serialDefaults.baud)
-  channelDataBits.value = '8'
-  channelParity.value = defaultParity.value || 'none'
-  channelStopBits.value = defaultStopBits.value || '1'
-  channelFlowControl.value = 'none'
-  channelReadTimeout.value = 1000
-  channelWriteTimeout.value = 1000
-  channelHost.value = tcpHost.value || networkDefaults.host
-  channelTcpPort.value = Number(tcpPort.value || 502)
-  channelAutoConnect.value = !!autoConnectOnStart.value
-  channelDialogOpen.value = true
-}
-
-function openChannelSettings() {
-  handleNewChannel()
-  channelDialogMode.value = 'serial'
-  channelType.value = 'serial'
-}
-
-function closeChannelDialog() {
-  channelDialogOpen.value = false
-}
-
-function submitChannelDialog() {
-  if (!bridge.value) return
-  if (channelType.value === 'serial') {
-    if (channelAutoConnect.value) {
-      const targetPort = normalizeSerialPortName(channelPort.value)
-      if (targetPort) {
-        channelPort.value = targetPort
-        bridge.value.connect_serial(targetPort, Number(channelBaud.value || 115200))
-      }
-    }
-  } else if (channelType.value === 'tcp') {
-    if (channelAutoConnect.value) {
-      bridge.value.connect_tcp(channelHost.value, Number(channelTcpPort.value || 502))
-    }
-  }
-  channelDialogOpen.value = false
 }
 
 function connectSerial() {
