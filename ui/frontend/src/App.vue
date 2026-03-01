@@ -11,6 +11,7 @@ import ProxyMonitorView from './components/ProxyMonitorView.vue'
 import DropdownSelect from './components/DropdownSelect.vue'
 import SettingsPanels from './components/SettingsPanels.vue'
 import SettingsHeader from './components/SettingsHeader.vue'
+import ProtocolCardsSection from './components/ProtocolCardsSection.vue'
 import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
 import LayoutRenderer from './ui/LayoutRenderer.vue'
 import { useUiRuntimeStore } from './stores/uiRuntime'
@@ -2072,48 +2073,14 @@ function unlockSidebarWidth() {
               </button>
             </div>
           </header>
-          <div class="tab-strip secondary">
-            <button :class="{ active: protocolTab === 'all' }" @click="setProtocolTab('all')">{{ t('protocol.tab.all') }}</button>
-            <button :class="{ active: protocolTab === 'modbus' }" @click="setProtocolTab('modbus')">Modbus</button>
-            <button :class="{ active: protocolTab === 'tcp' }" @click="setProtocolTab('tcp')">TCP/IP</button>
-            <button :class="{ active: protocolTab === 'custom' }" @click="setProtocolTab('custom')">{{ t('protocol.tab.custom') }}</button>
-          </div>
-          <div class="protocol-grid">
-            <div v-for="card in filteredProtocolCards" :key="card.id" class="protocol-card">
-              <div class="protocol-header">
-                <div>
-                  <div class="protocol-title">{{ card.name }}</div>
-                  <div class="protocol-sub">{{ card.desc || tr('暂无描述') }}</div>
-                </div>
-                <span class="badge" :class="card.statusClass">{{ card.statusText }}</span>
-              </div>
-              <div class="protocol-rows">
-                <div v-for="row in card.rows" :key="row.label" class="protocol-row">
-                  <span>{{ row.label }}</span>
-                  <strong>{{ row.value }}</strong>
-                </div>
-              </div>
-              <div class="protocol-actions">
-                <button class="btn btn-ghost" @click="openProtocolDetails(card)">
-                  {{ card.source === 'custom' ? tr('配置') : tr('查看') }}
-                </button>
-                <button v-if="card.source === 'custom'" class="icon-btn" @click="openProtocolDelete(card)">
-                  <span class="material-symbols-outlined">delete</span>
-                </button>
-              </div>
-            </div>
-            <div v-if="filteredProtocolCards.length === 0" class="protocol-card empty">
-              <div class="empty-icon">
-                <span class="material-symbols-outlined">inventory_2</span>
-              </div>
-              <h3>{{ tr('暂无协议') }}</h3>
-              <p>{{ tr('暂无可用协议，可从内置模板创建或新增自定义协议。') }}</p>
-              <button class="btn btn-primary" @click="openCreateProtocol">
-                <span class="material-symbols-outlined">add</span>
-                {{ t('action.createProtocol') }}
-              </button>
-            </div>
-          </div>
+          <ProtocolCardsSection
+            :protocol-tab="protocolTab"
+            :filtered-protocol-cards="filteredProtocolCards"
+            @set-tab="setProtocolTab"
+            @create="openCreateProtocol"
+            @details="openProtocolDetails"
+            @delete="openProtocolDelete"
+          />
         </section>
 
 <section v-else class="page">
