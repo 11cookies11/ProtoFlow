@@ -144,8 +144,6 @@ class WebWindow(QMainWindow):
         item.accept()
 
     def _apply_snap(self, screen_x: int, screen_y: int) -> bool:
-        if sys.platform == "win32":
-            return False
         screen = QGuiApplication.screenAt(QPoint(screen_x, screen_y))
         if not screen:
             screen = self.screen() if hasattr(self, "screen") else None
