@@ -25,3 +25,4 @@ npm run ci:frontend
 - Budget report checks built assets under `dist/assets`
 - If budget fails, process exits with non-zero code
 - Bundle budget complements runtime interaction checks, not a replacement
+- 2026-03-01 update: App views and CodeMirror runtime are async-split/lazy-loaded, and bundle warning is removed in default build output.

@@ -1,23 +1,5 @@
 ﻿<script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
-import { basicSetup } from 'codemirror'
-import { EditorState, RangeSetBuilder } from '@codemirror/state'
-import { Decoration, EditorView, ViewPlugin } from '@codemirror/view'
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
-import { tags } from '@lezer/highlight'
-import ManualView from './components/ManualView.vue'
-import ScriptsView from './components/ScriptsView.vue'
-import ProxyMonitorView from './components/ProxyMonitorView.vue'
-import DropdownSelect from './components/DropdownSelect.vue'
-import ChannelDialogModal from './components/ChannelDialogModal.vue'
-import SettingsPanels from './components/SettingsPanels.vue'
-import SettingsHeader from './components/SettingsHeader.vue'
-import ProtocolCardsSection from './components/ProtocolCardsSection.vue'
-import ProtocolHeader from './components/ProtocolHeader.vue'
-import ProtocolEditModal from './components/ProtocolEditModal.vue'
-import ProtocolDeleteModal from './components/ProtocolDeleteModal.vue'
-import UiYamlPreviewModal from './components/UiYamlPreviewModal.vue'
-import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { useUiRuntimeStore } from './stores/uiRuntime'
 import * as i18nCore from './i18n'
 import { fallbackPorts, networkDefaults, serialDefaults, supportedBaudRates, uiDefaults } from './config/runtimeDefaults'
@@ -46,6 +28,18 @@ import { useSettingsBridge } from './composables/useSettingsBridge'
 import { useProtocolManager } from './composables/useProtocolManager'
 import { useBridgeBootstrap } from './composables/useBridgeBootstrap'
 import { useLogBuffers } from './composables/useLogBuffers'
+
+const ManualView = defineAsyncComponent(() => import('./components/ManualView.vue'))
+const ScriptsView = defineAsyncComponent(() => import('./components/ScriptsView.vue'))
+const ProxyMonitorView = defineAsyncComponent(() => import('./components/ProxyMonitorView.vue'))
+const ChannelDialogModal = defineAsyncComponent(() => import('./components/ChannelDialogModal.vue'))
+const SettingsPanels = defineAsyncComponent(() => import('./components/SettingsPanels.vue'))
+const SettingsHeader = defineAsyncComponent(() => import('./components/SettingsHeader.vue'))
+const ProtocolCardsSection = defineAsyncComponent(() => import('./components/ProtocolCardsSection.vue'))
+const ProtocolHeader = defineAsyncComponent(() => import('./components/ProtocolHeader.vue'))
+const ProtocolEditModal = defineAsyncComponent(() => import('./components/ProtocolEditModal.vue'))
+const ProtocolDeleteModal = defineAsyncComponent(() => import('./components/ProtocolDeleteModal.vue'))
+const UiYamlPreviewModal = defineAsyncComponent(() => import('./components/UiYamlPreviewModal.vue'))
 
 const bridge = ref(null)
 const sidebarRef = ref(null)
@@ -606,6 +600,7 @@ let yamlEditor = null
 let yamlEditorUpdating = false
 let scriptVarTimer = null
 let scriptLogScrollRaf = 0
+let cmDepsPromise = null
 const SCROLL_LOCK_SELECTORS = [
   '.page',
   '.modal-body',
@@ -711,8 +706,47 @@ function parseScriptVariables(text) {
   return vars
 }
 
-function initYamlEditor() {
+async function loadCodemirrorDeps() {
+  if (!cmDepsPromise) {
+    cmDepsPromise = Promise.all([
+      import('codemirror'),
+      import('@codemirror/state'),
+      import('@codemirror/view'),
+      import('@codemirror/language'),
+      import('@lezer/highlight'),
+      import('@codemirror/lang-yaml'),
+    ]).then(([cm, state, view, language, highlight, yaml]) => {
+      return {
+        basicSetup: cm.basicSetup,
+        EditorState: state.EditorState,
+        RangeSetBuilder: state.RangeSetBuilder,
+        Decoration: view.Decoration,
+        EditorView: view.EditorView,
+        ViewPlugin: view.ViewPlugin,
+        HighlightStyle: language.HighlightStyle,
+        syntaxHighlighting: language.syntaxHighlighting,
+        tags: highlight.tags,
+        yamlLanguage: yaml.yaml,
+      }
+    })
+  }
+  return cmDepsPromise
+}
+
+async function initYamlEditor() {
   if (!yamlEditorRef.value || yamlEditor) return
+  const {
+    basicSetup,
+    EditorState,
+    RangeSetBuilder,
+    Decoration,
+    EditorView,
+    ViewPlugin,
+    HighlightStyle,
+    syntaxHighlighting,
+    tags,
+    yamlLanguage,
+  } = await loadCodemirrorDeps()
   if (yamlEditorRef.value) {
     yamlEditorRef.value.style.height = yamlCollapsed.value ? '360px' : '640px'
   }
