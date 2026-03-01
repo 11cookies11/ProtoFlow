@@ -120,4 +120,26 @@ describe('useWindowChrome', () => {
     chrome.disposeWindowChrome()
     window.requestAnimationFrame = originalRaf
   })
+
+  it('starts window move from global mousemove after titlebar mousedown', () => {
+    let moveAt = 0
+    const chrome = useWindowChrome({
+      bridge: ref({
+        window_start_move_at: () => {
+          moveAt += 1
+        },
+      }),
+      sidebarRef: ref(null),
+      lockPageScroll: () => {},
+      unlockPageScroll: () => {},
+    })
+
+    chrome.armWindowMove({ screenX: 10, screenY: 10 })
+    window.dispatchEvent(new MouseEvent('mousemove', { screenX: 26, screenY: 26, buttons: 1, bubbles: true }))
+
+    expect(moveAt).toBe(1)
+    expect(chrome.draggingWindow.value).toBe(true)
+
+    chrome.disposeWindowChrome()
+  })
 })

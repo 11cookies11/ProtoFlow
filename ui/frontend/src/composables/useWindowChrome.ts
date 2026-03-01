@@ -16,6 +16,7 @@ export function useWindowChrome(options: UseWindowChromeOptions) {
   const enableSnapPreview = ref(true)
   let snapPreviewRaf = 0
   let pendingSnapPreview: any = null
+  let armedListenersAttached = false
 
   function lockSidebarWidth() {
     const sidebar = options.sidebarRef.value
@@ -33,6 +34,7 @@ export function useWindowChrome(options: UseWindowChromeOptions) {
     dragArmed.value = true
     dragStarted.value = false
     dragStart.value = { x: event.screenX, y: event.screenY }
+    attachArmedListeners()
   }
 
   function maybeStartWindowMove(event: any) {
@@ -51,6 +53,7 @@ export function useWindowChrome(options: UseWindowChromeOptions) {
     enableSnapPreview.value = Boolean(options.bridge.value && options.bridge.value.window_apply_snap)
     dragStarted.value = true
     draggingWindow.value = true
+    detachArmedListeners()
     document.body.classList.add('dragging-window')
     options.lockPageScroll()
     snapPreview.value = ''
@@ -144,6 +147,30 @@ export function useWindowChrome(options: UseWindowChromeOptions) {
     applyWindowSnap(event)
   }
 
+  function handleArmedMouseUp() {
+    if (!draggingWindow.value) {
+      dragArmed.value = false
+      dragStarted.value = false
+    }
+    detachArmedListeners()
+  }
+
+  function attachArmedListeners() {
+    if (armedListenersAttached) return
+    armedListenersAttached = true
+    window.addEventListener('mousemove', maybeStartWindowMove)
+    window.addEventListener('mouseup', handleArmedMouseUp)
+    window.addEventListener('blur', handleArmedMouseUp)
+  }
+
+  function detachArmedListeners() {
+    if (!armedListenersAttached) return
+    armedListenersAttached = false
+    window.removeEventListener('mousemove', maybeStartWindowMove)
+    window.removeEventListener('mouseup', handleArmedMouseUp)
+    window.removeEventListener('blur', handleArmedMouseUp)
+  }
+
   function attachDragListeners() {
     window.addEventListener('mousemove', scheduleSnapPreview)
     window.addEventListener('mouseup', handleDragEnd)
@@ -176,6 +203,7 @@ export function useWindowChrome(options: UseWindowChromeOptions) {
     document.body.classList.remove('dragging-window')
     document.body.classList.remove('resizing')
     options.unlockPageScroll()
+    detachArmedListeners()
     detachDragListeners()
   }
 
