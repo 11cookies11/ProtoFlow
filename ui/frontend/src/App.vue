@@ -12,15 +12,17 @@ import DropdownSelect from './components/DropdownSelect.vue'
 import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
 import LayoutRenderer from './ui/LayoutRenderer.vue'
 import { useUiRuntimeStore } from './stores/uiRuntime'
+import { fallbackPorts, networkDefaults, serialDefaults, supportedBaudRates, uiDefaults } from './config/runtimeDefaults'
+import { normalizeSerialPortList, normalizeSerialPortName } from './utils/serialPort'
 
 const bridge = ref(null)
 const sidebarRef = ref(null)
 const connectionInfo = ref({ state: 'disconnected', detail: '' })
 const ports = ref([])
 const selectedPort = ref('')
-const baud = ref(115200)
-const tcpHost = ref('127.0.0.1')
-const tcpPort = ref(502)
+const baud = ref(serialDefaults.baud)
+const tcpHost = ref(networkDefaults.host)
+const tcpPort = ref(networkDefaults.port)
 const channelMode = ref('serial')
 const sendMode = ref('text')
 const displayMode = ref('ascii')
@@ -79,32 +81,32 @@ const dragStarted = ref(false)
 const dragStart = ref({ x: 0, y: 0 })
 const snapPreview = ref('')
 const enableSnapPreview = ref(false)
-const portPlaceholder = 'COM3 - USB Serial (115200)'
+const portPlaceholder = serialDefaults.portPlaceholder
 const channelDialogOpen = ref(false)
 const channelDialogMode = ref('create')
 const channelType = ref('serial')
 const channelName = ref('')
 const channelPort = ref('')
-const channelBaud = ref(115200)
-const channelDataBits = ref('8')
-const channelParity = ref('none')
-const channelStopBits = ref('1')
-const channelFlowControl = ref('none')
-const channelReadTimeout = ref(1000)
-const channelWriteTimeout = ref(1000)
-const channelHost = ref('127.0.0.1')
-const channelTcpPort = ref(502)
+const channelBaud = ref(serialDefaults.baud)
+const channelDataBits = ref(serialDefaults.dataBits)
+const channelParity = ref(serialDefaults.parity)
+const channelStopBits = ref(serialDefaults.stopBits)
+const channelFlowControl = ref(serialDefaults.flowControl)
+const channelReadTimeout = ref(serialDefaults.readTimeoutMs)
+const channelWriteTimeout = ref(serialDefaults.writeTimeoutMs)
+const channelHost = ref(networkDefaults.host)
+const channelTcpPort = ref(networkDefaults.port)
 const channelAutoConnect = ref(true)
-const uiLanguage = ref('zh-CN')
-const uiTheme = ref('light')
-const defaultBaud = ref(115200)
-const defaultParity = ref('none')
-const defaultStopBits = ref('1')
-const tcpTimeoutMs = ref(5000)
-const tcpHeartbeatSec = ref(60)
-const tcpRetryCount = ref(3)
+const uiLanguage = ref(uiDefaults.language)
+const uiTheme = ref(uiDefaults.theme)
+const defaultBaud = ref(serialDefaults.baud)
+const defaultParity = ref(serialDefaults.parity)
+const defaultStopBits = ref(serialDefaults.stopBits)
+const tcpTimeoutMs = ref(networkDefaults.timeoutMs)
+const tcpHeartbeatSec = ref(networkDefaults.heartbeatSec)
+const tcpRetryCount = ref(networkDefaults.retryCount)
 const dslWorkspacePath = ref('/usr/local/protoflow/workflows')
-const autoConnectOnStart = ref(true)
+const autoConnectOnStart = ref(uiDefaults.autoConnectOnStart)
 const settingsSaving = ref(false)
 const settingsSnapshot = ref(null)
 const settingsTab = ref('general')
@@ -2760,7 +2762,10 @@ const uiModalOpen = ref(false)
 const appVersion = ref('')
 
 const noPorts = computed(() => ports.value.length === 0)
-const portOptionsList = computed(() => ports.value.map((item) => ({ label: item, value: item, icon: 'usb' })))
+const portOptionsList = computed(() => {
+  const source = ports.value.length ? ports.value : fallbackPorts
+  return source.map((item) => ({ label: item, value: item, icon: 'usb' }))
+})
 
 const quickCommands = ref([
   { id: 'qc_at_gmr', name: 'AT+GMR', payload: 'AT+GMR', mode: 'text', appendCR: true, appendLF: true },
@@ -2880,7 +2885,7 @@ const themeOptions = computed(() => [
   { value: 'dark', label: t('theme.dark') },
   { value: 'light', label: t('theme.light') },
 ])
-const appVersionLabel = computed(() => appVersion.value || 'v0.0.0')
+const appVersionLabel = computed(() => appVersion.value || uiDefaults.appVersionFallback)
 
 const filteredChannelCards = computed(() => {
   if (channelTab.value === 'all') return channelCards.value
@@ -3547,7 +3552,8 @@ function withResult(value, handler) {
 function refreshPorts() {
   if (!bridge.value) return
   withResult(bridge.value.list_ports(), (items) => {
-    ports.value = items || []
+    ports.value = normalizeSerialPortList(items)
+    selectedPort.value = normalizeSerialPortName(selectedPort.value)
     if (!selectedPort.value && ports.value.length) {
       selectedPort.value = ports.value[0]
     }
@@ -3765,15 +3771,15 @@ function handleNewChannel() {
   channelDialogMode.value = 'create'
   channelType.value = 'serial'
   channelName.value = ''
-  channelPort.value = selectedPort.value || ports.value[0] || ''
-  channelBaud.value = Number(defaultBaud.value || 115200)
+  channelPort.value = normalizeSerialPortName(selectedPort.value || ports.value[0] || fallbackPorts[0])
+  channelBaud.value = Number(defaultBaud.value || serialDefaults.baud)
   channelDataBits.value = '8'
   channelParity.value = defaultParity.value || 'none'
   channelStopBits.value = defaultStopBits.value || '1'
   channelFlowControl.value = 'none'
   channelReadTimeout.value = 1000
   channelWriteTimeout.value = 1000
-  channelHost.value = tcpHost.value || '127.0.0.1'
+  channelHost.value = tcpHost.value || networkDefaults.host
   channelTcpPort.value = Number(tcpPort.value || 502)
   channelAutoConnect.value = !!autoConnectOnStart.value
   channelDialogOpen.value = true
@@ -3793,7 +3799,11 @@ function submitChannelDialog() {
   if (!bridge.value) return
   if (channelType.value === 'serial') {
     if (channelAutoConnect.value) {
-      bridge.value.connect_serial(channelPort.value, Number(channelBaud.value || 115200))
+      const targetPort = normalizeSerialPortName(channelPort.value)
+      if (targetPort) {
+        channelPort.value = targetPort
+        bridge.value.connect_serial(targetPort, Number(channelBaud.value || 115200))
+      }
     }
   } else if (channelType.value === 'tcp') {
     if (channelAutoConnect.value) {
@@ -3806,8 +3816,11 @@ function submitChannelDialog() {
 function connectSerial() {
   if (!bridge.value) return
   if (isConnecting.value || isConnected.value) return
+  const targetPort = normalizeSerialPortName(selectedPort.value)
+  if (!targetPort) return
+  selectedPort.value = targetPort
   isConnecting.value = true
-  bridge.value.connect_serial(selectedPort.value, Number(baud.value))
+  bridge.value.connect_serial(targetPort, Number(baud.value))
 }
 
 function connectTcp() {
@@ -4345,8 +4358,8 @@ function startResize(edge, event) {
 }
 
 function selectPort(item) {
-  if (!item || noPorts.value) return
-  selectedPort.value = item
+  if (!item) return
+  selectedPort.value = normalizeSerialPortName(item)
   channelMode.value = 'serial'
 }
 function handleGlobalKeydown(event) {
@@ -4423,7 +4436,7 @@ function buildSettingsPayload() {
     dslWorkspacePath: dslWorkspacePath.value,
     quickCommands: quickCommands.value,
     serial: {
-      defaultBaud: Number(defaultBaud.value || 115200),
+      defaultBaud: Number(defaultBaud.value || serialDefaults.baud),
       defaultParity: defaultParity.value,
       defaultStopBits: defaultStopBits.value,
     },
@@ -4437,20 +4450,20 @@ function buildSettingsPayload() {
 
 function normalizeSettings(payload) {
   const defaults = {
-    uiLanguage: 'zh-CN',
-    uiTheme: 'light',
-    autoConnectOnStart: true,
+    uiLanguage: uiDefaults.language,
+    uiTheme: uiDefaults.theme,
+    autoConnectOnStart: uiDefaults.autoConnectOnStart,
     dslWorkspacePath: '/usr/local/protoflow/workflows',
     quickCommands: quickCommands.value,
     serial: {
-      defaultBaud: 115200,
-      defaultParity: 'none',
-      defaultStopBits: '1',
+      defaultBaud: serialDefaults.baud,
+      defaultParity: serialDefaults.parity,
+      defaultStopBits: serialDefaults.stopBits,
     },
     network: {
-      tcpTimeoutMs: 5000,
-      tcpHeartbeatSec: 60,
-      tcpRetryCount: 3,
+      tcpTimeoutMs: networkDefaults.timeoutMs,
+      tcpHeartbeatSec: networkDefaults.heartbeatSec,
+      tcpRetryCount: networkDefaults.retryCount,
     },
   }
   if (!payload || typeof payload !== 'object') return defaults
@@ -4477,13 +4490,13 @@ function applySettings(payload) {
   autoConnectOnStart.value = !!normalized.autoConnectOnStart
   dslWorkspacePath.value = normalized.dslWorkspacePath
   quickCommands.value = normalizeQuickCommands(normalized.quickCommands)
-  defaultBaud.value = Number(normalized.serial.defaultBaud || 115200)
-  defaultParity.value = normalized.serial.defaultParity || 'none'
-  defaultStopBits.value = normalized.serial.defaultStopBits || '1'
+  defaultBaud.value = Number(normalized.serial.defaultBaud || serialDefaults.baud)
+  defaultParity.value = normalized.serial.defaultParity || serialDefaults.parity
+  defaultStopBits.value = normalized.serial.defaultStopBits || serialDefaults.stopBits
   tcpTimeoutMs.value = Number(normalized.network.tcpTimeoutMs || 0)
   tcpHeartbeatSec.value = Number(normalized.network.tcpHeartbeatSec || 0)
   tcpRetryCount.value = Number(normalized.network.tcpRetryCount || 0)
-  baud.value = Number(defaultBaud.value || 115200)
+  baud.value = Number(defaultBaud.value || serialDefaults.baud)
 }
 
 function loadSettings() {
@@ -4965,7 +4978,6 @@ function unlockSidebarWidth() {
                       v-model="channelPort"
                       :options="portOptionsList"
                       :placeholder="ports.length ? tr('选择串口') : tr('无可用串口')"
-                      :disabled="noPorts"
                       leading-icon="usb"
                     />
                   </label>
@@ -4981,7 +4993,7 @@ function unlockSidebarWidth() {
                 <div class="form-grid triple">
                   <label>
                     {{ tr('波特率') }}
-                    <DropdownSelect v-model="channelBaud" :options="[9600, 19200, 38400, 57600, 115200]" />
+                    <DropdownSelect v-model="channelBaud" :options="supportedBaudRates" />
                   </label>
                   <label>
                     {{ tr('数据位') }}

@@ -1,6 +1,8 @@
 ﻿<script setup>
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import DropdownSelect from './DropdownSelect.vue'
+import { fallbackPorts, serialDefaults, supportedBaudRates } from '@/config/runtimeDefaults'
+import { normalizeSerialPortList, normalizeSerialPortName } from '@/utils/serialPort'
 
 const t = inject('t', (key) => key)
 const tr = inject('tr', (text) => text)
@@ -26,9 +28,9 @@ const selectedFrame = ref(null)
 
 const proxyName = ref('')
 const connectionMode = ref(tr('透传模式'))
-const hostPort = ref('COM3')
-const devicePort = ref('COM5')
-const baudRate = ref('115200')
+const hostPort = ref(fallbackPorts[2] || fallbackPorts[0])
+const devicePort = ref(fallbackPorts[4] || fallbackPorts[1] || fallbackPorts[0])
+const baudRate = ref(String(serialDefaults.baud))
 const parity = ref('none')
 const dataBits = ref('8')
 const stopBits = ref('1')
@@ -40,12 +42,11 @@ const connectionOptions = computed(() => [
   { value: '映射模式', label: tr('映射模式') },
 ])
 const serialPorts = ref([])
-const fallbackPorts = ['COM1', 'COM2', 'COM3', 'COM4']
 const portOptions = computed(() => {
-  const ports = (serialPorts.value || []).filter(Boolean)
+  const ports = normalizeSerialPortList(serialPorts.value)
   return ports.length ? ports : fallbackPorts
 })
-const baudOptions = ['4800', '9600', '19200', '38400', '57600', '115200']
+const baudOptions = supportedBaudRates.map((item) => String(item))
 const parityOptions = computed(() => [
   { value: 'none', label: tr('无') },
   { value: 'even', label: tr('偶校验') },
@@ -111,8 +112,8 @@ function mapProxyFromBackend(payload) {
     routeIcon,
     routeLabel,
     routeTone,
-    hostPort: payload.hostPort || 'COM1',
-    devicePort: payload.devicePort || 'COM2',
+    hostPort: normalizeSerialPortName(payload.hostPort || fallbackPorts[0]),
+    devicePort: normalizeSerialPortName(payload.devicePort || fallbackPorts[1] || fallbackPorts[0]),
     baud,
     dataBits: payload.dataBits || '8',
     stopBits: payload.stopBits || '1',
@@ -145,7 +146,7 @@ function loadSerialPorts() {
       serialPorts.value = []
       return
     }
-    serialPorts.value = items.filter((item) => typeof item === 'string' && item.trim())
+    serialPorts.value = normalizeSerialPortList(items)
   })
 }
 
@@ -308,9 +309,9 @@ function openCreateModal() {
   modalProxy.value = null
   proxyName.value = ''
   const options = portOptions.value
-  hostPort.value = options[0] || 'COM1'
-  devicePort.value = options[1] || options[0] || 'COM2'
-  baudRate.value = baudOptions[5] || '115200'
+  hostPort.value = options[0] || fallbackPorts[0]
+  devicePort.value = options[1] || options[0] || fallbackPorts[1] || fallbackPorts[0]
+  baudRate.value = baudOptions[baudOptions.length - 1] || String(serialDefaults.baud)
   dataBits.value = '8'
   stopBits.value = '1'
   parity.value = 'none'
@@ -404,8 +405,8 @@ function retryProxy(proxy) {
 function saveProxy() {
   const payload = {
     name: proxyName.value || tr('未命名转发对'),
-    hostPort: hostPort.value,
-    devicePort: devicePort.value,
+    hostPort: normalizeSerialPortName(hostPort.value),
+    devicePort: normalizeSerialPortName(devicePort.value),
     baud: baudRate.value,
     dataBits: dataBits.value,
     stopBits: stopBits.value,
