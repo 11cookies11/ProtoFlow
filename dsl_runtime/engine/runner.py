@@ -44,7 +44,8 @@ def run_dsl(path: str, *, bus=None, external_events: list[str] | None = None) ->
         ctx = RuntimeContext(
             channels,
             "default",
-            vars_init={**(ast.params or {}), **(ast.vars or {})},
+            vars_init=dict(ast.vars or {}),
+            params_init=dict(ast.params or {}),
             bus=bus,
             external_events=external_events,
             script_path=path,

@@ -15,6 +15,7 @@ class RuntimeContext:
         channels: Dict[str, Any],
         default_channel: str,
         vars_init: Dict[str, Any],
+        params_init: Optional[Dict[str, Any]] = None,
         bus=None,
         external_events: Optional[list[str]] = None,
         script_path: Optional[str] = None,
@@ -22,6 +23,7 @@ class RuntimeContext:
     ) -> None:
         self.channels = channels
         self.channel = channels[default_channel]
+        self.params: Dict[str, Any] = dict(params_init or {})
         self.vars: Dict[str, Any] = dict(vars_init)
         self.logger = logging.getLogger("dsl")
         self.script_path = script_path
@@ -44,7 +46,11 @@ class RuntimeContext:
         self.vars[key] = value
 
     def vars_snapshot(self) -> Dict[str, Any]:
-        snap = dict(self.vars)
+        snap = dict(self.params)
+        for key, value in self.params.items():
+            if isinstance(key, str) and key.isidentifier():
+                snap[f"params.{key}"] = value
+        snap.update(self.vars)
         snap["event"] = self._last_event
         snap["event_name"] = self._last_event_name
         snap["event_payload"] = self._last_event_payload

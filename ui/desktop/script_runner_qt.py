@@ -156,7 +156,8 @@ class ScriptRunnerQt(QThread):
                 ctx = RuntimeContext(
                     channels,
                     "default",
-                    vars_init={**(ast.params or {}), **(ast.vars or {})},
+                    vars_init=dict(ast.vars or {}),
+                    params_init=dict(ast.params or {}),
                     bus=self.bus,
                     external_events=self.external_events,
                     script_text=self.yaml_text,

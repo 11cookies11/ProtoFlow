@@ -29,8 +29,7 @@ def _render_template(value: str, env: Dict[str, Any]) -> str:
 
 def _build_env(ctx: RuntimeContext, ast: ScriptAST) -> Dict[str, Any]:
     env: Dict[str, Any] = {}
-    env.update(ast.params or {})
-    env.update(ast.vars_snapshot())
+    env.update(ctx.vars_snapshot())
     return env
 
 
