@@ -120,9 +120,52 @@ def _run_expect_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) 
         if _match_text(match_cfg, text):
             ctx.set_var("last_rx_text", text)
             ctx.set_var("last_rx_hex", bytes(rx_buf).hex().upper())
+            captures = step.get("capture")
+            if captures:
+                _apply_capture_rules(text, captures, ast, ctx)
             return
 
     raise TimeoutError("expect timeout: match not found")
+
+
+def _apply_capture_rules(text: str, captures: Any, ast: ScriptAST, ctx: RuntimeContext) -> None:
+    if isinstance(captures, dict):
+        items = [captures]
+    elif isinstance(captures, list):
+        items = captures
+    else:
+        raise ValueError("capture must be a mapping or list")
+
+    env = _build_env(ctx, ast)
+    for idx, item in enumerate(items):
+        if not isinstance(item, dict):
+            raise ValueError(f"capture[{idx}] must be a mapping")
+        var_name = str(item.get("var", "")).strip()
+        regex = item.get("regex")
+        if not var_name or not regex:
+            raise ValueError(f"capture[{idx}] requires var and regex")
+        pattern = _render_template(str(regex), env)
+        group = int(item.get("group", 1))
+        match = re.search(pattern, text)
+        if match is None:
+            raise ValueError(f"capture[{idx}] regex not matched")
+        try:
+            value = match.group(group)
+        except IndexError as exc:
+            raise ValueError(f"capture[{idx}] group index out of range: {group}") from exc
+        ctx.set_var(var_name, value)
+        ctx.set_var("last_capture_var", var_name)
+        ctx.set_var("last_capture_value", value)
+        env[var_name] = value
+
+
+def _run_capture_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+    env = _build_env(ctx, ast)
+    source_raw = step.get("source", "${last_rx_text}")
+    source_text = _render_template(str(source_raw), env)
+    if not source_text:
+        raise ValueError("capture source is empty")
+    _apply_capture_rules(source_text, step, ast, ctx)
 
 
 def _run_sleep_step(step: Dict[str, Any]) -> None:
@@ -147,5 +190,8 @@ def execute_v01(ast: ScriptAST, ctx: RuntimeContext) -> None:
             continue
         if name == "sleep":
             _run_sleep_step(step)
+            continue
+        if name == "capture":
+            _run_capture_step(step, ast, ctx)
             continue
         raise NotImplementedError(f"v0.1 step not implemented yet: {name}")
