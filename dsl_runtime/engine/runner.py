@@ -12,6 +12,7 @@ from dsl_runtime.lang.executor import StateMachineExecutor
 from dsl_runtime.lang.parser import parse_script
 from dsl_runtime.engine.channels import build_channels
 from dsl_runtime.engine.context import RuntimeContext
+from dsl_runtime.engine.v01_artifacts import export_v01_artifacts
 from dsl_runtime.engine.v01_executor import execute_v01
 
 
@@ -51,7 +52,13 @@ def run_dsl(path: str, *, bus=None, external_events: list[str] | None = None) ->
             script_path=path,
         )
         try:
-            execute_v01(ast, ctx)
+            summary = execute_v01(ast, ctx)
+            output_dir = export_v01_artifacts(ast, summary)
+            if output_dir:
+                ctx.logger.info(f"[ARTIFACTS] {output_dir}")
+            if not summary.get("ok", False):
+                err = summary.get("error") or {}
+                raise RuntimeError(f"v0.1 execution failed: {err.get('code')}: {err.get('message')}")
         finally:
             if hasattr(ctx, "close"):
                 ctx.close()

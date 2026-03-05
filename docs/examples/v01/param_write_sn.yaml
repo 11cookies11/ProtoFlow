@@ -1,0 +1,63 @@
+version: "0.1"
+
+params:
+  port: "COM5"
+  sn: "SN2403060001"
+
+vars:
+  sn_read: ""
+
+session:
+  transport: serial
+  port: "${port}"
+  baud: 115200
+  data_bits: 8
+  parity: none
+  stop_bits: 1
+  encoding: ascii
+  eol: crlf
+  open_timeout_ms: 3000
+  read_timeout_ms: 200
+
+defaults:
+  timeout_ms: 2500
+  retry:
+    count: 1
+    backoff_ms: 150
+    strategy: fixed
+
+steps:
+  - id: write_sn
+    name: send
+    text: "AT+SETSN=${sn}"
+
+  - id: wait_write_ok
+    name: expect
+    match:
+      type: contains
+      pattern: "OK"
+
+  - id: read_sn
+    name: send
+    text: "AT+GETSN"
+
+  - id: parse_sn
+    name: expect
+    match:
+      type: regex
+      pattern: "SN:([A-Z0-9]+)"
+    capture:
+      var: sn_read
+      regex: "SN:([A-Z0-9]+)"
+      group: 1
+
+  - id: assert_sn_consistency
+    name: assert
+    expr: "${sn_read} == ${sn}"
+    message: "SN readback mismatch"
+
+artifacts:
+  dir: "./runs/v01_param_${now}"
+  raw_log: true
+  summary_json: true
+  report_csv: false

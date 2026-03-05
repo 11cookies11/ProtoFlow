@@ -16,6 +16,7 @@ from dsl_runtime.actions.dsl_protocol_schema_actions import register_schema_prot
 from dsl_runtime.actions.dsl_record_actions import register_record_actions
 from dsl_runtime.engine.channels import build_channels
 from dsl_runtime.engine.context import RuntimeContext
+from dsl_runtime.engine.v01_artifacts import export_v01_artifacts
 from dsl_runtime.engine.v01_executor import execute_v01
 from dsl_runtime.lang.executor import StateMachineExecutor
 from dsl_runtime.lang.parser import parse_script
@@ -163,7 +164,13 @@ class ScriptRunnerQt(QThread):
                     script_text=self.yaml_text,
                 )
                 self.sig_state.emit("v01_steps")
-                execute_v01(ast, ctx)
+                summary = execute_v01(ast, ctx)
+                artifacts_dir = export_v01_artifacts(ast, summary)
+                if artifacts_dir:
+                    self.sig_log.emit(f"[ARTIFACTS] {artifacts_dir}")
+                if not summary.get("ok", False):
+                    err = summary.get("error") or {}
+                    raise RuntimeError(f"v0.1 execution failed: {err.get('code')}: {err.get('message')}")
                 self.sig_progress.emit(100)
             else:
                 channels = build_channels(ast.channels)

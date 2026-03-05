@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import time
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from dsl_runtime.lang.ast_nodes import ScriptAST
 from dsl_runtime.lang.expression import eval_expr
@@ -301,6 +301,47 @@ def _run_step_with_reliability(step: Dict[str, Any], ast: ScriptAST, ctx: Runtim
             raise last_error
 
 
-def execute_v01(ast: ScriptAST, ctx: RuntimeContext) -> None:
-    for step in ast.steps:
-        _run_step_with_reliability(step, ast, ctx)
+def execute_v01(ast: ScriptAST, ctx: RuntimeContext) -> Dict[str, Any]:
+    started_at = time.time()
+    traces: List[Dict[str, Any]] = []
+    error: Dict[str, Any] | None = None
+
+    for idx, step in enumerate(ast.steps):
+        step_id = str(step.get("id") or f"step_{idx + 1}")
+        step_name = str(step.get("name") or "")
+        t0 = time.time()
+        trace: Dict[str, Any] = {
+            "index": idx,
+            "step_id": step_id,
+            "name": step_name,
+            "started_at": t0,
+        }
+        try:
+            _run_step_with_reliability(step, ast, ctx)
+            trace["status"] = "ok"
+        except Exception as exc:
+            trace["status"] = "error"
+            trace["error"] = {"code": type(exc).__name__, "message": str(exc)}
+            error = {"code": type(exc).__name__, "message": str(exc), "step_id": step_id}
+            traces.append(trace)
+            break
+        finally:
+            trace["ended_at"] = time.time()
+            trace["elapsed_ms"] = int((trace["ended_at"] - trace["started_at"]) * 1000)
+            vars_snap = ctx.vars_snapshot()
+            trace["last_tx_hex"] = vars_snap.get("last_tx_hex")
+            trace["last_rx_text"] = vars_snap.get("last_rx_text")
+            trace["last_rx_hex"] = vars_snap.get("last_rx_hex")
+            if trace not in traces:
+                traces.append(trace)
+
+    ended_at = time.time()
+    return {
+        "ok": error is None,
+        "error": error,
+        "started_at": started_at,
+        "ended_at": ended_at,
+        "elapsed_ms": int((ended_at - started_at) * 1000),
+        "steps": traces,
+        "vars": ctx.vars_snapshot(),
+    }
