@@ -125,6 +125,15 @@ def _run_expect_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) 
     raise TimeoutError("expect timeout: match not found")
 
 
+def _run_sleep_step(step: Dict[str, Any]) -> None:
+    ms = int(step.get("ms", 0))
+    if ms < 0:
+        raise ValueError("sleep.ms must be >= 0")
+    if ms == 0:
+        return
+    time.sleep(ms / 1000.0)
+
+
 def execute_v01(ast: ScriptAST, ctx: RuntimeContext) -> None:
     for idx, step in enumerate(ast.steps):
         name = str(step.get("name", "")).strip().lower()
@@ -135,5 +144,8 @@ def execute_v01(ast: ScriptAST, ctx: RuntimeContext) -> None:
             continue
         if name == "expect":
             _run_expect_step(step, ast, ctx)
+            continue
+        if name == "sleep":
+            _run_sleep_step(step)
             continue
         raise NotImplementedError(f"v0.1 step not implemented yet: {name}")
