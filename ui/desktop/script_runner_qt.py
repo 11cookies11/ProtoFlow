@@ -16,6 +16,7 @@ from dsl_runtime.actions.dsl_protocol_schema_actions import register_schema_prot
 from dsl_runtime.actions.dsl_record_actions import register_record_actions
 from dsl_runtime.engine.channels import build_channels
 from dsl_runtime.engine.context import RuntimeContext
+from dsl_runtime.engine.v01_executor import execute_v01
 from dsl_runtime.lang.executor import StateMachineExecutor
 from dsl_runtime.lang.parser import parse_script
 
@@ -140,27 +141,51 @@ class ScriptRunnerQt(QThread):
                 tmp_path = tmp.name
 
             ast = parse_script(tmp_path)
-            channels = build_channels(ast.channels)
-            if not channels:
-                raise ValueError("channels is required")
-            default_channel = next(iter(channels.keys()))
-            ctx = RuntimeContext(
-                channels,
-                default_channel,
-                vars_init=ast.vars,
-                bus=self.bus,
-                external_events=self.external_events,
-                script_text=self.yaml_text,
-            )
+            if ast.version == "0.1":
+                if ast.session is None:
+                    raise ValueError("session is required for v0.1")
+                channels = build_channels(
+                    {
+                        "default": {
+                            "type": "serial",
+                            "device": ast.session.port,
+                            "baudrate": ast.session.baud,
+                        }
+                    }
+                )
+                ctx = RuntimeContext(
+                    channels,
+                    "default",
+                    vars_init={**(ast.params or {}), **(ast.vars or {})},
+                    bus=self.bus,
+                    external_events=self.external_events,
+                    script_text=self.yaml_text,
+                )
+                self.sig_state.emit("v01_steps")
+                execute_v01(ast, ctx)
+                self.sig_progress.emit(100)
+            else:
+                channels = build_channels(ast.channels)
+                if not channels:
+                    raise ValueError("channels is required")
+                default_channel = next(iter(channels.keys()))
+                ctx = RuntimeContext(
+                    channels,
+                    default_channel,
+                    vars_init=ast.vars,
+                    bus=self.bus,
+                    external_events=self.external_events,
+                    script_text=self.yaml_text,
+                )
 
-            executor = _ObservableExecutor(
-                ast,
-                ctx,
-                stop_event=self._stop_event,
-                on_state=lambda s: self.sig_state.emit(s),
-                on_progress=lambda p: self.sig_progress.emit(p),
-            )
-            executor.run()
+                executor = _ObservableExecutor(
+                    ast,
+                    ctx,
+                    stop_event=self._stop_event,
+                    on_state=lambda s: self.sig_state.emit(s),
+                    on_progress=lambda p: self.sig_progress.emit(p),
+                )
+                executor.run()
             if self._stop_event.is_set():
                 self.sig_state.emit("__stopped__")
                 self.sig_log.emit("Script stopped")

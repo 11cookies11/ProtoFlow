@@ -12,6 +12,7 @@ from dsl_runtime.lang.executor import StateMachineExecutor
 from dsl_runtime.lang.parser import parse_script
 from dsl_runtime.engine.channels import build_channels
 from dsl_runtime.engine.context import RuntimeContext
+from dsl_runtime.engine.v01_executor import execute_v01
 
 
 def _register_actions() -> None:
@@ -29,7 +30,37 @@ def run_dsl(path: str, *, bus=None, external_events: list[str] | None = None) ->
 
     ast = parse_script(path)
     if ast.version == "0.1":
-        raise NotImplementedError("YAML DSL v0.1 parser is enabled; executor migration is pending next steps.")
+        if ast.session is None:
+            raise ValueError("session is required for YAML DSL v0.1")
+        channels = build_channels(
+            {
+                "default": {
+                    "type": "serial",
+                    "device": ast.session.port,
+                    "baudrate": ast.session.baud,
+                }
+            }
+        )
+        ctx = RuntimeContext(
+            channels,
+            "default",
+            vars_init={**(ast.params or {}), **(ast.vars or {})},
+            bus=bus,
+            external_events=external_events,
+            script_path=path,
+        )
+        try:
+            execute_v01(ast, ctx)
+        finally:
+            if hasattr(ctx, "close"):
+                ctx.close()
+            for ch in channels.values():
+                if hasattr(ch, "close"):
+                    try:
+                        ch.close()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+        return 0
     channels = build_channels(ast.channels)
     if not channels:
         raise ValueError("未定义任何 channel")
