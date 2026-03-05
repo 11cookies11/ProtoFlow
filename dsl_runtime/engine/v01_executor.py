@@ -5,6 +5,7 @@ import time
 from typing import Any, Dict
 
 from dsl_runtime.lang.ast_nodes import ScriptAST
+from dsl_runtime.lang.expression import eval_expr
 from dsl_runtime.engine.context import RuntimeContext
 
 
@@ -177,6 +178,46 @@ def _run_sleep_step(step: Dict[str, Any]) -> None:
     time.sleep(ms / 1000.0)
 
 
+def _eval_assert_expr(expr: str, env: Dict[str, Any]) -> bool:
+    # Reuse existing expression engine by mapping ${var} -> $var.
+    normalized = re.sub(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", r"$\1", expr)
+    return bool(eval_expr(normalized, env))
+
+
+def _assert_clause(clause: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> bool:
+    if not isinstance(clause, dict):
+        raise ValueError("assert clause must be a mapping")
+    env = _build_env(ctx, ast)
+    if "expr" in clause:
+        return _eval_assert_expr(str(clause.get("expr", "")), env)
+    if "match" in clause:
+        match_cfg = clause.get("match")
+        if not isinstance(match_cfg, dict):
+            raise ValueError("assert.match must be a mapping")
+        source_raw = clause.get("source", "${last_rx_text}")
+        source_text = _render_template(str(source_raw), env)
+        return _match_text(match_cfg, source_text)
+    raise ValueError("assert clause requires expr or match")
+
+
+def _run_assert_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+    message = str(step.get("message", "assert failed"))
+    if "all" in step:
+        all_items = step.get("all")
+        if not isinstance(all_items, list) or not all_items:
+            raise ValueError("assert.all must be a non-empty list")
+        result = all(_assert_clause(item, ast, ctx) for item in all_items)
+    elif "any" in step:
+        any_items = step.get("any")
+        if not isinstance(any_items, list) or not any_items:
+            raise ValueError("assert.any must be a non-empty list")
+        result = any(_assert_clause(item, ast, ctx) for item in any_items)
+    else:
+        result = _assert_clause(step, ast, ctx)
+    if not result:
+        raise AssertionError(message)
+
+
 def _resolve_retry(step: Dict[str, Any], ast: ScriptAST) -> Dict[str, int | str]:
     retry_cfg = step.get("retry")
     if retry_cfg is None:
@@ -213,6 +254,9 @@ def _dispatch_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) ->
         return
     if name == "capture":
         _run_capture_step(step, ast, ctx)
+        return
+    if name == "assert":
+        _run_assert_step(step, ast, ctx)
         return
     raise NotImplementedError(f"v0.1 step not implemented yet: {name}")
 
