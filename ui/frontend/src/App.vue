@@ -31,7 +31,6 @@ import { useLogBuffers } from './composables/useLogBuffers'
 
 const ManualView = defineAsyncComponent(() => import('./components/ManualView.vue'))
 const ScriptsView = defineAsyncComponent(() => import('./components/ScriptsView.vue'))
-const ProxyMonitorView = defineAsyncComponent(() => import('./components/ProxyMonitorView.vue'))
 const ChannelDialogModal = defineAsyncComponent(() => import('./components/ChannelDialogModal.vue'))
 const SettingsPanels = defineAsyncComponent(() => import('./components/SettingsPanels.vue'))
 const SettingsHeader = defineAsyncComponent(() => import('./components/SettingsHeader.vue'))
@@ -139,7 +138,6 @@ const tr = (text) => {
 const uiLabels = computed(() => ({
   manual: t('nav.manual'),
   scripts: t('nav.scripts'),
-  proxy: t('nav.proxy'),
   protocols: t('nav.protocols'),
   settings: t('nav.settings'),
   workspace: t('nav.workspace'),
@@ -919,6 +917,10 @@ watch(
 watch(
   () => currentView.value,
   (value) => {
+    if (value === 'proxy') {
+      currentView.value = 'manual'
+      return
+    }
     if (value === 'scripts') {
       nextTick(() => initYamlEditor())
     } else {
@@ -1139,10 +1141,6 @@ const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
             <span class="material-symbols-outlined">smart_toy</span>
             <span>{{ uiLabels.scripts }}</span>
           </button>
-          <button class="nav-item" :class="{ active: currentView === 'proxy' }" @click="currentView = 'proxy'">
-            <span class="material-symbols-outlined">settings_input_hdmi</span>
-            <span>{{ uiLabels.proxy }}</span>
-          </button>
           <button class="nav-item" :class="{ active: currentView === 'protocols' }" @click="currentView = 'protocols'">
             <span class="material-symbols-outlined">cable</span>
             <span>{{ uiLabels.protocols }}</span>
@@ -1165,13 +1163,6 @@ const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
       <main class="main">
         <ManualView v-if="currentView === 'manual'" />
         <ScriptsView v-else-if="currentView === 'scripts'" />
-        <ProxyMonitorView
-          v-else-if="currentView === 'proxy'"
-          :capture-frames="captureFrames"
-          :capture-meta="captureMeta"
-          :capture-metrics="captureMetrics"
-        />
-
         <section v-else-if="currentView === 'protocols'" class="page">
           <ProtocolHeader @refresh="refreshProtocols" @create="openCreateProtocol" />
           <ProtocolCardsSection
