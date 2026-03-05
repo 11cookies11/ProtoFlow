@@ -177,21 +177,87 @@ def _run_sleep_step(step: Dict[str, Any]) -> None:
     time.sleep(ms / 1000.0)
 
 
+def _resolve_retry(step: Dict[str, Any], ast: ScriptAST) -> Dict[str, int | str]:
+    retry_cfg = step.get("retry")
+    if retry_cfg is None:
+        count = int(ast.defaults.retry.count)
+        backoff_ms = int(ast.defaults.retry.backoff_ms)
+        strategy = str(ast.defaults.retry.strategy)
+        return {"count": count, "backoff_ms": backoff_ms, "strategy": strategy}
+    if not isinstance(retry_cfg, dict):
+        raise ValueError("step.retry must be a mapping")
+    count = int(retry_cfg.get("count", ast.defaults.retry.count))
+    backoff_ms = int(retry_cfg.get("backoff_ms", ast.defaults.retry.backoff_ms))
+    strategy = str(retry_cfg.get("strategy", ast.defaults.retry.strategy))
+    if count < 0:
+        raise ValueError("step.retry.count must be >= 0")
+    if backoff_ms < 0:
+        raise ValueError("step.retry.backoff_ms must be >= 0")
+    if strategy not in {"fixed", "exponential"}:
+        raise ValueError("step.retry.strategy must be fixed or exponential")
+    return {"count": count, "backoff_ms": backoff_ms, "strategy": strategy}
+
+
+def _dispatch_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+    name = str(step.get("name", "")).strip().lower()
+    if not name:
+        raise ValueError("step.name is required")
+    if name == "send":
+        _run_send_step(step, ast, ctx)
+        return
+    if name == "expect":
+        _run_expect_step(step, ast, ctx)
+        return
+    if name == "sleep":
+        _run_sleep_step(step)
+        return
+    if name == "capture":
+        _run_capture_step(step, ast, ctx)
+        return
+    raise NotImplementedError(f"v0.1 step not implemented yet: {name}")
+
+
+def _run_on_fail(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+    hooks = step.get("on_fail")
+    if hooks is None:
+        return
+    if not isinstance(hooks, list):
+        raise ValueError("step.on_fail must be a list")
+    for idx, hook in enumerate(hooks):
+        if not isinstance(hook, dict):
+            raise ValueError(f"step.on_fail[{idx}] must be a mapping")
+        try:
+            _dispatch_step(hook, ast, ctx)
+        except Exception as exc:
+            ctx.logger.warning(f"on_fail step ignored due to error: {exc}")
+
+
+def _run_step_with_reliability(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+    retry = _resolve_retry(step, ast)
+    count = int(retry["count"])
+    backoff_ms = int(retry["backoff_ms"])
+    strategy = str(retry["strategy"])
+    last_error: Exception | None = None
+
+    for attempt in range(count + 1):
+        try:
+            _dispatch_step(step, ast, ctx)
+            return
+        except Exception as exc:
+            last_error = exc
+            if attempt >= count:
+                break
+            delay_ms = backoff_ms if strategy == "fixed" else backoff_ms * (2**attempt)
+            if delay_ms > 0:
+                time.sleep(delay_ms / 1000.0)
+
+    try:
+        _run_on_fail(step, ast, ctx)
+    finally:
+        if last_error is not None:
+            raise last_error
+
+
 def execute_v01(ast: ScriptAST, ctx: RuntimeContext) -> None:
-    for idx, step in enumerate(ast.steps):
-        name = str(step.get("name", "")).strip().lower()
-        if not name:
-            raise ValueError(f"steps[{idx}].name is required")
-        if name == "send":
-            _run_send_step(step, ast, ctx)
-            continue
-        if name == "expect":
-            _run_expect_step(step, ast, ctx)
-            continue
-        if name == "sleep":
-            _run_sleep_step(step)
-            continue
-        if name == "capture":
-            _run_capture_step(step, ast, ctx)
-            continue
-        raise NotImplementedError(f"v0.1 step not implemented yet: {name}")
+    for step in ast.steps:
+        _run_step_with_reliability(step, ast, ctx)
