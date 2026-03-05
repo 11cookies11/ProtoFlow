@@ -28,6 +28,8 @@ def run_dsl(path: str, *, bus=None, external_events: list[str] | None = None) ->
     _register_actions()
 
     ast = parse_script(path)
+    if ast.version == "0.1":
+        raise NotImplementedError("YAML DSL v0.1 parser is enabled; executor migration is pending next steps.")
     channels = build_channels(ast.channels)
     if not channels:
         raise ValueError("未定义任何 channel")
