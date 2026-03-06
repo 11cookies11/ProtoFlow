@@ -2,7 +2,7 @@ version: "1"
 
 meta:
   name: "Fault Injection Matrix"
-  description: "Timeout/drop/jitter/chunk/close case coverage"
+  description: "Timeout/drop/jitter/chunk/close/reorder case coverage"
 
 transport_defaults:
   encoding: "utf-8"
@@ -15,6 +15,12 @@ rules:
       pattern: "PING:DROP"
     drop: true
     once: true
+
+  - id: timeout_window
+    when:
+      type: exact
+      pattern: "PING:TIMEOUT"
+    drop: true
 
   - id: jitter_response
     when:
@@ -33,6 +39,13 @@ rules:
       text: "PAYLOAD:ABCDEFGHIJKLMNOPQRSTUVWXYZ"
       chunk_bytes: 8
       chunk_interval_ms: 5
+
+  - id: reorder_payload
+    when:
+      type: exact
+      pattern: "PING:REORDER"
+    respond:
+      text: "SEQ:2,1"
 
   - id: close_after
     when:

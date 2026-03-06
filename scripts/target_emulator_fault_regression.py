@@ -39,6 +39,10 @@ def main() -> int:
             drop_resp = _recv(client, timeout=0.15)
             ok &= _check("drop_once", drop_resp == "")
 
+            _send(client, "PING:TIMEOUT")
+            timeout_resp = _recv(client, timeout=0.2)
+            ok &= _check("timeout_window", timeout_resp == "")
+
             _send(client, "PING:JITTER")
             t0 = time.time()
             jitter_resp = _recv(client, timeout=0.8)
@@ -48,6 +52,10 @@ def main() -> int:
             _send(client, "PING:CHUNK")
             chunk_resp = _recv(client, timeout=0.8)
             ok &= _check("chunk_resp", "PAYLOAD:ABCDEFGHIJKLMNOPQRSTUVWXYZ" in chunk_resp)
+
+            _send(client, "PING:REORDER")
+            reorder_resp = _recv(client, timeout=0.6)
+            ok &= _check("reorder_resp", "SEQ:2,1" in reorder_resp)
 
             _send(client, "PING:CLOSE")
             close_resp = _recv(client, timeout=0.6)
