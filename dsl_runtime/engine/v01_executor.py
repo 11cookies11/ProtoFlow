@@ -15,6 +15,8 @@ from dsl_runtime.lang.ast_nodes import ScriptAST
 from dsl_runtime.lang.expression import eval_expr
 from dsl_runtime.engine.channels import build_channels
 from dsl_runtime.engine.context import RuntimeContext
+from dsl_runtime.protocol_package import ProtocolPackageGateway, load_protocol_packages
+from dsl_runtime.protocol_package.runtime import ProtocolCallContext
 
 
 _EOL_MAP = {
@@ -46,6 +48,47 @@ def _build_env(ctx: RuntimeContext, ast: ScriptAST) -> Dict[str, Any]:
     env: Dict[str, Any] = {}
     env.update(ctx.vars_snapshot())
     return env
+
+
+def _render_object(value: Any, env: Dict[str, Any]) -> Any:
+    if isinstance(value, str):
+        return _render_template(value, env)
+    if isinstance(value, list):
+        return [_render_object(item, env) for item in value]
+    if isinstance(value, dict):
+        return {str(k): _render_object(v, env) for k, v in value.items()}
+    return value
+
+
+def _resolve_protocol_packages_dir(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> Path:
+    env = _build_env(ctx, ast)
+    script_base = Path(ctx.script_path).resolve().parent if ctx.script_path else Path.cwd()
+    explicit = step.get("packages_dir")
+    if explicit is not None and str(explicit).strip():
+        raw = _render_template(str(explicit), env)
+        p = Path(raw)
+        return p if p.is_absolute() else (script_base / p).resolve()
+    env_dir = os.getenv("PROTOFLOW_PROTOCOLS_DIR")
+    if env_dir:
+        p = Path(env_dir)
+        return p if p.is_absolute() else (script_base / p).resolve()
+    return (script_base / "protocols").resolve()
+
+
+def _get_protocol_gateway(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> ProtocolPackageGateway:
+    root = _resolve_protocol_packages_dir(step, ast, ctx)
+    cache = getattr(ctx, "_protocol_gateway_cache", {})
+    key = str(root)
+    gateway = cache.get(key)
+    if gateway is not None:
+        return gateway
+    load_result = load_protocol_packages(root)
+    gateway = ProtocolPackageGateway(load_result.packages)
+    cache[key] = gateway
+    setattr(ctx, "_protocol_gateway_cache", cache)
+    if load_result.issues:
+        ctx.logger.warning(f"[protocol] load issues at {root}: {len(load_result.issues)}")
+    return gateway
 
 
 def _text_to_bytes(text: str, *, encoding: str, eol: str) -> bytes:
@@ -504,6 +547,67 @@ def _run_switch_session_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeC
     )
 
 
+def _resolve_protocol_method(step_name: str, step: Dict[str, Any]) -> str:
+    explicit = str(step.get("method", "")).strip().lower()
+    if explicit:
+        return explicit
+    if "." in step_name:
+        return step_name.split(".", 1)[1].strip().lower()
+    raise ValueError("protocol step requires method")
+
+
+def _run_protocol_step(step_name: str, step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+    method = _resolve_protocol_method(step_name, step)
+    if method not in {"send", "recv", "rpc"}:
+        raise ValueError("protocol method must be send/recv/rpc")
+
+    protocol_id = str(step.get("protocol", "")).strip()
+    if not protocol_id:
+        raise ValueError("protocol step requires protocol id")
+
+    if method == "recv":
+        raw_payload = step.get("expect", step.get("payload", {}))
+    else:
+        raw_payload = step.get("request", step.get("payload", {}))
+    if raw_payload is None:
+        raw_payload = {}
+    if not isinstance(raw_payload, dict):
+        raise ValueError("protocol payload must be a mapping")
+
+    env = _build_env(ctx, ast)
+    payload = _render_object(raw_payload, env)
+    timeout_ms = int(step.get("timeout_ms", ast.defaults.timeout_ms))
+    if timeout_ms <= 0:
+        raise ValueError("protocol.timeout_ms must be > 0")
+
+    gateway = _get_protocol_gateway(step, ast, ctx)
+    call_ctx = ProtocolCallContext(
+        channel=ctx.channel,
+        logger=ctx.logger,
+        vars=ctx.vars_snapshot(),
+        timeout_ms=timeout_ms,
+        artifacts={},
+    )
+    result = gateway.call(protocol_id=protocol_id, method=method, ctx=call_ctx, payload=payload)
+    if not result.ok:
+        error = result.error or {}
+        code = error.get("code", "PROTOCOL_CALL_FAILED")
+        message = error.get("message", "protocol call failed")
+        raise RuntimeError(f"{code}: {message}")
+
+    save_as = str(step.get("save_as", "last_protocol_result")).strip() or "last_protocol_result"
+    ctx.set_var(save_as, result.data)
+    ctx.set_var(
+        "last_protocol_call",
+        {
+            "protocol": protocol_id,
+            "method": method,
+            "timeout_ms": timeout_ms,
+            "result": result.data,
+        },
+    )
+
+
 def _run_sleep_step(step: Dict[str, Any]) -> None:
     ms = int(step.get("ms", 0))
     if ms < 0:
@@ -655,6 +759,9 @@ def _dispatch_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) ->
     if name == "switch_session":
         _run_switch_session_step(step, ast, ctx)
         return
+    if name in {"protocol.send", "protocol.recv", "protocol.rpc", "protocol"}:
+        _run_protocol_step(name, step, ast, ctx)
+        return
     if name == "assert":
         _run_assert_step(step, ast, ctx)
         return
@@ -732,6 +839,8 @@ def _map_error_code(exc: Exception) -> str:
     if isinstance(exc, RuntimeError):
         if "EXEC_FAILED" in msg:
             return "EXEC_FAILED"
+        if "PROTOCOL_" in msg:
+            return "PROTOCOL_CALL_FAILED"
         return "RUNTIME_FAILED"
     if isinstance(exc, FileNotFoundError):
         return "FILE_FAILED"
