@@ -2,34 +2,49 @@ version: "1"
 protocol_id: "modbus_rtu"
 
 cases:
-  - id: "send_read_holding"
+  - id: "send_read_holding_fc03"
     kind: "send"
     input:
       request:
-        unit: 1
-        function: 3
-        payload_hex: "00000002"
+        op: "read_holding"
+        unit_id: 1
+        address: 0
+        quantity: 2
     expect:
       ok: true
 
-  - id: "recv_basic"
+  - id: "send_write_single_register_fc06"
+    kind: "send"
+    input:
+      request:
+        op: "write_single_register"
+        unit_id: 1
+        address: 1
+        value: 123
+    expect:
+      ok: true
+
+  - id: "recv_read_holding_ok"
     kind: "recv"
     input:
       expect:
-        size: 7
-      mock_rx_hex: "010304000A0001"
+        op: "read_holding"
+        quantity: 2
+        size: 9
+      mock_rx_hex: "010304000A00011BF1"
     expect:
       ok: true
 
-  - id: "rpc_basic"
+  - id: "rpc_read_holding_fc03"
     kind: "rpc"
     input:
       request:
-        unit: 1
-        function: 3
-        payload_hex: "00000002"
+        op: "read_holding"
+        unit_id: 1
+        address: 0
+        quantity: 2
         expect:
-          size: 7
-      mock_rx_hex: "010304000A0001"
+          size: 9
+      mock_rx_hex: "010304000A00011BF1"
     expect:
       ok: true

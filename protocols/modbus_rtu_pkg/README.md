@@ -1,15 +1,24 @@
-# Modbus RTU Package (Example)
+# Modbus RTU Package
 
-This is an external protocol package example for ProtoFlow YAML-DSL.
+This package implements Modbus RTU over the unified external protocol package API.
 
 Supported methods:
 - `send(ctx, request)`
 - `recv(ctx, expect)`
 - `rpc(ctx, request)`
 
-Minimal request fields:
-- `unit` (int)
-- `function` (int)
-- `payload_hex` (hex string without CRC)
+Supported ops:
+- `read_holding` (FC03)
+- `read_input` (FC04)
+- `write_single_coil` (FC05)
+- `write_single_register` (FC06)
+- `write_multiple_coils` (FC15)
+- `write_multiple_registers` (FC16)
 
-The package appends Modbus CRC16 automatically.
+Request fields:
+- `op`
+- `unit_id`
+- `address`
+- `quantity` / `value` / `values` (depends on op)
+
+RTU CRC16 is appended/checked automatically.

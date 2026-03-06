@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import time
+import re
 from typing import Any, Dict
 
 from dsl_runtime.protocol_package.loader import LoadedProtocolPackage
@@ -34,6 +35,12 @@ class ProtocolPackageGateway:
 
     @staticmethod
     def _map_exception(exc: Exception) -> str:
+        text = str(exc)
+        m = re.match(r"^([A-Z][A-Z0-9_]+)\s*:", text)
+        if m is not None:
+            token = str(m.group(1))
+            if token.startswith("MODBUS_") or token.startswith("PROTOCOL_"):
+                return token
         if isinstance(exc, TimeoutError):
             return "PROTOCOL_TIMEOUT"
         if isinstance(exc, ValueError):
