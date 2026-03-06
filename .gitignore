@@ -11,6 +11,8 @@ Thumbs.db
 /.idea/
 /logs/
 /runs/
+/tmp/
+/docs/target-emulator-baseline/
 /web-ui/node_modules/
 /web-ui/dist/
 build/

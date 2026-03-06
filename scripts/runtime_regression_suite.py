@@ -5,6 +5,7 @@ from scripts.script_runner_regression import main as runner_main
 from scripts.target_emulator_fault_regression import main as target_fault_main
 from scripts.target_emulator_regression import main as target_main
 from scripts.v01_dsl_regression import main as dsl_main
+from scripts.yaml_dsl_target_full_regression import main as target_full_main
 
 
 def _run(name: str, fn) -> bool:
@@ -25,6 +26,7 @@ def main() -> int:
     ok &= _run("config_persistence_regression", cfg_main)
     ok &= _run("target_emulator_regression", target_main)
     ok &= _run("target_emulator_fault_regression", target_fault_main)
+    ok &= _run("yaml_dsl_target_full_regression", target_full_main)
     print(f"RESULT: {'PASSED' if ok else 'FAILED'}")
     return 0 if ok else 2
 

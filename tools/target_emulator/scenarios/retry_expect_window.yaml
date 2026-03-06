@@ -1,0 +1,36 @@
+version: "1"
+
+meta:
+  name: "Retry Expect Window"
+  description: "Response arrives after first expect timeout to validate expect-retry path"
+
+transport_defaults:
+  encoding: "utf-8"
+  eol: "crlf"
+
+rules:
+  - id: enter_boot_delayed
+    when:
+      type: exact
+      pattern: "ENTER_BOOT"
+    delay_ms: 180
+    respond:
+      text: "BOOT:READY"
+
+  - id: flash_begin
+    when:
+      type: exact
+      pattern: "FLASH:BEGIN"
+    respond:
+      text: "ACK"
+
+  - id: flash_end
+    when:
+      type: exact
+      pattern: "FLASH:END"
+    respond:
+      text: "CRC:PASS\r\nOK"
+
+fallback:
+  respond:
+    text: "ERROR"
