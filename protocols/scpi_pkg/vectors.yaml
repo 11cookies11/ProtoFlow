@@ -1,0 +1,89 @@
+version: "1"
+protocol_id: "scpi"
+
+cases:
+  - id: "send_write_basic"
+    kind: "send"
+    input:
+      request:
+        cmd: "*RST"
+        eol: "lf"
+    expect:
+      ok: true
+
+  - id: "send_query_basic"
+    kind: "send"
+    input:
+      request:
+        cmd: "*IDN?"
+    expect:
+      ok: true
+
+  - id: "recv_single_value"
+    kind: "recv"
+    input:
+      expect:
+        status: "ok"
+      mock_rx_text: "3.300V\n"
+    expect:
+      ok: true
+      data:
+        status: "ok"
+
+  - id: "recv_csv_values"
+    kind: "recv"
+    input:
+      expect:
+        status: "ok"
+      mock_rx_text: "1.0,2.5,3.0\n"
+    expect:
+      ok: true
+      data:
+        status: "ok"
+
+  - id: "recv_timeout"
+    kind: "recv"
+    input:
+      expect:
+        status: "ok"
+    expect:
+      ok: false
+      error:
+        code: "SCPI_TIMEOUT"
+
+  - id: "recv_expect_regex_fail"
+    kind: "recv"
+    input:
+      expect:
+        status: "ok"
+        regex: "TEMP:"
+      mock_rx_text: "VOLT:3.300\n"
+    expect:
+      ok: false
+      error:
+        code: "SCPI_EXPECT_FAILED"
+
+  - id: "rpc_query_ok"
+    kind: "rpc"
+    input:
+      request:
+        cmd: "*IDN?"
+        expect:
+          status: "ok"
+          contains: "ACME"
+      mock_rx_text: "ACME,MODEL-1,12345,1.0\n"
+    expect:
+      ok: true
+      data:
+        status: "ok"
+
+  - id: "rpc_write_no_recv"
+    kind: "rpc"
+    input:
+      request:
+        cmd: "*CLS"
+        skip_recv: true
+    expect:
+      ok: true
+      data:
+        status: "sent"
