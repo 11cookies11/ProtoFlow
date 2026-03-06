@@ -1,0 +1,45 @@
+version: "0.1"
+
+params:
+  port: "COM3"
+  baud: 115200
+
+session:
+  transport: serial
+  port: "${port}"
+  baud: "${baud}"
+  data_bits: 8
+  parity: none
+  stop_bits: 1
+  encoding: ascii
+  eol: none
+
+defaults:
+  timeout_ms: 2000
+
+steps:
+  - id: at_ping
+    name: protocol.rpc
+    protocol: at_command
+    request:
+      cmd: "AT"
+      eol: "crlf"
+      expect:
+        status: "ok"
+    save_as: at_ping_result
+
+  - id: at_csq
+    name: protocol.rpc
+    protocol: at_command
+    request:
+      cmd: "AT+CSQ"
+      eol: "crlf"
+      expect:
+        status: "ok"
+        regex: "\\+CSQ:\\s*\\d+,\\d+"
+    save_as: at_csq_result
+
+  - id: assert_ok
+    name: assert
+    expr: "${at_ping_result.ok} and ${at_csq_result.ok}"
+    message: "AT flow failed"

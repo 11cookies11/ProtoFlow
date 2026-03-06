@@ -39,7 +39,13 @@ class ProtocolPackageGateway:
         m = re.match(r"^([A-Z][A-Z0-9_]+)\s*:", text)
         if m is not None:
             token = str(m.group(1))
-            if token.startswith("MODBUS_") or token.startswith("PROTOCOL_"):
+            if (
+                token.startswith("MODBUS_")
+                or token.startswith("PROTOCOL_")
+                or token.startswith("AT_")
+                or token.startswith("YMODEM_")
+                or token.startswith("SCPI_")
+            ):
                 return token
         if isinstance(exc, TimeoutError):
             return "PROTOCOL_TIMEOUT"

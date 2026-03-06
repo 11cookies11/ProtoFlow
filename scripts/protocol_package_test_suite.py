@@ -10,6 +10,7 @@ def _assert_load_ok(root: Path) -> None:
     load = load_protocol_packages(root)
     errors = [x for x in load.issues if x.level == "error"]
     assert not errors, f"load issues: {[x.message for x in errors]}"
+    assert "at_command" in load.packages, "at_command package missing"
     assert "modbus_rtu" in load.packages, "modbus_rtu package missing"
     assert "modbus_ascii" in load.packages, "modbus_ascii package missing"
     assert "modbus_tcp" in load.packages, "modbus_tcp package missing"
@@ -24,6 +25,7 @@ def _assert_vectors_ok(root: Path, protocol_id: str) -> None:
 def main() -> int:
     root = Path("protocols").resolve()
     _assert_load_ok(root)
+    _assert_vectors_ok(root, "at_command")
     _assert_vectors_ok(root, "modbus_rtu")
     _assert_vectors_ok(root, "modbus_ascii")
     _assert_vectors_ok(root, "modbus_tcp")
