@@ -1,5 +1,7 @@
 ﻿from __future__ import annotations
 
+from copy import deepcopy
+from pathlib import Path
 from typing import Any, Dict, List
 
 import yaml
@@ -135,10 +137,98 @@ def _parse_steps(steps_data: Any) -> List[Dict[str, Any]]:
         if not isinstance(step, dict):
             raise ValueError(f"steps[{idx}] must be a mapping")
         name = step.get("name")
-        if not isinstance(name, str) or not name.strip():
-            raise ValueError(f"steps[{idx}].name is required")
+        template_ref = step.get("template")
+        if (not isinstance(name, str) or not name.strip()) and (not isinstance(template_ref, str) or not template_ref.strip()):
+            raise ValueError(f"steps[{idx}].name or steps[{idx}].template is required")
         parsed.append(step)
     return parsed
+
+
+def _replace_tokens(obj: Any, values: Dict[str, Any]) -> Any:
+    if isinstance(obj, str):
+        out = obj
+        for k, v in values.items():
+            out = out.replace("${" + str(k) + "}", str(v))
+        return out
+    if isinstance(obj, list):
+        return [_replace_tokens(item, values) for item in obj]
+    if isinstance(obj, dict):
+        return {key: _replace_tokens(value, values) for key, value in obj.items()}
+    return obj
+
+
+def _expand_step_templates(steps: List[Dict[str, Any]], templates_data: Any) -> List[Dict[str, Any]]:
+    if templates_data is None:
+        return steps
+    if not isinstance(templates_data, dict):
+        raise ValueError("step_templates must be a mapping")
+    expanded: List[Dict[str, Any]] = []
+    for idx, step in enumerate(steps):
+        template_name = step.get("template")
+        if not template_name:
+            expanded.append(step)
+            continue
+        if not isinstance(template_name, str):
+            raise ValueError(f"steps[{idx}].template must be string")
+        tpl = templates_data.get(template_name)
+        if not isinstance(tpl, dict):
+            raise ValueError(f"step template not found: {template_name}")
+        params = tpl.get("params") or []
+        if not isinstance(params, list):
+            raise ValueError(f"step_templates.{template_name}.params must be list")
+        args = step.get("args") or {}
+        if not isinstance(args, dict):
+            raise ValueError(f"steps[{idx}].args must be a mapping")
+        values: Dict[str, Any] = {}
+        for p in params:
+            key = str(p)
+            if key not in args:
+                raise ValueError(f"steps[{idx}].args missing template param: {key}")
+            values[key] = args[key]
+        tpl_steps: List[Any]
+        if "step" in tpl:
+            tpl_steps = [tpl.get("step")]
+        else:
+            tpl_steps = tpl.get("steps") or []
+        if not isinstance(tpl_steps, list):
+            raise ValueError(f"step_templates.{template_name}.steps must be list")
+        for item in tpl_steps:
+            if not isinstance(item, dict):
+                raise ValueError(f"step_templates.{template_name} contains non-mapping step")
+            rendered = _replace_tokens(deepcopy(item), values)
+            expanded.append(rendered)
+    return expanded
+
+
+def _load_import_steps(script_path: str, imports_data: Any, visited: set[str] | None = None) -> List[Dict[str, Any]]:
+    if imports_data is None:
+        return []
+    if not isinstance(imports_data, list):
+        raise ValueError("imports/include must be a list")
+    visited = visited or set()
+    base = Path(script_path).resolve().parent
+    merged: List[Dict[str, Any]] = []
+    for idx, item in enumerate(imports_data):
+        rel = str(item).strip()
+        if not rel:
+            raise ValueError(f"imports[{idx}] path is empty")
+        fp = (base / rel).resolve()
+        key = str(fp)
+        if key in visited:
+            continue
+        visited.add(key)
+        if not fp.exists():
+            raise ValueError(f"import file not found: {rel}")
+        with fp.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        if not isinstance(data, dict):
+            raise ValueError(f"import file must be a mapping: {rel}")
+        nested = data.get("imports")
+        if nested is None:
+            nested = data.get("include")
+        merged.extend(_load_import_steps(str(fp), nested, visited))
+        merged.extend(_parse_steps(data.get("steps", [])))
+    return merged
 
 
 def parse_script(path: str) -> ScriptAST:
@@ -154,9 +244,33 @@ def parse_script(path: str) -> ScriptAST:
 
     params = _as_mapping(data.get("params"), field="params")
     vars_def = _as_mapping(data.get("vars"), field="vars")
-    session = _parse_session(_as_mapping(data.get("session"), field="session", required=True))
+    profiles = _as_mapping(data.get("profiles"), field="profiles")
+    session_raw = _as_mapping(data.get("session"), field="session", required=True)
+    profile_name = session_raw.get("profile")
+    if profile_name is not None:
+        profile_key = str(profile_name).strip()
+        profile_cfg = profiles.get(profile_key)
+        if not isinstance(profile_cfg, dict):
+            raise ValueError(f"session.profile not found: {profile_key}")
+        merged_session = dict(profile_cfg)
+        for key, value in session_raw.items():
+            if key == "profile":
+                continue
+            merged_session[key] = value
+        session_raw = merged_session
+    session = _parse_session(session_raw)
     defaults = _parse_defaults(_as_mapping(data.get("defaults"), field="defaults"))
-    steps = _parse_steps(data.get("steps"))
+    imports_data = data.get("imports")
+    if imports_data is None:
+        imports_data = data.get("include")
+    raw_steps = _load_import_steps(path, imports_data) + _parse_steps(data.get("steps"))
+    steps = _expand_step_templates(raw_steps, data.get("step_templates"))
+    for idx, step in enumerate(steps):
+        if not isinstance(step, dict):
+            raise ValueError(f"expanded steps[{idx}] must be a mapping")
+        name = step.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"expanded steps[{idx}].name is required")
     artifacts = _parse_artifacts(_as_mapping(data.get("artifacts"), field="artifacts"))
 
     return ScriptAST(
