@@ -804,8 +804,12 @@ class WebBridge(QObject):
     @staticmethod
     def _protocol_category(key: str) -> str:
         name = (key or "").lower()
-        if name.startswith("modbus_"):
-            return "modbus"
+        if name in {"modbus_rtu", "modbus-rtu"}:
+            return "modbus-rtu"
+        if name in {"modbus_ascii", "modbus-ascii"}:
+            return "modbus-ascii"
+        if name in {"modbus_tcp", "modbus-tcp"}:
+            return "modbus-tcp"
         if "tcp" in name:
             return "tcp"
         return "custom"

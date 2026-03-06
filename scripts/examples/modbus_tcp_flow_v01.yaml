@@ -1,0 +1,35 @@
+version: "0.1"
+
+params:
+  host: "127.0.0.1"
+  port: 502
+
+session:
+  transport: serial
+  port: "COM1"
+  baud: 115200
+  data_bits: 8
+  parity: none
+  stop_bits: 1
+  encoding: ascii
+  eol: none
+
+defaults:
+  timeout_ms: 2000
+
+steps:
+  - id: read_holding
+    name: protocol.rpc
+    protocol: modbus_tcp
+    request:
+      op: read_holding
+      transaction_id: 1
+      unit_id: 1
+      address: 0
+      quantity: 2
+    save_as: tcp_read_result
+
+  - id: assert_read_ok
+    name: assert
+    expr: "${tcp_read_result.ok}"
+    message: "modbus tcp read failed"

@@ -68,11 +68,30 @@ class _MockChannel:
         return out
 
 
-def _assert_expected(expected: Dict[str, Any], actual: Dict[str, Any]) -> bool:
-    for key, value in expected.items():
-        if actual.get(key) != value:
+def _subset_match(expected: Any, actual: Any) -> bool:
+    if isinstance(expected, dict):
+        if not isinstance(actual, dict):
             return False
-    return True
+        for key, value in expected.items():
+            if key not in actual:
+                return False
+            if not _subset_match(value, actual.get(key)):
+                return False
+        return True
+    if isinstance(expected, list):
+        if not isinstance(actual, list):
+            return False
+        if len(expected) > len(actual):
+            return False
+        for idx, value in enumerate(expected):
+            if not _subset_match(value, actual[idx]):
+                return False
+        return True
+    return expected == actual
+
+
+def _assert_expected(expected: Dict[str, Any], actual: Dict[str, Any]) -> bool:
+    return _subset_match(expected, actual)
 
 
 def _load_vectors_file(path: Path) -> Dict[str, Any]:

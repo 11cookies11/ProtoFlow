@@ -79,7 +79,7 @@ describe('ProtocolCardsSection interactions', () => {
     deleteButton?.click()
     await tick()
 
-    expect(vm.events).toContain('tab:modbus')
+    expect(vm.events).toContain('tab:modbus-rtu')
     expect(vm.events).toContain('details')
     expect(vm.events).toContain('delete')
     vm.unmount()

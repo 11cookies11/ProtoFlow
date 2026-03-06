@@ -48,3 +48,52 @@ cases:
       mock_rx_hex: "000100000007010304000A0001"
     expect:
       ok: true
+
+  - id: "recv_exception_response"
+    kind: "recv"
+    input:
+      expect:
+        op: "read_holding"
+        quantity: 2
+      mock_rx_hex: "000100000003018302"
+    expect:
+      ok: true
+      data:
+        ok: false
+        error:
+          code: "MODBUS_EXCEPTION_RESPONSE"
+
+  - id: "recv_mbap_invalid"
+    kind: "recv"
+    input:
+      expect:
+        op: "read_holding"
+        quantity: 2
+      mock_rx_hex: "000100000005010304000A0001"
+    expect:
+      ok: false
+      error:
+        code: "MODBUS_MBAP_INVALID"
+
+  - id: "recv_timeout"
+    kind: "recv"
+    input:
+      expect:
+        op: "read_holding"
+        quantity: 2
+    expect:
+      ok: false
+      error:
+        code: "MODBUS_TIMEOUT"
+
+  - id: "send_boundary_read_quantity_125"
+    kind: "send"
+    input:
+      request:
+        op: "read_holding"
+        unit_id: 1
+        address: 0
+        quantity: 125
+        transaction_id: 7
+    expect:
+      ok: true

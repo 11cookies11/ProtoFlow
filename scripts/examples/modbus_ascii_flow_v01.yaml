@@ -1,0 +1,34 @@
+version: "0.1"
+
+params:
+  port: "COM4"
+  baud: 9600
+
+session:
+  transport: serial
+  port: "${port}"
+  baud: "${baud}"
+  data_bits: 7
+  parity: even
+  stop_bits: 1
+  encoding: ascii
+  eol: none
+
+defaults:
+  timeout_ms: 2000
+
+steps:
+  - id: read_holding
+    name: protocol.rpc
+    protocol: modbus_ascii
+    request:
+      op: read_holding
+      unit_id: 1
+      address: 0
+      quantity: 2
+    save_as: ascii_read_result
+
+  - id: assert_read_ok
+    name: assert
+    expr: "${ascii_read_result.ok}"
+    message: "modbus ascii read failed"

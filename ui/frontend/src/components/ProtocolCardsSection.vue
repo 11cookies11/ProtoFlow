@@ -22,7 +22,9 @@ const emit = defineEmits(['set-tab', 'create', 'details', 'delete'])
   <div>
     <div class="tab-strip secondary">
       <button :class="{ active: protocolTab === 'all' }" @click="emit('set-tab', 'all')">{{ t('protocol.tab.all') }}</button>
-      <button :class="{ active: protocolTab === 'modbus' }" @click="emit('set-tab', 'modbus')">Modbus</button>
+      <button :class="{ active: protocolTab === 'modbus-rtu' }" @click="emit('set-tab', 'modbus-rtu')">Modbus RTU</button>
+      <button :class="{ active: protocolTab === 'modbus-ascii' }" @click="emit('set-tab', 'modbus-ascii')">Modbus ASCII</button>
+      <button :class="{ active: protocolTab === 'modbus-tcp' }" @click="emit('set-tab', 'modbus-tcp')">Modbus TCP</button>
       <button :class="{ active: protocolTab === 'tcp' }" @click="emit('set-tab', 'tcp')">TCP/IP</button>
       <button :class="{ active: protocolTab === 'custom' }" @click="emit('set-tab', 'custom')">{{ t('protocol.tab.custom') }}</button>
     </div>

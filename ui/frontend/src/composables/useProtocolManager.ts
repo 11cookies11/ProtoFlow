@@ -10,7 +10,9 @@ type UseProtocolManagerOptions = {
 
 function protocolCategory(key: string) {
   const name = String(key || '').toLowerCase()
-  if (name.startsWith('modbus_')) return 'modbus'
+  if (name === 'modbus_rtu' || name === 'modbus-rtu') return 'modbus-rtu'
+  if (name === 'modbus_ascii' || name === 'modbus-ascii') return 'modbus-ascii'
+  if (name === 'modbus_tcp' || name === 'modbus-tcp') return 'modbus-tcp'
   if (name.includes('tcp')) return 'tcp'
   return 'custom'
 }
