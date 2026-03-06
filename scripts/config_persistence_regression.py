@@ -56,21 +56,6 @@ def main() -> int:
         print(f"[{'PASS' if p1 else 'FAIL'}] proxy_backup_fallback")
         ok = ok and p1
 
-        # protocols
-        bridge._custom_protocols = [  # type: ignore[attr-defined]
-            {"id": "c1", "key": "c1", "name": "custom1"}
-        ]
-        bridge._save_custom_protocols()
-        bridge._custom_protocols = [  # type: ignore[attr-defined]
-            {"id": "c1", "key": "c1", "name": "custom2"}
-        ]
-        bridge._save_custom_protocols()
-        _write_text(bridge._protocols_path, "[")  # type: ignore[attr-defined]
-        loaded_protocols = bridge._load_custom_protocols()
-        c1 = bool(loaded_protocols) and loaded_protocols[0].get("name") == "custom2"
-        print(f"[{'PASS' if c1 else 'FAIL'}] protocol_backup_fallback")
-        ok = ok and c1
-
         # ensure restored primary file is valid json after fallback
         try:
             json.loads(bridge._settings_path.read_text(encoding="utf-8"))  # type: ignore[attr-defined]

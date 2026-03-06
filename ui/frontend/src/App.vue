@@ -13,7 +13,6 @@ import { useChannelDialog } from './composables/useChannelDialog'
 import { usePayloadSender } from './composables/usePayloadSender'
 import { useCommBatchIngestor } from './composables/useCommBatchIngestor'
 import { useCommLogExport } from './composables/useCommLogExport'
-import { useCaptureFrames } from './composables/useCaptureFrames'
 import { useQuickCommands } from './composables/useQuickCommands'
 import { useYamlDocumentOps } from './composables/useYamlDocumentOps'
 import { useScriptRunner } from './composables/useScriptRunner'
@@ -59,19 +58,6 @@ const commPaused = ref(false)
 const MAX_COMM_LOGS = 200
 const MAX_SCRIPT_LOGS = 200
 const MAX_RENDER_LOGS = 120
-const captureFrames = ref([])
-const captureMeta = ref({
-  channel: '',
-  engine: '通用动态解析 (Agnostic Engine)',
-  bufferUsed: 0,
-  rangeStart: 0,
-  rangeEnd: 0,
-  totalFrames: 0,
-  page: 1,
-  pageCount: 1,
-})
-const captureMetrics = ref({ rtt: '--', loss: '--' })
-const MAX_CAPTURE_FRAMES = 200
 const scriptState = ref('idle')
 const scriptProgress = ref(0)
 const yamlText = ref('# paste DSL YAML here')
@@ -146,6 +132,7 @@ const channelTab = ref('all')
 const uiRuntime = useUiRuntimeStore()
 const uiModalOpen = ref(false)
 const appVersion = ref('')
+const proxyMonitorEnabled = ref(false)
 const { scriptLogBuffer, hasStatusActivity, addCommLog, emitStatus, addScriptLog, clearCommLogs, toggleCommPaused, disposeLogBuffers } =
   useLogBuffers({
     commLogs,
@@ -165,11 +152,7 @@ const { formatPayload, exportCommLogs } = useCommLogExport({
   commLogs,
   formatTime,
 })
-const { ingestCaptureFrame } = useCaptureFrames({
-  captureFrames,
-  captureMeta,
-  maxCaptureFrames: MAX_CAPTURE_FRAMES,
-})
+const ingestCaptureFrame = () => {}
 const { noPorts, portOptionsList, applyPorts, selectPort: selectChannelPort } = useChannelState(ports, selectedPort)
 const { resolveSerialPort } = useSerialInteraction()
 
@@ -608,7 +591,6 @@ const SCROLL_LOCK_SELECTORS = [
   '.quick-list',
   '.sidebar-nav',
   '.select-menu',
-  '.proxy-modal-list',
 ]
 let scrollLockSnapshot = []
 
@@ -917,10 +899,6 @@ watch(
 watch(
   () => currentView.value,
   (value) => {
-    if (value === 'proxy') {
-      currentView.value = 'manual'
-      return
-    }
     if (value === 'scripts') {
       nextTick(() => initYamlEditor())
     } else {
@@ -1053,6 +1031,9 @@ const { loadSettings, saveSettings, chooseDslWorkspace } = useSettingsBridge({
 const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
   bridge,
   appVersion,
+  applyFeatureFlags: (flags) => {
+    proxyMonitorEnabled.value = Boolean(flags?.proxyMonitorEnabled)
+  },
   bindCommBridgeSignals,
   bindScriptBridgeSignals,
   refreshPorts,

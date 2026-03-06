@@ -11,10 +11,14 @@ function createBootstrap() {
   let channelsCount = 0
   let protocolsCount = 0
   let settingsCount = 0
+  let featureFlags: Record<string, any> | null = null
 
   const bootstrap = useBridgeBootstrap({
     bridge,
     appVersion,
+    applyFeatureFlags: (flags) => {
+      featureFlags = flags
+    },
     bindCommBridgeSignals: () => {
       commBindCount += 1
     },
@@ -46,6 +50,7 @@ function createBootstrap() {
       channelsCount,
       protocolsCount,
       settingsCount,
+      featureFlags,
     }),
   }
 }
@@ -60,6 +65,7 @@ describe('useBridgeBootstrap', () => {
     const { bridge, appVersion, bootstrap, getCounters } = createBootstrap()
     const candidate = {
       get_app_version: () => ' 1.2.3 ',
+      get_feature_flags: () => ({ proxyMonitorEnabled: true }),
     }
 
     bootstrap.attachBridge(candidate)
@@ -72,6 +78,7 @@ describe('useBridgeBootstrap', () => {
       channelsCount: 1,
       protocolsCount: 1,
       settingsCount: 1,
+      featureFlags: { proxyMonitorEnabled: true },
     })
 
     bootstrap.attachBridge(candidate)

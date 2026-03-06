@@ -58,13 +58,22 @@ class WebBridge(QObject):
     channel_update = Signal(object)
     ui_event_log = Signal(object)
 
-    def __init__(self, bus=None, comm=None, window=None, proxy_manager=None) -> None:
+    def __init__(
+        self,
+        bus=None,
+        comm=None,
+        window=None,
+        proxy_manager=None,
+        proxy_monitor_enabled: bool = True,
+    ) -> None:
         super().__init__()
         self._logger = logging.getLogger("web_bridge")
         self._bus = bus
         self._comm = comm
         self._window = window
         self._proxy_manager = proxy_manager
+        self._proxy_monitor_enabled = bool(proxy_monitor_enabled)
+        self._proxy_disabled_logged = False
         self._script_runner: Optional[ScriptRunnerQt] = None
         self._buffer: List[Dict[str, Any]] = []
         self._protocol_gateway: Optional[ProtocolPackageGateway] = None
@@ -104,9 +113,11 @@ class WebBridge(QObject):
             self._bus.subscribe("comm.disconnected", self._on_comm_status)
             self._bus.subscribe("comm.error", self._on_comm_status)
             self._bus.subscribe("protocol.frame", self._on_protocol_frame)
-            self._bus.subscribe("capture.frame", self._on_capture_frame)
-            self._bus.subscribe("proxy.status", self._on_proxy_status)
-        self._restore_proxy_sessions()
+            if self._proxy_monitor_enabled:
+                self._bus.subscribe("capture.frame", self._on_capture_frame)
+                self._bus.subscribe("proxy.status", self._on_proxy_status)
+        if self._proxy_monitor_enabled:
+            self._restore_proxy_sessions()
 
     def _read_app_version(self) -> str:
         env_version = os.environ.get("PROTOFLOW_VERSION")
@@ -264,16 +275,36 @@ class WebBridge(QObject):
         return self._load_settings()
 
     @Slot(result="QVariant")
+    def get_feature_flags(self) -> Dict[str, Any]:
+        return {
+            "proxyMonitorEnabled": self._proxy_monitor_enabled,
+        }
+
+    def _proxy_feature_disabled(self) -> bool:
+        if self._proxy_monitor_enabled:
+            return False
+        if not self._proxy_disabled_logged:
+            self.log.emit("[INFO] proxy monitor is disabled")
+            self._proxy_disabled_logged = True
+        return True
+
+    @Slot(result="QVariant")
     def list_proxy_pairs(self) -> List[Dict[str, Any]]:
+        if self._proxy_feature_disabled():
+            return []
         return list(self._proxy_pairs)
 
     @Slot(result="QVariant")
     def refresh_proxy_pairs(self) -> List[Dict[str, Any]]:
+        if self._proxy_feature_disabled():
+            return []
         self._proxy_pairs = self._load_proxy_pairs()
         return list(self._proxy_pairs)
 
     @Slot("QVariant", result="QVariant")
     def create_proxy_pair(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if self._proxy_feature_disabled():
+            return {}
         if not isinstance(payload, dict):
             return {}
         pair = {
@@ -296,6 +327,8 @@ class WebBridge(QObject):
 
     @Slot("QVariant", result="QVariant")
     def update_proxy_pair(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if self._proxy_feature_disabled():
+            return {}
         if not isinstance(payload, dict):
             return {}
         pair_id = payload.get("id")
@@ -340,6 +373,8 @@ class WebBridge(QObject):
 
     @Slot(str, result=bool)
     def delete_proxy_pair(self, pair_id: str) -> bool:
+        if self._proxy_feature_disabled():
+            return False
         if not pair_id:
             return False
         if self._proxy_manager:
@@ -353,6 +388,8 @@ class WebBridge(QObject):
 
     @Slot(str, bool, result="QVariant")
     def set_proxy_pair_status(self, pair_id: str, active: bool) -> Dict[str, Any]:
+        if self._proxy_feature_disabled():
+            return {}
         status = "running" if active else "stopped"
         for idx, pair in enumerate(self._proxy_pairs):
             if pair.get("id") == pair_id:
@@ -384,6 +421,8 @@ class WebBridge(QObject):
 
     @Slot("QVariant", result=bool)
     def start_capture(self, payload: Dict[str, Any]) -> bool:
+        if self._proxy_feature_disabled():
+            return False
         if not isinstance(payload, dict):
             return False
         channel = payload.get("channel") or payload.get("hostPort")
@@ -400,6 +439,8 @@ class WebBridge(QObject):
 
     @Slot(result=bool)
     def stop_capture(self) -> bool:
+        if self._proxy_feature_disabled():
+            return False
         self._bus.publish("capture.control", {"action": "stop"})
         return True
 
@@ -750,6 +791,8 @@ class WebBridge(QObject):
         self._append_buffer({"kind": "FRAME", "payload": payload, "ts": time.time()})
 
     def _on_capture_frame(self, payload: Any) -> None:
+        if not self._proxy_monitor_enabled:
+            return
         self._append_buffer({"kind": "CAPTURE", "payload": payload, "ts": time.time()})
         QMetaObject.invokeMethod(
             self,
@@ -759,6 +802,8 @@ class WebBridge(QObject):
         )
 
     def _on_proxy_status(self, payload: Any) -> None:
+        if not self._proxy_monitor_enabled:
+            return
         if not isinstance(payload, dict):
             return
         pair_id = payload.get("pair_id")
@@ -872,6 +917,8 @@ class WebBridge(QObject):
         self._save_json_atomic(self._proxy_pairs_path, self._proxy_pairs, "Save proxy pairs failed")
 
     def _restore_proxy_sessions(self) -> None:
+        if not self._proxy_monitor_enabled:
+            return
         if not self._proxy_pairs:
             return
         changed = False

@@ -4,6 +4,7 @@ import { withResult } from '../utils/withResult'
 type UseBridgeBootstrapOptions = {
   bridge: Ref<any>
   appVersion: Ref<string>
+  applyFeatureFlags: (flags: Record<string, any>) => void
   bindCommBridgeSignals: (obj: any) => void
   bindScriptBridgeSignals: (obj: any) => void
   refreshPorts: () => void
@@ -24,6 +25,13 @@ export function useBridgeBootstrap(options: UseBridgeBootstrapOptions) {
       withResult(obj.get_app_version(), (value) => {
         if (value) {
           options.appVersion.value = String(value).trim()
+        }
+      })
+    }
+    if (obj.get_feature_flags) {
+      withResult(obj.get_feature_flags(), (value) => {
+        if (value && typeof value === 'object') {
+          options.applyFeatureFlags(value as Record<string, any>)
         }
       })
     }

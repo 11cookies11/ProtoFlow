@@ -10,6 +10,7 @@ Thumbs.db
 /.vscode/
 /.idea/
 /logs/
+/runs/
 /web-ui/node_modules/
 /web-ui/dist/
 build/

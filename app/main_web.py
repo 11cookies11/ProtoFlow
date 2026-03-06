@@ -11,6 +11,7 @@ import traceback
 import time
 from pathlib import Path
 from typing import Optional
+import yaml
 
 try:
     from PySide6.QtWidgets import QApplication
@@ -163,6 +164,35 @@ def _select_webengine_flags() -> Optional[str]:
     return "--disable-features=DirectComposition"
 
 
+def _parse_bool(value: object, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
+def _proxy_monitor_enabled() -> bool:
+    env = os.environ.get("PROTOFLOW_ENABLE_PROXY_MONITOR")
+    if env is not None:
+        return _parse_bool(env, default=False)
+    cfg_path = Path.cwd() / "config" / "app.yaml"
+    if cfg_path.exists():
+        try:
+            raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+            app_cfg = raw.get("app", {}) if isinstance(raw, dict) else {}
+            if isinstance(app_cfg, dict) and "proxy_monitor_enabled" in app_cfg:
+                return _parse_bool(app_cfg.get("proxy_monitor_enabled"), default=False)
+        except Exception:
+            pass
+    return False
+
+
 def main() -> None:
     _ensure_repo_cwd()
     _setup_run_logging()
@@ -171,7 +201,9 @@ def main() -> None:
         os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", flags)
     bus = EventBus()
     comm = CommunicationManager(bus)
-    proxy_manager = ProxyForwardManager(bus)
+    proxy_enabled = _proxy_monitor_enabled()
+    proxy_manager = ProxyForwardManager(bus) if proxy_enabled else None
+    logging.getLogger("main_web").info("Proxy monitor enabled: %s", proxy_enabled)
     protocol = ProtocolLoader(bus)
     packet_engine = PacketAnalysisEngine(bus)
     plugins = PluginManager(bus, protocol=protocol)
@@ -184,6 +216,8 @@ def main() -> None:
         if _shutdown_done["value"]:
             return
         _shutdown_done["value"] = True
+        if proxy_manager is None:
+            return
         try:
             proxy_manager.stop_all()
         except Exception:
@@ -191,7 +225,12 @@ def main() -> None:
 
     app.aboutToQuit.connect(_shutdown_proxy)
     atexit.register(_shutdown_proxy)
-    window = WebWindow(bus=bus, comm=comm, proxy_manager=proxy_manager)
+    window = WebWindow(
+        bus=bus,
+        comm=comm,
+        proxy_manager=proxy_manager,
+        proxy_monitor_enabled=proxy_enabled,
+    )
     window.show()
     print("ProtoFlow Web UI started")
     app.exec()

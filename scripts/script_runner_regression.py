@@ -2,38 +2,35 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+from unittest.mock import patch
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from ui.desktop.script_runner_qt import ScriptRunnerQt
+from dsl_runtime.engine.channels import DummyChannel
 
 
 YAML_OK = """
-version: 1
-channels:
-  ch1:
-    type: dummy
-state_machine:
-  initial: s1
-  states:
-    s1:
-      do:
-        - log: "hello"
-      goto: done
-    done:
-      do: []
+version: 0.1
+session:
+  transport: serial
+  port: COM_TEST
+  baud: 115200
+steps:
+  - name: sleep
+    duration_ms: 10
 """.strip()
 
 YAML_ERROR = """
-version: 1
-channels: {}
-state_machine:
-  initial: s1
-  states:
-    s1:
-      do: []
+version: 0.1
+session:
+  transport: serial
+  port: COM_TEST
+  baud: 115200
+steps:
+  - name: does_not_exist
 """.strip()
 
 
@@ -47,7 +44,8 @@ def _run_case(yaml_text: str, stop_before_run: bool = False):
     runner.sig_progress.connect(lambda x: progress.append(int(x)))
     if stop_before_run:
         runner.stop()
-    runner.run()
+    with patch("ui.desktop.script_runner_qt.build_channels", return_value={"default": DummyChannel()}):
+        runner.run()
     return logs, states, progress
 
 

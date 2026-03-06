@@ -1,4 +1,5 @@
-# app:
-#   name: ProtoFlow
-#   auto_update: false
-#   log_level: INFO
+app:
+  name: ProtoFlow
+  auto_update: false
+  log_level: INFO
+  proxy_monitor_enabled: false
