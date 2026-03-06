@@ -149,6 +149,7 @@ def main() -> int:
             {"id": "ac", "name": "assert", "expr": "${pc}['x'] == '1'"},
             {"id": "ap", "name": "assert", "expr": "${pa} == 1"},
             {"id": "am", "name": "assert", "expr": "${measure.voltage} == '12.1'"},
+            {"id": "ar", "name": "assert_range", "value": "${measure.voltage}", "min": 12.0, "max": 12.2},
         ]
         ast_parse = _base_ast(steps_parse, str(tmp_root / "parse_${now}"))
         ast_parse.version = "0.2"

@@ -280,6 +280,56 @@ def _run_measure_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext)
     ctx.set_var("last_measure", item)
 
 
+def _to_float(value: Any) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    return float(str(value).strip())
+
+
+def _run_assert_range_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+    env = _build_env(ctx, ast)
+    raw_value = step.get("value")
+    if raw_value is None:
+        raise ValueError("assert_range.value is required")
+    value = _to_float(_render_template(str(raw_value), env))
+    message = str(step.get("message", "range assert failed"))
+
+    checks = 0
+    min_v = step.get("min")
+    if min_v is not None:
+        checks += 1
+        if value < _to_float(_render_template(str(min_v), env)):
+            raise AssertionError(message)
+
+    max_v = step.get("max")
+    if max_v is not None:
+        checks += 1
+        if value > _to_float(_render_template(str(max_v), env)):
+            raise AssertionError(message)
+
+    abs_err = step.get("abs_err")
+    target = step.get("target")
+    if abs_err is not None:
+        if target is None:
+            raise ValueError("assert_range.target is required when abs_err is set")
+        checks += 1
+        delta = abs(value - _to_float(_render_template(str(target), env)))
+        if delta > _to_float(_render_template(str(abs_err), env)):
+            raise AssertionError(message)
+
+    in_set = step.get("in_set")
+    if in_set is not None:
+        if not isinstance(in_set, list) or not in_set:
+            raise ValueError("assert_range.in_set must be a non-empty list")
+        checks += 1
+        candidates = [_to_float(_render_template(str(item), env)) for item in in_set]
+        if value not in candidates:
+            raise AssertionError(message)
+
+    if checks == 0:
+        raise ValueError("assert_range requires at least one rule: min/max/abs_err/in_set")
+
+
 def _run_sleep_step(step: Dict[str, Any]) -> None:
     ms = int(step.get("ms", 0))
     if ms < 0:
@@ -418,6 +468,9 @@ def _dispatch_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) ->
         return
     if name == "measure":
         _run_measure_step(step, ast, ctx)
+        return
+    if name == "assert_range":
+        _run_assert_range_step(step, ast, ctx)
         return
     if name == "assert":
         _run_assert_step(step, ast, ctx)
