@@ -11,8 +11,6 @@ from PySide6.QtCore import QThread, Signal
 from dsl_runtime.actions.dsl_builtin_actions import register_builtin_actions
 from dsl_runtime.actions.dsl_chart_actions import register_chart_actions
 from dsl_runtime.actions.dsl_data_actions import register_data_actions
-from dsl_runtime.actions.dsl_protocol_actions import register_protocol_actions
-from dsl_runtime.actions.dsl_protocol_schema_actions import register_schema_protocol_actions
 from dsl_runtime.actions.dsl_record_actions import register_record_actions
 from dsl_runtime.engine.channels import build_channels
 from dsl_runtime.engine.context import RuntimeContext
@@ -122,8 +120,6 @@ class ScriptRunnerQt(QThread):
         logger.setLevel(logging.INFO)
 
         register_builtin_actions()
-        register_protocol_actions()
-        register_schema_protocol_actions()
         register_chart_actions()
         register_record_actions()
         register_data_actions()
