@@ -32,7 +32,14 @@
 
 ## CI Mapping
 - PR fast set:
-  - `scripts/runtime_regression_suite.py`
-  - protocol vectors suite
+  - `scripts/v01_dsl_regression.py`
+  - `scripts/target_emulator_regression.py`
+  - `scripts/protocol_package_test_suite.py`
+  - `scripts/yaml_dsl_capability_suite.py`
+  - `scripts/yaml_dsl_combo_regression.py`
+  - `scripts/yaml_dsl_fault_injection_regression.py`
 - Nightly set:
-  - virtual serial regression + full target regression
+  - `scripts/runtime_regression_suite.py`
+- Weekly soak set:
+  - `scripts/yaml_dsl_stability_regression.py`
+  - `scripts/yaml_dsl_performance_baseline.py`
