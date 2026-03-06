@@ -102,6 +102,24 @@ def main() -> int:
         out_dir_fail = export_v01_artifacts(ast_fail, summary_fail)
         checks.append(("fail.summary_json", bool(out_dir_fail and (Path(out_dir_fail) / "summary.json").exists())))
 
+        # Case 3: controlled if/else flow (v0.2)
+        steps_if = [
+            {
+                "id": "branch",
+                "name": "if",
+                "when": "${mode} == 'boot'",
+                "then": [{"name": "send", "text": "BOOT"}],
+                "else": [{"name": "send", "text": "APP"}],
+            }
+        ]
+        ast_if = _base_ast(steps_if, str(tmp_root / "if_${now}"))
+        ast_if.version = "0.2"
+        ast_if.params["mode"] = "boot"
+        summary_if, ch_if = _run_ast(ast_if, FakeChannel([]))
+        checks.append(("if.summary_true", bool(summary_if.get("ok"))))
+        checks.append(("if.then_branch", any(b"BOOT" in w for w in ch_if.writes)))
+        checks.append(("if.else_not_sent", all(b"APP" not in w for w in ch_if.writes)))
+
     finally:
         shutil.rmtree(tmp_root, ignore_errors=True)
 

@@ -217,6 +217,24 @@ def _run_assert_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) 
         raise AssertionError(message)
 
 
+def _run_if_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+    when_expr = str(step.get("when", "")).strip()
+    if not when_expr:
+        raise ValueError("if.when is required")
+    env = _build_env(ctx, ast)
+    cond = _eval_assert_expr(when_expr, env)
+    branch_key = "then" if cond else "else"
+    branch_steps = step.get(branch_key, [])
+    if branch_steps is None:
+        branch_steps = []
+    if not isinstance(branch_steps, list):
+        raise ValueError(f"if.{branch_key} must be a list")
+    for idx, child in enumerate(branch_steps):
+        if not isinstance(child, dict):
+            raise ValueError(f"if.{branch_key}[{idx}] must be a mapping")
+        _run_step_with_reliability(child, ast, ctx)
+
+
 def _resolve_retry(step: Dict[str, Any], ast: ScriptAST) -> Dict[str, int | str]:
     retry_cfg = step.get("retry")
     if retry_cfg is None:
@@ -256,6 +274,9 @@ def _dispatch_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) ->
         return
     if name == "assert":
         _run_assert_step(step, ast, ctx)
+        return
+    if name == "if":
+        _run_if_step(step, ast, ctx)
         return
     raise NotImplementedError(f"v0.1 step not implemented yet: {name}")
 

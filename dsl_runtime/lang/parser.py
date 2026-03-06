@@ -149,8 +149,8 @@ def parse_script(path: str) -> ScriptAST:
         raise ValueError("script root must be a mapping")
 
     version = str(data.get("version", "")).strip()
-    if version != "0.1":
-        raise ValueError("only YAML DSL version 0.1 is supported")
+    if version not in {"0.1", "0.2"}:
+        raise ValueError("only YAML DSL version 0.1/0.2 is supported")
 
     params = _as_mapping(data.get("params"), field="params")
     vars_def = _as_mapping(data.get("vars"), field="vars")
