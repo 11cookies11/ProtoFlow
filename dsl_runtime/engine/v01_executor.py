@@ -13,6 +13,7 @@ from typing import Any, Dict, List
 
 from dsl_runtime.lang.ast_nodes import ScriptAST
 from dsl_runtime.lang.expression import eval_expr
+from dsl_runtime.engine.channels import build_channels
 from dsl_runtime.engine.context import RuntimeContext
 
 
@@ -455,6 +456,54 @@ def _run_file_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) ->
     ctx.set_var("last_file", {"op": op, "path": str(path), "bytes": len(text.encode("utf-8"))})
 
 
+def _run_switch_session_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+    session = ast.session
+    if session is None:
+        raise ValueError("session is required")
+    env = _build_env(ctx, ast)
+
+    next_port = _render_template(str(step.get("port", session.port)), env).strip()
+    next_baud = int(_render_template(str(step.get("baud", session.baud)), env))
+    next_data_bits = int(_render_template(str(step.get("data_bits", session.data_bits)), env))
+    next_parity = _render_template(str(step.get("parity", session.parity)), env).strip().lower()
+    next_stop_bits = int(_render_template(str(step.get("stop_bits", session.stop_bits)), env))
+    next_encoding = _render_template(str(step.get("encoding", session.encoding)), env).strip().lower()
+    next_eol = _render_template(str(step.get("eol", session.eol)), env).strip().lower()
+    dry_run = bool(step.get("dry_run", False))
+
+    if not dry_run:
+        channels = build_channels({"default": {"type": "serial", "device": next_port, "baudrate": next_baud}})
+        old = ctx.channel
+        ctx.channel = channels["default"]
+        ctx.channels["default"] = channels["default"]
+        if hasattr(old, "close"):
+            try:
+                old.close()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+
+    session.port = next_port
+    session.baud = next_baud
+    session.data_bits = next_data_bits
+    session.parity = next_parity
+    session.stop_bits = next_stop_bits
+    session.encoding = next_encoding
+    session.eol = next_eol
+    ctx.set_var(
+        "last_session",
+        {
+            "port": next_port,
+            "baud": next_baud,
+            "data_bits": next_data_bits,
+            "parity": next_parity,
+            "stop_bits": next_stop_bits,
+            "encoding": next_encoding,
+            "eol": next_eol,
+            "dry_run": dry_run,
+        },
+    )
+
+
 def _run_sleep_step(step: Dict[str, Any]) -> None:
     ms = int(step.get("ms", 0))
     if ms < 0:
@@ -602,6 +651,9 @@ def _dispatch_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) ->
         return
     if name == "file":
         _run_file_step(step, ast, ctx)
+        return
+    if name == "switch_session":
+        _run_switch_session_step(step, ast, ctx)
         return
     if name == "assert":
         _run_assert_step(step, ast, ctx)

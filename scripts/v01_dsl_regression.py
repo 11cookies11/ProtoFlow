@@ -199,6 +199,17 @@ def main() -> int:
         summary_file, _ = _run_ast(ast_file, FakeChannel([]))
         checks.append(("file.summary_true", bool(summary_file.get("ok"))))
 
+        # Case 8: switch_session dry-run (no real serial reopen)
+        steps_switch = [
+            {"id": "sw", "name": "switch_session", "port": "COM9", "baud": 57600, "dry_run": True},
+            {"id": "asw1", "name": "assert", "expr": "${last_session.port} == 'COM9'"},
+            {"id": "asw2", "name": "assert", "expr": "${last_session.baud} == 57600"},
+        ]
+        ast_switch = _base_ast(steps_switch, str(tmp_root / "switch_${now}"))
+        ast_switch.version = "0.2"
+        summary_switch, _ = _run_ast(ast_switch, FakeChannel([]))
+        checks.append(("switch.summary_true", bool(summary_switch.get("ok"))))
+
     finally:
         shutil.rmtree(tmp_root, ignore_errors=True)
 

@@ -51,6 +51,13 @@ class RuntimeContext:
             if isinstance(key, str) and key.isidentifier():
                 snap[f"params.{key}"] = value
         snap.update(self.vars)
+        for key, value in self.vars.items():
+            if not isinstance(key, str):
+                continue
+            if isinstance(value, dict):
+                for sub_key, sub_val in value.items():
+                    if isinstance(sub_key, str) and sub_key:
+                        snap[f"{key}.{sub_key}"] = sub_val
         snap["event"] = self._last_event
         snap["event_name"] = self._last_event_name
         snap["event_payload"] = self._last_event_payload
