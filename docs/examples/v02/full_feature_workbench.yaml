@@ -1,0 +1,285 @@
+﻿version: "0.2"
+
+params:
+  port: "COM5"
+  baud_normal: 115200
+  baud_boot: 921600
+  run_mode: "diagnose"              # diagnose | upgrade | smoke
+  enable_protocol_pkg: false
+  protocols_dir: "../../../protocols"
+  fw_path: "./artifacts/fw.bin"
+  out_dir: "./runs/v02_full"
+  expected_ok: "OK"
+  expected_sn_prefix: "SN"
+  voltage_min: 11.8
+  voltage_max: 12.3
+
+vars:
+  retry_count: 0
+  device_ready: false
+  last_loop_round: 0
+  sn: ""
+  csv_threshold: 40
+
+profiles:
+  uart_normal:
+    transport: serial
+    baud: 115200
+    data_bits: 8
+    parity: none
+    stop_bits: 1
+    encoding: ascii
+    eol: crlf
+    open_timeout_ms: 3000
+    read_timeout_ms: 200
+
+session:
+  profile: uart_normal
+  port: "${port}"
+  baud: 115200
+
+defaults:
+  timeout_ms: 1500
+  retry:
+    count: 1
+    backoff_ms: 100
+    strategy: fixed
+
+security:
+  exec:
+    enabled: true
+    allow_commands: ["python"]
+    cwd_allowlist: ["."]
+  file:
+    root_allowlist: ["./runs", "./artifacts", "./tmp"]
+
+imports:
+  - "./fragments/common_steps.yaml"
+
+step_templates:
+  send_expect:
+    params: [cmd, token]
+    steps:
+      - name: send
+        text: "${cmd}"
+      - name: expect
+        timeout_ms: 1200
+        match:
+          type: contains
+          pattern: "${token}"
+
+steps:
+  - id: warmup_ping
+    template: send_expect
+    args:
+      cmd: "AT"
+      token: "${expected_ok}"
+
+  - id: query_version_with_capture
+    name: send
+    text: "AT+GMR"
+
+  - id: expect_version
+    name: expect
+    timeout_ms: 1500
+    match:
+      type: regex
+      pattern: "(VERSION|VER|OK)"
+    capture:
+      - var: fw_version
+        regex: "(VERSION[^\\r\\n]*)"
+        group: 1
+    retry:
+      count: 2
+      backoff_ms: 200
+      strategy: exponential
+    on_fail:
+      - name: send
+        text: "AT"
+      - name: sleep
+        ms: 120
+
+  - id: capture_sn
+    name: capture
+    source: "SN:SN00123"
+    var: sn
+    regex: "SN:([A-Z0-9]+)"
+    group: 1
+
+  - id: assert_capture
+    name: assert
+    all:
+      - expr: "${sn} != ''"
+      - match:
+          type: startswith
+          pattern: "${expected_sn_prefix}"
+        source: "${sn}"
+
+  - id: parse_json_payload
+    name: parse
+    format: json
+    source: '{"adc":{"voltage":12.08},"temp":39.6,"mode":"${run_mode}"}'
+    save_as: parsed_json
+
+  - id: path_voltage
+    name: path
+    source: "${parsed_json}"
+    path: "adc.voltage"
+    save_as: voltage
+
+  - id: measure_voltage
+    name: measure
+    metric: "voltage"
+    value: "${voltage}"
+    unit: "V"
+
+  - id: assert_voltage_range
+    name: assert_range
+    value: "${measure.voltage}"
+    min: "${voltage_min}"
+    max: "${voltage_max}"
+    message: "voltage out of range"
+
+  - id: parse_kv_payload
+    name: parse
+    format: kv
+    source: |
+      err=0
+      state=ready
+      temp=38.9
+    save_as: parsed_kv
+
+  - id: parse_csv_payload
+    name: parse
+    format: csv
+    source: |
+      metric,value
+      rpm,1520
+      pwm,42
+    save_as: parsed_csv
+
+  - id: path_csv_value
+    name: path
+    source: "${parsed_csv}"
+    path: "1.value"
+    save_as: pwm_value
+
+  - id: assert_any_example
+    name: assert
+    any:
+      - expr: "${parsed_kv.state} == 'ready'"
+      - expr: "${pwm_value} > ${csv_threshold}"
+
+  - id: mode_branch
+    name: if
+    when: "${run_mode} == 'upgrade'"
+    then:
+      - name: send
+        text: "ENTER_BOOT"
+      - name: sleep
+        ms: 200
+      - name: switch_session
+        baud: "${baud_boot}"
+        dry_run: true
+    else:
+      - name: send
+        text: "AT+DIAG=1"
+      - name: sleep
+        ms: 80
+
+  - id: loop_wait_ready
+    name: loop
+    times: 5
+    until: "${device_ready} == True"
+    steps:
+      - name: send
+        text: "AT+READY?"
+      - name: sleep
+        ms: 120
+      - name: if
+        when: "${last_loop_round} >= 3"
+        then:
+          - name: file
+            op: write_text
+            path: "./tmp/device_ready.flag"
+            content: "ready=true"
+          - name: file
+            op: exists
+            path: "./tmp/device_ready.flag"
+            save_as: device_ready
+
+  - id: protocol_send_optional
+    name: if
+    when: "${enable_protocol_pkg} == True"
+    then:
+      - name: protocol.send
+        protocol: at_command
+        packages_dir: "${protocols_dir}"
+        request:
+          cmd: "AT"
+          eol: "crlf"
+        timeout_ms: 1200
+        save_as: at_send_result
+      - name: protocol.recv
+        protocol: at_command
+        packages_dir: "${protocols_dir}"
+        expect:
+          status: ok
+          contains: "OK"
+          size: 512
+        timeout_ms: 1200
+        save_as: at_recv_result
+      - name: protocol.rpc
+        protocol: scpi
+        packages_dir: "${protocols_dir}"
+        request:
+          cmd: "*IDN?"
+          expect:
+            min_lines: 1
+            status: ok
+        timeout_ms: 1500
+        save_as: scpi_rpc_result
+
+  - id: controlled_exec
+    name: exec
+    command: "python --version"
+    timeout_ms: 5000
+    save_stdout_as: py_ver_out
+    save_stderr_as: py_ver_err
+
+  - id: file_write_report
+    name: file
+    op: write_text
+    path: "${out_dir}/quick_report.txt"
+    content: |
+      mode=${run_mode}
+      sn=${sn}
+      fw=${fw_version}
+      voltage=${measure.voltage}
+      python=${py_ver_out}${py_ver_err}
+
+  - id: file_append_metrics
+    name: file
+    op: append_text
+    path: "${out_dir}/quick_report.txt"
+    content: |
+
+      metrics=${metrics}
+
+  - id: file_read_back
+    name: file
+    op: read_text
+    path: "${out_dir}/quick_report.txt"
+    save_as: report_text
+
+  - id: final_assert
+    name: assert
+    all:
+      - expr: "${report_text} != ''"
+      - expr: "${measure.voltage} >= ${voltage_min}"
+
+artifacts:
+  dir: "${out_dir}_${now}"
+  raw_log: true
+  summary_json: true
+  report_csv: true
