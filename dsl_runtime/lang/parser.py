@@ -272,6 +272,7 @@ def parse_script(path: str) -> ScriptAST:
         if not isinstance(name, str) or not name.strip():
             raise ValueError(f"expanded steps[{idx}].name is required")
     artifacts = _parse_artifacts(_as_mapping(data.get("artifacts"), field="artifacts"))
+    security = _as_mapping(data.get("security"), field="security")
 
     return ScriptAST(
         version=version,
@@ -281,4 +282,5 @@ def parse_script(path: str) -> ScriptAST:
         defaults=defaults,
         steps=steps,
         artifacts=artifacts,
+        security=security,
     )

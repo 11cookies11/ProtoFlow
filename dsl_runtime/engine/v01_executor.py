@@ -5,6 +5,10 @@ import time
 import json
 import csv
 import io
+import os
+import shlex
+import subprocess
+from pathlib import Path
 from typing import Any, Dict, List
 
 from dsl_runtime.lang.ast_nodes import ScriptAST
@@ -330,6 +334,68 @@ def _run_assert_range_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeCon
         raise ValueError("assert_range requires at least one rule: min/max/abs_err/in_set")
 
 
+def _run_exec_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+    env = _build_env(ctx, ast)
+    command_raw = step.get("command")
+    if command_raw is None:
+        raise ValueError("exec.command is required")
+    command = _render_template(str(command_raw), env).strip()
+    if not command:
+        raise ValueError("exec.command is empty")
+
+    sec_cfg = ast.security.get("exec") if isinstance(ast.security, dict) else None
+    if not isinstance(sec_cfg, dict) or not bool(sec_cfg.get("enabled", False)):
+        raise PermissionError("EXEC_NOT_ALLOWED: security.exec.enabled is false")
+
+    allow_commands = sec_cfg.get("allow_commands") or []
+    if not isinstance(allow_commands, list) or not allow_commands:
+        raise PermissionError("EXEC_NOT_ALLOWED: security.exec.allow_commands is empty")
+    allow_set = {str(x).lower() for x in allow_commands}
+
+    argv = shlex.split(command, posix=False)
+    if not argv:
+        raise ValueError("exec.command parse failed")
+    cmd_name = Path(argv[0]).name.lower()
+    if cmd_name not in allow_set:
+        raise PermissionError(f"EXEC_NOT_ALLOWED: command not in allowlist: {cmd_name}")
+
+    cwd = _render_template(str(step.get("cwd", os.getcwd())), env)
+    allow_dirs = sec_cfg.get("cwd_allowlist") or []
+    if not isinstance(allow_dirs, list):
+        raise PermissionError("EXEC_NOT_ALLOWED: security.exec.cwd_allowlist invalid")
+    cwd_resolved = str(Path(cwd).resolve())
+    if allow_dirs:
+        allowed = False
+        for raw in allow_dirs:
+            p = str(Path(_render_template(str(raw), env)).resolve())
+            if cwd_resolved.startswith(p):
+                allowed = True
+                break
+        if not allowed:
+            raise PermissionError("EXEC_NOT_ALLOWED: cwd not in allowlist")
+
+    timeout_ms = int(step.get("timeout_ms", ast.defaults.timeout_ms))
+    proc = subprocess.run(
+        argv,
+        cwd=cwd_resolved,
+        capture_output=True,
+        text=True,
+        timeout=max(1, timeout_ms) / 1000.0,
+        shell=False,
+    )
+
+    stdout = proc.stdout or ""
+    stderr = proc.stderr or ""
+    ctx.set_var("last_exec", {"command": command, "returncode": proc.returncode, "stdout": stdout, "stderr": stderr})
+    ctx.set_var("last_exec_code", proc.returncode)
+    if step.get("save_stdout_as"):
+        ctx.set_var(str(step.get("save_stdout_as")), stdout)
+    if step.get("save_stderr_as"):
+        ctx.set_var(str(step.get("save_stderr_as")), stderr)
+    if proc.returncode != 0:
+        raise RuntimeError(f"EXEC_FAILED: returncode={proc.returncode}")
+
+
 def _run_sleep_step(step: Dict[str, Any]) -> None:
     ms = int(step.get("ms", 0))
     if ms < 0:
@@ -471,6 +537,9 @@ def _dispatch_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) ->
         return
     if name == "assert_range":
         _run_assert_range_step(step, ast, ctx)
+        return
+    if name == "exec":
+        _run_exec_step(step, ast, ctx)
         return
     if name == "assert":
         _run_assert_step(step, ast, ctx)

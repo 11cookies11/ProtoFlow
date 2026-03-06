@@ -133,6 +133,7 @@ class ScriptAST:
     defaults: DefaultsConfig = field(default_factory=DefaultsConfig)
     steps: List[Dict[str, Any]] = field(default_factory=list)
     artifacts: ArtifactsConfig = field(default_factory=ArtifactsConfig)
+    security: Dict[str, Any] = field(default_factory=dict)
     # Legacy fields kept as optional placeholders while v0.1 runtime is phased in.
     channels: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     state_machine: Optional[StateMachine] = None

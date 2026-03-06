@@ -156,6 +156,33 @@ def main() -> int:
         summary_parse, _ = _run_ast(ast_parse, FakeChannel([]))
         checks.append(("parse.summary_true", bool(summary_parse.get("ok"))))
 
+        # Case 6: controlled exec (allowlist + output capture)
+        steps_exec = [
+            {
+                "id": "exec_echo",
+                "name": "exec",
+                "command": "python --version",
+                "timeout_ms": 3000,
+                "save_stdout_as": "exec_out",
+            },
+            {
+                "id": "assert_exec",
+                "name": "assert",
+                "expr": "${last_exec_code} == 0",
+            },
+        ]
+        ast_exec = _base_ast(steps_exec, str(tmp_root / "exec_${now}"))
+        ast_exec.version = "0.2"
+        ast_exec.security = {
+            "exec": {
+                "enabled": True,
+                "allow_commands": ["python"],
+                "cwd_allowlist": [str(ROOT_DIR)],
+            }
+        }
+        summary_exec, _ = _run_ast(ast_exec, FakeChannel([]))
+        checks.append(("exec.summary_true", bool(summary_exec.get("ok"))))
+
     finally:
         shutil.rmtree(tmp_root, ignore_errors=True)
 
