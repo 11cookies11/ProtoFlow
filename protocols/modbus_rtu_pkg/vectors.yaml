@@ -1,0 +1,35 @@
+version: "1"
+protocol_id: "modbus_rtu"
+
+cases:
+  - id: "send_read_holding"
+    kind: "send"
+    input:
+      request:
+        unit: 1
+        function: 3
+        payload_hex: "00000002"
+    expect:
+      ok: true
+
+  - id: "recv_basic"
+    kind: "recv"
+    input:
+      expect:
+        size: 7
+      mock_rx_hex: "010304000A0001"
+    expect:
+      ok: true
+
+  - id: "rpc_basic"
+    kind: "rpc"
+    input:
+      request:
+        unit: 1
+        function: 3
+        payload_hex: "00000002"
+        expect:
+          size: 7
+      mock_rx_hex: "010304000A0001"
+    expect:
+      ok: true

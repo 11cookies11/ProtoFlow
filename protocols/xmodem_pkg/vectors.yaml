@@ -1,0 +1,35 @@
+version: "1"
+protocol_id: "xmodem"
+
+cases:
+  - id: "send_block"
+    kind: "send"
+    input:
+      request:
+        kind: "block"
+        seq: 1
+        data_hex: "01020304"
+    expect:
+      ok: true
+
+  - id: "recv_ack"
+    kind: "recv"
+    input:
+      expect:
+        size: 1
+      mock_rx_hex: "06"
+    expect:
+      ok: true
+
+  - id: "rpc_block_ack"
+    kind: "rpc"
+    input:
+      request:
+        kind: "block"
+        seq: 1
+        data_hex: "01020304"
+        expect:
+          size: 1
+      mock_rx_hex: "06"
+    expect:
+      ok: true
