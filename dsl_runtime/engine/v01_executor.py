@@ -212,6 +212,47 @@ def _run_parse_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -
     ctx.set_var("last_parsed", parsed)
 
 
+def _lookup_path(obj: Any, path: str) -> Any:
+    current = obj
+    for token in path.split("."):
+        key = token.strip()
+        if not key:
+            continue
+        if isinstance(current, dict):
+            if key not in current:
+                raise KeyError(f"path segment not found: {key}")
+            current = current[key]
+            continue
+        if isinstance(current, list):
+            idx = int(key)
+            current = current[idx]
+            continue
+        raise KeyError(f"path segment not accessible on type: {type(current).__name__}")
+    return current
+
+
+def _run_path_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+    env = _build_env(ctx, ast)
+    source_raw = step.get("source", "${last_parsed}")
+    source_text = _render_template(str(source_raw), env)
+    source_obj: Any = source_text
+    # Prefer direct object when source points to a runtime variable name.
+    if isinstance(source_raw, str) and source_raw.startswith("${") and source_raw.endswith("}"):
+        key = source_raw[2:-1].strip()
+        vars_map = ctx.vars_snapshot()
+        if key in vars_map:
+            source_obj = vars_map[key]
+    path = str(step.get("path", "")).strip()
+    if not path:
+        raise ValueError("path.path is required")
+    save_as = str(step.get("save_as", "")).strip()
+    if not save_as:
+        raise ValueError("path.save_as is required")
+    value = _lookup_path(source_obj, path)
+    ctx.set_var(save_as, value)
+    ctx.set_var("last_path_value", value)
+
+
 def _run_sleep_step(step: Dict[str, Any]) -> None:
     ms = int(step.get("ms", 0))
     if ms < 0:
@@ -344,6 +385,9 @@ def _dispatch_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) ->
         return
     if name == "parse":
         _run_parse_step(step, ast, ctx)
+        return
+    if name == "path":
+        _run_path_step(step, ast, ctx)
         return
     if name == "assert":
         _run_assert_step(step, ast, ctx)

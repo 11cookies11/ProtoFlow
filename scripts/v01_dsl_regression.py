@@ -142,9 +142,11 @@ def main() -> int:
             {"id": "j", "name": "parse", "format": "json", "source": '{"a":1,"b":"x"}', "save_as": "pj"},
             {"id": "k", "name": "parse", "format": "kv", "source": "k1=v1;k2=v2", "save_as": "pk"},
             {"id": "c", "name": "parse", "format": "csv", "source": "x,y\n1,2\n", "save_as": "pc"},
+            {"id": "p", "name": "path", "source": "${pj}", "path": "a", "save_as": "pa"},
             {"id": "aj", "name": "assert", "expr": "${pj}['a'] == 1"},
             {"id": "ak", "name": "assert", "expr": "${pk}['k2'] == 'v2'"},
             {"id": "ac", "name": "assert", "expr": "${pc}['x'] == '1'"},
+            {"id": "ap", "name": "assert", "expr": "${pa} == 1"},
         ]
         ast_parse = _base_ast(steps_parse, str(tmp_root / "parse_${now}"))
         ast_parse.version = "0.2"
