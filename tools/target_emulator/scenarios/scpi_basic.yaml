@@ -1,0 +1,28 @@
+version: "1"
+
+meta:
+  name: "SCPI Basic"
+  description: "SCPI *IDN? and MEASure query baseline"
+
+transport_defaults:
+  encoding: "utf-8"
+  eol: "lf"
+
+rules:
+  - id: idn
+    when:
+      type: exact
+      pattern: "*IDN?"
+    respond:
+      text: "ProtoFlow,VirtualDUT,123456,1.0"
+
+  - id: meas_volt
+    when:
+      type: regex
+      pattern: "^MEAS:VOLT\\?$"
+    respond:
+      text: "12.05,V"
+
+fallback:
+  respond:
+    text: "-100,\"Command error\""

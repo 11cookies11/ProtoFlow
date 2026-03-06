@@ -1,0 +1,57 @@
+version: "0.2"
+
+params:
+  host_port: "COM12"
+
+session:
+  transport: serial
+  port: "${host_port}"
+  baud: 115200
+  data_bits: 8
+  parity: none
+  stop_bits: 1
+  encoding: ascii
+  eol: crlf
+  open_timeout_ms: 3000
+  read_timeout_ms: 200
+
+defaults:
+  timeout_ms: 1200
+  retry:
+    count: 1
+    backoff_ms: 100
+    strategy: fixed
+
+steps:
+  - name: send
+    text: "AT"
+  - name: expect
+    match:
+      type: contains
+      pattern: "OK"
+
+  - name: send
+    text: "ATI"
+  - name: expect
+    match:
+      type: contains
+      pattern: "ProtoFlow-Target"
+
+  - name: send
+    text: "AT+SN?"
+  - name: expect
+    match:
+      type: regex
+      pattern: "SN:[A-Z0-9]+"
+    capture:
+      - var: dut_sn
+        regex: "SN:([A-Z0-9]+)"
+        group: 1
+  - name: assert
+    expr: "${dut_sn} != ''"
+
+artifacts:
+  dir: "./runs/target_at_smoke_${now}"
+  raw_log: true
+  summary_json: true
+  report_csv: true

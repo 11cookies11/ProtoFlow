@@ -1,0 +1,36 @@
+version: "1"
+
+meta:
+  name: "AT Basic"
+  description: "AT command baseline: AT/ATI/AT+SN? flow"
+
+transport_defaults:
+  encoding: "utf-8"
+  eol: "crlf"
+
+rules:
+  - id: at_ping
+    when:
+      type: exact
+      pattern: "AT"
+    respond:
+      text: "OK"
+    delay_ms: 10
+
+  - id: at_ati
+    when:
+      type: exact
+      pattern: "ATI"
+    respond:
+      text: "ProtoFlow-Target v0.1\r\nOK"
+
+  - id: at_sn
+    when:
+      type: exact
+      pattern: "AT+SN?"
+    respond:
+      text: "SN:SN00123\r\nOK"
+
+fallback:
+  respond:
+    text: "ERROR"
