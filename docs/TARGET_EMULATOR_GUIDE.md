@@ -66,3 +66,5 @@ fallback:
 - Emulator is transport-level only; no dependency on UI/web bridge.
 - Fault cases can be modeled by `drop`, `delay_ms`, `jitter_ms`, `once`, `close_after`, `chunk_bytes`, `chunk_interval_ms`.
 - Baseline pass gate is defined in `docs/TARGET_EMULATOR_PASS_CRITERIA.md`.
+- CI layering strategy is defined in `docs/TARGET_EMULATOR_CI_STRATEGY.md`.
+- Frozen v0.1 baseline samples are archived under `docs/target-emulator-baseline/v0.1/`.
