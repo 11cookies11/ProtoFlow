@@ -396,6 +396,65 @@ def _run_exec_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) ->
         raise RuntimeError(f"EXEC_FAILED: returncode={proc.returncode}")
 
 
+def _is_path_allowed(path: Path, allow_roots: List[str], env: Dict[str, Any]) -> bool:
+    if not allow_roots:
+        return False
+    target = str(path.resolve())
+    for raw in allow_roots:
+        root = str(Path(_render_template(str(raw), env)).resolve())
+        if target.startswith(root):
+            return True
+    return False
+
+
+def _run_file_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+    env = _build_env(ctx, ast)
+    op = str(step.get("op", "")).strip().lower()
+    if op not in {"read_text", "write_text", "append_text", "exists"}:
+        raise ValueError("file.op must be read_text/write_text/append_text/exists")
+    raw_path = step.get("path")
+    if raw_path is None:
+        raise ValueError("file.path is required")
+    path = Path(_render_template(str(raw_path), env)).resolve()
+
+    sec_cfg = ast.security.get("file") if isinstance(ast.security, dict) else None
+    allow_roots = []
+    if isinstance(sec_cfg, dict):
+        allow_roots = sec_cfg.get("root_allowlist") or []
+    if not isinstance(allow_roots, list):
+        raise PermissionError("FILE_NOT_ALLOWED: security.file.root_allowlist invalid")
+    if not _is_path_allowed(path, allow_roots, env):
+        raise PermissionError("FILE_NOT_ALLOWED: path not in allowlist")
+
+    if op == "write_text":
+        content = _render_template(str(step.get("content", "")), env)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        ctx.set_var("last_file", {"op": op, "path": str(path), "bytes": len(content.encode("utf-8"))})
+        return
+
+    if op == "append_text":
+        content = _render_template(str(step.get("content", "")), env)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
+            f.write(content)
+        ctx.set_var("last_file", {"op": op, "path": str(path), "bytes": len(content.encode("utf-8"))})
+        return
+
+    if op == "exists":
+        save_as = str(step.get("save_as", "file_exists")).strip() or "file_exists"
+        ok = path.exists()
+        ctx.set_var(save_as, ok)
+        ctx.set_var("last_file", {"op": op, "path": str(path), "exists": ok})
+        return
+
+    # read_text
+    text = path.read_text(encoding="utf-8")
+    save_as = str(step.get("save_as", "file_text")).strip() or "file_text"
+    ctx.set_var(save_as, text)
+    ctx.set_var("last_file", {"op": op, "path": str(path), "bytes": len(text.encode("utf-8"))})
+
+
 def _run_sleep_step(step: Dict[str, Any]) -> None:
     ms = int(step.get("ms", 0))
     if ms < 0:
@@ -540,6 +599,9 @@ def _dispatch_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) ->
         return
     if name == "exec":
         _run_exec_step(step, ast, ctx)
+        return
+    if name == "file":
+        _run_file_step(step, ast, ctx)
         return
     if name == "assert":
         _run_assert_step(step, ast, ctx)

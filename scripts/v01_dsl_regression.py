@@ -183,6 +183,22 @@ def main() -> int:
         summary_exec, _ = _run_ast(ast_exec, FakeChannel([]))
         checks.append(("exec.summary_true", bool(summary_exec.get("ok"))))
 
+        # Case 7: controlled file operations
+        file_path = str(tmp_root / "file_case" / "out.txt")
+        steps_file = [
+            {"id": "fw", "name": "file", "op": "write_text", "path": file_path, "content": "ABC"},
+            {"id": "fa", "name": "file", "op": "append_text", "path": file_path, "content": "123"},
+            {"id": "fe", "name": "file", "op": "exists", "path": file_path, "save_as": "f_exists"},
+            {"id": "fr", "name": "file", "op": "read_text", "path": file_path, "save_as": "f_text"},
+            {"id": "af1", "name": "assert", "expr": "${f_exists} == True"},
+            {"id": "af2", "name": "assert", "expr": "${f_text} == 'ABC123'"},
+        ]
+        ast_file = _base_ast(steps_file, str(tmp_root / "file_${now}"))
+        ast_file.version = "0.2"
+        ast_file.security = {"file": {"root_allowlist": [str(tmp_root)]}}
+        summary_file, _ = _run_ast(ast_file, FakeChannel([]))
+        checks.append(("file.summary_true", bool(summary_file.get("ok"))))
+
     finally:
         shutil.rmtree(tmp_root, ignore_errors=True)
 
