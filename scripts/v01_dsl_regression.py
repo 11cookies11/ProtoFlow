@@ -137,6 +137,20 @@ def main() -> int:
         checks.append(("loop.summary_true", bool(summary_loop.get("ok"))))
         checks.append(("loop.iterations", len(ch_loop.writes) == 2))
 
+        # Case 5: parse step (json/kv/csv)
+        steps_parse = [
+            {"id": "j", "name": "parse", "format": "json", "source": '{"a":1,"b":"x"}', "save_as": "pj"},
+            {"id": "k", "name": "parse", "format": "kv", "source": "k1=v1;k2=v2", "save_as": "pk"},
+            {"id": "c", "name": "parse", "format": "csv", "source": "x,y\n1,2\n", "save_as": "pc"},
+            {"id": "aj", "name": "assert", "expr": "${pj}['a'] == 1"},
+            {"id": "ak", "name": "assert", "expr": "${pk}['k2'] == 'v2'"},
+            {"id": "ac", "name": "assert", "expr": "${pc}['x'] == '1'"},
+        ]
+        ast_parse = _base_ast(steps_parse, str(tmp_root / "parse_${now}"))
+        ast_parse.version = "0.2"
+        summary_parse, _ = _run_ast(ast_parse, FakeChannel([]))
+        checks.append(("parse.summary_true", bool(summary_parse.get("ok"))))
+
     finally:
         shutil.rmtree(tmp_root, ignore_errors=True)
 

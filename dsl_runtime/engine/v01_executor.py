@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import re
 import time
+import json
+import csv
+import io
 from typing import Any, Dict, List
 
 from dsl_runtime.lang.ast_nodes import ScriptAST
@@ -168,6 +171,47 @@ def _run_capture_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext)
     _apply_capture_rules(source_text, step, ast, ctx)
 
 
+def _parse_kv_text(text: str) -> Dict[str, Any]:
+    result: Dict[str, Any] = {}
+    lines = text.replace(";", "\n").splitlines()
+    for raw in lines:
+        line = raw.strip()
+        if not line or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        result[key.strip()] = value.strip()
+    return result
+
+
+def _parse_csv_text(text: str) -> Any:
+    f = io.StringIO(text.strip())
+    reader = csv.DictReader(f)
+    rows = [dict(row) for row in reader]
+    if len(rows) == 1:
+        return rows[0]
+    return rows
+
+
+def _run_parse_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+    env = _build_env(ctx, ast)
+    fmt = str(step.get("format", "")).strip().lower()
+    if fmt not in {"json", "kv", "csv"}:
+        raise ValueError("parse.format must be json/kv/csv")
+    source_raw = step.get("source", "${last_rx_text}")
+    source_text = _render_template(str(source_raw), env)
+    save_as = str(step.get("save_as", "parsed")).strip() or "parsed"
+
+    if fmt == "json":
+        parsed = json.loads(source_text)
+    elif fmt == "kv":
+        parsed = _parse_kv_text(source_text)
+    else:
+        parsed = _parse_csv_text(source_text)
+
+    ctx.set_var(save_as, parsed)
+    ctx.set_var("last_parsed", parsed)
+
+
 def _run_sleep_step(step: Dict[str, Any]) -> None:
     ms = int(step.get("ms", 0))
     if ms < 0:
@@ -297,6 +341,9 @@ def _dispatch_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) ->
         return
     if name == "capture":
         _run_capture_step(step, ast, ctx)
+        return
+    if name == "parse":
+        _run_parse_step(step, ast, ctx)
         return
     if name == "assert":
         _run_assert_step(step, ast, ctx)
