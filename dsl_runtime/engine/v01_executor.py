@@ -708,6 +708,46 @@ def _run_step_with_reliability(step: Dict[str, Any], ast: ScriptAST, ctx: Runtim
             raise last_error
 
 
+def _map_error_code(exc: Exception) -> str:
+    msg = str(exc)
+    if isinstance(exc, PermissionError):
+        if "EXEC_NOT_ALLOWED" in msg:
+            return "EXEC_NOT_ALLOWED"
+        if "FILE_NOT_ALLOWED" in msg:
+            return "FILE_NOT_ALLOWED"
+        return "PERMISSION_DENIED"
+    if isinstance(exc, TimeoutError):
+        return "STEP_TIMEOUT"
+    if isinstance(exc, AssertionError):
+        return "ASSERT_FAILED"
+    if isinstance(exc, NotImplementedError):
+        return "STEP_NOT_IMPLEMENTED"
+    if isinstance(exc, RuntimeError):
+        if "EXEC_FAILED" in msg:
+            return "EXEC_FAILED"
+        return "RUNTIME_FAILED"
+    if isinstance(exc, FileNotFoundError):
+        return "FILE_FAILED"
+    if isinstance(exc, ValueError):
+        if "parse." in msg:
+            return "PARSE_FAILED"
+        if "capture" in msg:
+            return "CAPTURE_FAILED"
+        if "range" in msg:
+            return "RANGE_ASSERT_FAILED"
+        return "VALIDATION_FAILED"
+    return "UNEXPECTED_EXCEPTION"
+
+
+def _error_payload(exc: Exception, step_id: str) -> Dict[str, Any]:
+    return {
+        "code": _map_error_code(exc),
+        "message": str(exc),
+        "step_id": step_id,
+        "ts": time.time(),
+    }
+
+
 def execute_v01(ast: ScriptAST, ctx: RuntimeContext) -> Dict[str, Any]:
     started_at = time.time()
     traces: List[Dict[str, Any]] = []
@@ -728,8 +768,8 @@ def execute_v01(ast: ScriptAST, ctx: RuntimeContext) -> Dict[str, Any]:
             trace["status"] = "ok"
         except Exception as exc:
             trace["status"] = "error"
-            trace["error"] = {"code": type(exc).__name__, "message": str(exc)}
-            error = {"code": type(exc).__name__, "message": str(exc), "step_id": step_id}
+            trace["error"] = _error_payload(exc, step_id)
+            error = _error_payload(exc, step_id)
             traces.append(trace)
             break
         finally:
