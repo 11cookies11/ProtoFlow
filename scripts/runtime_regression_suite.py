@@ -13,6 +13,7 @@ from script_runner_regression import main as runner_main
 from target_emulator_fault_regression import main as target_fault_main
 from target_emulator_regression import main as target_main
 from v01_dsl_regression import main as dsl_main
+from protocol_package_test_suite import main as protocol_pkg_main
 from yaml_dsl_capability_suite import main as dsl_cap_main
 from yaml_dsl_target_full_regression import main as target_full_main
 
@@ -35,6 +36,7 @@ def main() -> int:
     ok &= _run("config_persistence_regression", cfg_main)
     ok &= _run("target_emulator_regression", target_main)
     ok &= _run("target_emulator_fault_regression", target_fault_main)
+    ok &= _run("protocol_package_test_suite", protocol_pkg_main)
     ok &= _run("yaml_dsl_capability_suite", dsl_cap_main)
     ok &= _run("yaml_dsl_target_full_regression", target_full_main)
     print(f"RESULT: {'PASSED' if ok else 'FAILED'}")

@@ -1,9 +1,17 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS_DIR = ROOT / "scripts"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
 from dsl_runtime.protocol_package import load_protocol_packages, run_protocol_vectors
-from scripts.protocol_package_regression import main as regression_main
+from protocol_package_regression import main as regression_main
 
 
 def _assert_load_ok(root: Path) -> None:

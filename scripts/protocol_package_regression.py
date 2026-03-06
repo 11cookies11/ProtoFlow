@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import sys
 import tempfile
 from pathlib import Path
 
 import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from dsl_runtime.protocol_package import load_protocol_packages, run_protocol_vectors
 from dsl_runtime.protocol_package.gateway import ProtocolPackageGateway
