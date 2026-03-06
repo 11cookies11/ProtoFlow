@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import random
 import re
 import threading
 import time
@@ -33,6 +34,17 @@ def _encode_response(resp: ResponseSpec, encoding: str, default_eol: str) -> byt
     if encoding.lower() == "hex":
         return bytes.fromhex(text.replace(" ", "")) + eol
     return text.encode(encoding or "utf-8") + eol
+
+
+def _send_with_chunk(endpoint: Endpoint, payload: bytes, chunk_bytes: int, chunk_interval_ms: int) -> None:
+    if chunk_bytes <= 0:
+        endpoint.write(payload)
+        return
+    size = max(1, chunk_bytes)
+    for i in range(0, len(payload), size):
+        endpoint.write(payload[i : i + size])
+        if chunk_interval_ms > 0 and i + size < len(payload):
+            time.sleep(chunk_interval_ms / 1000.0)
 
 
 def _match_rule(rule: ScenarioRule, text: str) -> bool:
@@ -95,14 +107,17 @@ class TargetEmulator:
     def _apply_rule(self, rule: ScenarioRule, rx_text: str) -> None:
         self._record("rule.hit", {"rule_id": rule.id, "rx": rx_text})
         self._rules_hit[rule.id] = int(self._rules_hit.get(rule.id, 0)) + 1
-        if rule.delay_ms > 0:
-            time.sleep(rule.delay_ms / 1000.0)
+        delay_ms = max(0, int(rule.delay_ms))
+        if rule.jitter_ms > 0:
+            delay_ms += random.randint(0, int(rule.jitter_ms))
+        if delay_ms > 0:
+            time.sleep(delay_ms / 1000.0)
         if rule.drop:
             self._record("tx.drop", {"rule_id": rule.id})
             return
         if rule.respond is not None:
             tx = _encode_response(rule.respond, encoding=self.scenario.encoding, default_eol=self.scenario.eol)
-            self.endpoint.write(tx)
+            _send_with_chunk(self.endpoint, tx, rule.respond.chunk_bytes, rule.respond.chunk_interval_ms)
             self._tx_lines += 1
             self._record("tx", {"rule_id": rule.id, "text": _decode_bytes(tx, self.scenario.encoding), "hex": tx.hex().upper()})
         if rule.close_after:
@@ -114,7 +129,7 @@ class TargetEmulator:
             self._record("rule.miss", {"rx": rx_text})
             return
         tx = _encode_response(self.scenario.fallback, encoding=self.scenario.encoding, default_eol=self.scenario.eol)
-        self.endpoint.write(tx)
+        _send_with_chunk(self.endpoint, tx, self.scenario.fallback.chunk_bytes, self.scenario.fallback.chunk_interval_ms)
         self._tx_lines += 1
         self._record("tx.fallback", {"text": _decode_bytes(tx, self.scenario.encoding), "hex": tx.hex().upper()})
 

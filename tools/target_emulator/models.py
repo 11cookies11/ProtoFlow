@@ -15,6 +15,8 @@ class ResponseSpec:
     text: Optional[str] = None
     hex: Optional[str] = None
     eol: Optional[str] = None
+    chunk_bytes: int = 0
+    chunk_interval_ms: int = 0
 
 
 @dataclass
@@ -23,6 +25,7 @@ class ScenarioRule:
     when: MatchRule
     respond: Optional[ResponseSpec] = None
     delay_ms: int = 0
+    jitter_ms: int = 0
     drop: bool = False
     close_after: bool = False
     once: bool = False

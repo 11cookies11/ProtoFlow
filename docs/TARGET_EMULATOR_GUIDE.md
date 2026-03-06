@@ -9,6 +9,8 @@
 - `tools/target_emulator/scenarios/`
 - `scripts/target_emulator.py`
 - `scripts/target_emulator_regression.py`
+- `scripts/target_emulator_fault_regression.py`
+- `scripts/runtime_regression_suite.py`
 - `scripts/run_target_with_dsl.ps1`
 - `scripts/examples/target_at_smoke_v02.yaml`
 
@@ -56,8 +58,11 @@ fallback:
 ## Regression
 ```powershell
 .\.venv\Scripts\python.exe scripts\target_emulator_regression.py
+.\.venv\Scripts\python.exe scripts\target_emulator_fault_regression.py
+.\.venv\Scripts\python.exe scripts\runtime_regression_suite.py
 ```
 
 ## Notes
 - Emulator is transport-level only; no dependency on UI/web bridge.
-- Fault cases can be modeled by `drop`, `delay_ms`, `once`, `close_after`.
+- Fault cases can be modeled by `drop`, `delay_ms`, `jitter_ms`, `once`, `close_after`, `chunk_bytes`, `chunk_interval_ms`.
+- Baseline pass gate is defined in `docs/TARGET_EMULATOR_PASS_CRITERIA.md`.

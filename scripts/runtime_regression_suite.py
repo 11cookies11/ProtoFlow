@@ -1,0 +1,33 @@
+from __future__ import annotations
+
+from scripts.config_persistence_regression import main as cfg_main
+from scripts.script_runner_regression import main as runner_main
+from scripts.target_emulator_fault_regression import main as target_fault_main
+from scripts.target_emulator_regression import main as target_main
+from scripts.v01_dsl_regression import main as dsl_main
+
+
+def _run(name: str, fn) -> bool:
+    try:
+        code = int(fn())
+    except Exception as exc:
+        print(f"[FAIL] {name}: {exc}")
+        return False
+    ok = code == 0
+    print(f"[{'PASS' if ok else 'FAIL'}] {name}")
+    return ok
+
+
+def main() -> int:
+    ok = True
+    ok &= _run("v01_dsl_regression", dsl_main)
+    ok &= _run("script_runner_regression", runner_main)
+    ok &= _run("config_persistence_regression", cfg_main)
+    ok &= _run("target_emulator_regression", target_main)
+    ok &= _run("target_emulator_fault_regression", target_fault_main)
+    print(f"RESULT: {'PASSED' if ok else 'FAILED'}")
+    return 0 if ok else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

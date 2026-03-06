@@ -22,6 +22,8 @@ def _parse_response(raw: Any) -> ResponseSpec | None:
         text=str(text) if text is not None else None,
         hex=str(hex_text) if hex_text is not None else None,
         eol=str(eol) if eol is not None else None,
+        chunk_bytes=int(raw.get("chunk_bytes", 0)),
+        chunk_interval_ms=int(raw.get("chunk_interval_ms", 0)),
     )
 
 
@@ -42,6 +44,7 @@ def _parse_rule(raw: Any, idx: int) -> ScenarioRule:
         when=MatchRule(type=match_type, pattern=pattern),
         respond=respond,
         delay_ms=int(raw.get("delay_ms", 0)),
+        jitter_ms=int(raw.get("jitter_ms", 0)),
         drop=bool(raw.get("drop", False)),
         close_after=bool(raw.get("close_after", False)),
         once=bool(raw.get("once", False)),
