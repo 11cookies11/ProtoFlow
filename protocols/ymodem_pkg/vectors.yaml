@@ -1,0 +1,104 @@
+version: "1"
+protocol_id: "ymodem"
+
+cases:
+  - id: "send_data_success"
+    kind: "send"
+    input:
+      request:
+        op: "send_data"
+        filename: "fw.bin"
+        data_hex: "01020304"
+      mock_rx_hex: "43064306064306"
+    expect:
+      ok: true
+      data:
+        ok: true
+        status: "done"
+
+  - id: "send_data_retry_once"
+    kind: "send"
+    input:
+      request:
+        op: "send_data"
+        filename: "fw.bin"
+        data_hex: "A1A2A3A4"
+      mock_rx_hex: "4306431506064306"
+    expect:
+      ok: true
+      data:
+        retries: 1
+
+  - id: "send_data_timeout"
+    kind: "send"
+    input:
+      request:
+        op: "send_data"
+        filename: "fw.bin"
+        data_hex: "0102"
+    expect:
+      ok: false
+      error:
+        code: "YMODEM_TIMEOUT"
+
+  - id: "send_data_canceled"
+    kind: "send"
+    input:
+      request:
+        op: "send_data"
+        filename: "fw.bin"
+        data_hex: "0102"
+      mock_rx_hex: "4318"
+    expect:
+      ok: false
+      error:
+        code: "YMODEM_CANCELED"
+
+  - id: "send_data_invalid_op"
+    kind: "send"
+    input:
+      request:
+        op: "unknown"
+        data_hex: "01"
+    expect:
+      ok: false
+      error:
+        code: "YMODEM_VALUE_INVALID"
+
+  - id: "send_data_block_128"
+    kind: "send"
+    input:
+      request:
+        op: "send_data"
+        filename: "small.bin"
+        data_hex: "01"
+        block_size: 128
+      mock_rx_hex: "43064306064306"
+    expect:
+      ok: true
+      data:
+        block_size: 128
+
+  - id: "recv_symbol_ack"
+    kind: "recv"
+    input:
+      expect:
+        allowed: ["ACK"]
+      mock_rx_hex: "06"
+    expect:
+      ok: true
+      data:
+        symbol: "ACK"
+
+  - id: "rpc_send_data_success"
+    kind: "rpc"
+    input:
+      request:
+        op: "send_data"
+        filename: "fw.bin"
+        data_hex: "11223344"
+      mock_rx_hex: "43064306064306"
+    expect:
+      ok: true
+      data:
+        status: "done"

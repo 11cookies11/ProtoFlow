@@ -1,0 +1,45 @@
+version: "0.1"
+
+params:
+  port: "COM3"
+  baud: 115200
+  fw_path: "./firmware.bin"
+
+session:
+  transport: serial
+  port: "${port}"
+  baud: "${baud}"
+  data_bits: 8
+  parity: none
+  stop_bits: 1
+  encoding: ascii
+  eol: none
+
+defaults:
+  timeout_ms: 5000
+
+steps:
+  - id: enter_boot
+    name: send
+    text: "boot"
+    eol: crlf
+
+  - id: wait_boot
+    name: sleep
+    ms: 300
+
+  - id: ymodem_send
+    name: protocol.rpc
+    protocol: ymodem
+    request:
+      op: send_file
+      file_path: "${fw_path}"
+      block_size: 1024
+      max_retry: 10
+    timeout_ms: 15000
+    save_as: ymodem_result
+
+  - id: assert_upgrade_ok
+    name: assert
+    expr: "${ymodem_result.ok}"
+    message: "ymodem transfer failed"
