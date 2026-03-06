@@ -120,6 +120,23 @@ def main() -> int:
         checks.append(("if.then_branch", any(b"BOOT" in w for w in ch_if.writes)))
         checks.append(("if.else_not_sent", all(b"APP" not in w for w in ch_if.writes)))
 
+        # Case 4: controlled loop flow (times + until)
+        steps_loop = [
+            {
+                "id": "loop_send",
+                "name": "loop",
+                "times": 5,
+                "until": "${last_loop_round} >= 2",
+                "steps": [{"name": "send", "text": "AT"}],
+            }
+        ]
+        ast_loop = _base_ast(steps_loop, str(tmp_root / "loop_${now}"))
+        ast_loop.version = "0.2"
+        ast_loop.vars["last_loop_round"] = 0
+        summary_loop, ch_loop = _run_ast(ast_loop, FakeChannel([]))
+        checks.append(("loop.summary_true", bool(summary_loop.get("ok"))))
+        checks.append(("loop.iterations", len(ch_loop.writes) == 2))
+
     finally:
         shutil.rmtree(tmp_root, ignore_errors=True)
 

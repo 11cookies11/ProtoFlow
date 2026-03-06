@@ -235,6 +235,32 @@ def _run_if_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> N
         _run_step_with_reliability(child, ast, ctx)
 
 
+def _run_loop_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+    body = step.get("steps")
+    if not isinstance(body, list) or not body:
+        raise ValueError("loop.steps must be a non-empty list")
+    times = step.get("times")
+    until = step.get("until")
+    if times is None and not until:
+        raise ValueError("loop requires times or until")
+    max_rounds = int(times) if times is not None else 1000000
+    if max_rounds < 0:
+        raise ValueError("loop.times must be >= 0")
+
+    rounds = 0
+    while rounds < max_rounds:
+        if until:
+            env = _build_env(ctx, ast)
+            if _eval_assert_expr(str(until), env):
+                break
+        for idx, child in enumerate(body):
+            if not isinstance(child, dict):
+                raise ValueError(f"loop.steps[{idx}] must be a mapping")
+            _run_step_with_reliability(child, ast, ctx)
+        rounds += 1
+        ctx.set_var("last_loop_round", rounds)
+
+
 def _resolve_retry(step: Dict[str, Any], ast: ScriptAST) -> Dict[str, int | str]:
     retry_cfg = step.get("retry")
     if retry_cfg is None:
@@ -277,6 +303,9 @@ def _dispatch_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) ->
         return
     if name == "if":
         _run_if_step(step, ast, ctx)
+        return
+    if name == "loop":
+        _run_loop_step(step, ast, ctx)
         return
     raise NotImplementedError(f"v0.1 step not implemented yet: {name}")
 
