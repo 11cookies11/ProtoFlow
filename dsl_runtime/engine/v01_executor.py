@@ -19,12 +19,19 @@ _EOL_MAP = {
     "crlf": b"\r\n",
 }
 
-_TPL_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+_TPL_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_\.]*)\}")
 
 
 def _render_template(value: str, env: Dict[str, Any]) -> str:
     def repl(match: re.Match[str]) -> str:
         key = match.group(1)
+        if key in env:
+            return str(env.get(key, ""))
+        if "." in key:
+            try:
+                return str(_lookup_path(env, key))
+            except Exception:
+                return ""
         return str(env.get(key, ""))
 
     return _TPL_RE.sub(repl, value)
@@ -253,6 +260,26 @@ def _run_path_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) ->
     ctx.set_var("last_path_value", value)
 
 
+def _run_measure_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+    env = _build_env(ctx, ast)
+    metric = str(step.get("metric", "")).strip()
+    if not metric:
+        raise ValueError("measure.metric is required")
+    raw_value = step.get("value")
+    if raw_value is None:
+        raise ValueError("measure.value is required")
+    value_text = _render_template(str(raw_value), env)
+    unit = str(step.get("unit", "")).strip()
+    item = {"metric": metric, "value": value_text, "unit": unit, "ts": time.time()}
+    metrics = ctx.vars.get("metrics")
+    if not isinstance(metrics, list):
+        metrics = []
+    metrics.append(item)
+    ctx.set_var("metrics", metrics)
+    ctx.set_var(f"measure.{metric}", value_text)
+    ctx.set_var("last_measure", item)
+
+
 def _run_sleep_step(step: Dict[str, Any]) -> None:
     ms = int(step.get("ms", 0))
     if ms < 0:
@@ -264,7 +291,7 @@ def _run_sleep_step(step: Dict[str, Any]) -> None:
 
 def _eval_assert_expr(expr: str, env: Dict[str, Any]) -> bool:
     # Reuse existing expression engine by mapping ${var} -> $var.
-    normalized = re.sub(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", r"$\1", expr)
+    normalized = re.sub(r"\$\{([A-Za-z_][A-Za-z0-9_\.]*)\}", r"$\1", expr)
     return bool(eval_expr(normalized, env))
 
 
@@ -388,6 +415,9 @@ def _dispatch_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) ->
         return
     if name == "path":
         _run_path_step(step, ast, ctx)
+        return
+    if name == "measure":
+        _run_measure_step(step, ast, ctx)
         return
     if name == "assert":
         _run_assert_step(step, ast, ctx)
