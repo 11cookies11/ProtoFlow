@@ -667,32 +667,37 @@ def _dispatch_step(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) ->
     raise NotImplementedError(f"v0.1 step not implemented yet: {name}")
 
 
-def _run_on_fail(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+def _run_on_fail(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> int:
     hooks = step.get("on_fail")
     if hooks is None:
-        return
+        return 0
     if not isinstance(hooks, list):
         raise ValueError("step.on_fail must be a list")
+    ran = 0
     for idx, hook in enumerate(hooks):
         if not isinstance(hook, dict):
             raise ValueError(f"step.on_fail[{idx}] must be a mapping")
         try:
             _dispatch_step(hook, ast, ctx)
+            ran += 1
         except Exception as exc:
             ctx.logger.warning(f"on_fail step ignored due to error: {exc}")
+    return ran
 
 
-def _run_step_with_reliability(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> None:
+def _run_step_with_reliability(step: Dict[str, Any], ast: ScriptAST, ctx: RuntimeContext) -> Dict[str, Any]:
     retry = _resolve_retry(step, ast)
     count = int(retry["count"])
     backoff_ms = int(retry["backoff_ms"])
     strategy = str(retry["strategy"])
     last_error: Exception | None = None
+    attempts = 0
 
     for attempt in range(count + 1):
+        attempts += 1
         try:
             _dispatch_step(step, ast, ctx)
-            return
+            return {"attempts": attempts, "retry_count": count, "on_fail_steps": 0}
         except Exception as exc:
             last_error = exc
             if attempt >= count:
@@ -701,11 +706,13 @@ def _run_step_with_reliability(step: Dict[str, Any], ast: ScriptAST, ctx: Runtim
             if delay_ms > 0:
                 time.sleep(delay_ms / 1000.0)
 
+    on_fail_steps = 0
     try:
-        _run_on_fail(step, ast, ctx)
+        on_fail_steps = _run_on_fail(step, ast, ctx)
     finally:
         if last_error is not None:
             raise last_error
+    return {"attempts": attempts, "retry_count": count, "on_fail_steps": on_fail_steps}
 
 
 def _map_error_code(exc: Exception) -> str:
@@ -764,8 +771,9 @@ def execute_v01(ast: ScriptAST, ctx: RuntimeContext) -> Dict[str, Any]:
             "started_at": t0,
         }
         try:
-            _run_step_with_reliability(step, ast, ctx)
+            reliability = _run_step_with_reliability(step, ast, ctx)
             trace["status"] = "ok"
+            trace.update(reliability)
         except Exception as exc:
             trace["status"] = "error"
             trace["error"] = _error_payload(exc, step_id)
