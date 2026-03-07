@@ -12,6 +12,7 @@
 
 <script setup lang="ts">
 import { computed, inject } from 'vue'
+import { copyText } from '@/utils/clipboard'
 
 const props = defineProps<{ title: string; value: unknown }>()
 const tr = inject('tr', (text) => text)
@@ -26,10 +27,6 @@ const formatted = computed(() => {
 })
 
 async function copy() {
-  try {
-    await navigator.clipboard.writeText(formatted.value)
-  } catch {
-    // TODO: fallback
-  }
+  await copyText(formatted.value)
 }
 </script>

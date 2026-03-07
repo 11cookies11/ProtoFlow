@@ -1,0 +1,95 @@
+version: "1"
+protocol_id: "modbus_ascii"
+
+cases:
+  - id: "send_read_holding_fc03"
+    kind: "send"
+    input:
+      request:
+        op: "read_holding"
+        unit_id: 1
+        address: 0
+        quantity: 2
+    expect:
+      ok: true
+
+  - id: "send_write_single_register_fc06"
+    kind: "send"
+    input:
+      request:
+        op: "write_single_register"
+        unit_id: 1
+        address: 1
+        value: 123
+    expect:
+      ok: true
+
+  - id: "recv_read_holding_ok"
+    kind: "recv"
+    input:
+      expect:
+        op: "read_holding"
+        quantity: 2
+      mock_rx_text: ":010304000A0001ED\r\n"
+    expect:
+      ok: true
+
+  - id: "rpc_read_holding_fc03"
+    kind: "rpc"
+    input:
+      request:
+        op: "read_holding"
+        unit_id: 1
+        address: 0
+        quantity: 2
+      mock_rx_text: ":010304000A0001ED\r\n"
+    expect:
+      ok: true
+
+  - id: "recv_exception_response"
+    kind: "recv"
+    input:
+      expect:
+        op: "read_holding"
+        quantity: 2
+      mock_rx_text: ":0183027A\r\n"
+    expect:
+      ok: true
+      data:
+        ok: false
+        error:
+          code: "MODBUS_EXCEPTION_RESPONSE"
+
+  - id: "recv_lrc_invalid"
+    kind: "recv"
+    input:
+      expect:
+        op: "read_holding"
+        quantity: 2
+      mock_rx_text: ":010304000A000100\r\n"
+    expect:
+      ok: false
+      error:
+        code: "MODBUS_LRC_INVALID"
+
+  - id: "recv_timeout"
+    kind: "recv"
+    input:
+      expect:
+        op: "read_holding"
+        quantity: 2
+    expect:
+      ok: false
+      error:
+        code: "MODBUS_TIMEOUT"
+
+  - id: "send_boundary_read_quantity_125"
+    kind: "send"
+    input:
+      request:
+        op: "read_holding"
+        unit_id: 1
+        address: 0
+        quantity: 125
+    expect:
+      ok: true

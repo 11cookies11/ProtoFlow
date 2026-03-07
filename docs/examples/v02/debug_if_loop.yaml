@@ -1,0 +1,43 @@
+version: "0.2"
+
+params:
+  port: "COM5"
+  mode: "boot"
+
+session:
+  transport: serial
+  port: "${port}"
+  baud: 115200
+  data_bits: 8
+  parity: none
+  stop_bits: 1
+  encoding: ascii
+  eol: crlf
+  open_timeout_ms: 3000
+  read_timeout_ms: 200
+
+defaults:
+  timeout_ms: 1500
+  retry: { count: 1, backoff_ms: 100, strategy: fixed }
+
+steps:
+  - name: if
+    when: "${mode} == 'boot'"
+    then:
+      - name: send
+        text: "boot"
+    else:
+      - name: send
+        text: "app"
+  - name: loop
+    times: 3
+    steps:
+      - name: send
+        text: "AT"
+      - name: sleep
+        ms: 100
+
+artifacts:
+  dir: "./runs/v02_debug_${now}"
+  raw_log: true
+  summary_json: true

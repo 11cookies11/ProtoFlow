@@ -1,0 +1,57 @@
+version: "1"
+
+meta:
+  name: "Combo Upgrade Config"
+  description: "Upgrade + parameter write + version verification flow"
+
+transport_defaults:
+  encoding: "utf-8"
+  eol: "crlf"
+
+rules:
+  - id: enter_boot_delay
+    when:
+      type: exact
+      pattern: "ENTER_BOOT"
+    delay_ms: 180
+    respond:
+      text: "BOOT:READY"
+
+  - id: flash_begin
+    when:
+      type: exact
+      pattern: "FLASH:BEGIN"
+    respond:
+      text: "ACK"
+
+  - id: flash_end
+    when:
+      type: exact
+      pattern: "FLASH:END"
+    respond:
+      text: "CRC:PASS\r\nOK"
+
+  - id: write_sn
+    when:
+      type: startswith
+      pattern: "SET:SN="
+    respond:
+      text: "WRITE:OK"
+
+  - id: read_sn
+    when:
+      type: exact
+      pattern: "GET:SN?"
+    respond:
+      text: "SN:SN90001\r\nOK"
+
+  - id: read_ver
+    when:
+      type: exact
+      pattern: "GET:VER?"
+    respond:
+      text: "VER:1.2.3\r\nOK"
+
+fallback:
+  respond:
+    text: "ERROR"

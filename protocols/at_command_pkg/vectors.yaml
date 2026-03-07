@@ -1,0 +1,93 @@
+version: "1"
+protocol_id: "at_command"
+
+cases:
+  - id: "send_basic"
+    kind: "send"
+    input:
+      request:
+        cmd: "AT"
+        eol: "crlf"
+    expect:
+      ok: true
+
+  - id: "send_no_eol"
+    kind: "send"
+    input:
+      request:
+        cmd: "AT+GMR"
+        eol: "none"
+    expect:
+      ok: true
+
+  - id: "recv_ok_single"
+    kind: "recv"
+    input:
+      expect:
+        status: "ok"
+      mock_rx_text: "OK\r\n"
+    expect:
+      ok: true
+      data:
+        status: "ok"
+
+  - id: "recv_ok_multiline"
+    kind: "recv"
+    input:
+      expect:
+        status: "ok"
+        contains: "+CSQ:"
+      mock_rx_text: "AT+CSQ\r\n+CSQ: 20,99\r\nOK\r\n"
+    expect:
+      ok: true
+      data:
+        status: "ok"
+
+  - id: "recv_error"
+    kind: "recv"
+    input:
+      expect:
+        status: "error"
+      mock_rx_text: "ERROR\r\n"
+    expect:
+      ok: true
+      data:
+        ok: false
+        status: "error"
+
+  - id: "recv_timeout"
+    kind: "recv"
+    input:
+      expect:
+        status: "ok"
+    expect:
+      ok: false
+      error:
+        code: "AT_TIMEOUT"
+
+  - id: "rpc_ok"
+    kind: "rpc"
+    input:
+      request:
+        cmd: "AT+CSQ"
+        expect:
+          status: "ok"
+          regex: "\\+CSQ:\\s*\\d+,\\d+"
+      mock_rx_text: "AT+CSQ\r\n+CSQ: 18,99\r\nOK\r\n"
+    expect:
+      ok: true
+      data:
+        status: "ok"
+
+  - id: "rpc_error"
+    kind: "rpc"
+    input:
+      request:
+        cmd: "AT+BAD"
+        expect:
+          status: "ok"
+      mock_rx_text: "AT+BAD\r\nERROR\r\n"
+    expect:
+      ok: false
+      error:
+        code: "AT_EXPECT_FAILED"

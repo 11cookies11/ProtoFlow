@@ -1,6 +1,16 @@
 ﻿<script setup>
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import DropdownSelect from './DropdownSelect.vue'
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import ProxyCaptureTable from './proxy/ProxyCaptureTable.vue'
+import ProxyCaptureDetails from './proxy/ProxyCaptureDetails.vue'
+import ProxyCaptureToolbar from './proxy/ProxyCaptureToolbar.vue'
+import ProxyCaptureFooter from './proxy/ProxyCaptureFooter.vue'
+import ProxyDeleteConfirmModal from './proxy/ProxyDeleteConfirmModal.vue'
+import ProxyEditModal from './proxy/ProxyEditModal.vue'
+import ProxyPanelCard from './proxy/ProxyPanelCard.vue'
+import { fallbackPorts, serialDefaults, supportedBaudRates } from '@/config/runtimeDefaults'
+import { normalizeSerialPortList, normalizeSerialPortName } from '@/utils/serialPort'
+import { useCapturePanel } from '@/composables/useCapturePanel'
+import { useWindowedList } from '@/composables/useWindowedList'
 
 const t = inject('t', (key) => key)
 const tr = inject('tr', (text) => text)
@@ -16,20 +26,22 @@ const activeFilter = ref(filterTabs.value[0]?.id ?? 'all')
 const modalOpen = ref(false)
 const modalProxy = ref(null)
 const modalMode = ref('edit')
-const captureOpen = ref(false)
 const confirmOpen = ref(false)
 const confirmProxy = ref(null)
 const captureProxy = ref(null)
-const captureFilter = ref('all')
 const captureView = ref('parsed')
-const selectedFrame = ref(null)
+const { captureOpen, captureFilter, selectedFrame, openCapture, closeCapture } = useCapturePanel()
+const captureTableRef = ref(null)
+const captureSearchKeyword = ref('')
+const captureScrollTop = ref(0)
+const captureViewportHeight = ref(0)
 
 const proxyName = ref('')
 const connectionMode = ref(tr('透传模式'))
-const hostPort = ref('COM3')
-const devicePort = ref('COM5')
-const baudRate = ref('115200')
-const parity = ref(tr('无'))
+const hostPort = ref(fallbackPorts[2] || fallbackPorts[0])
+const devicePort = ref(fallbackPorts[4] || fallbackPorts[1] || fallbackPorts[0])
+const baudRate = ref(String(serialDefaults.baud))
+const parity = ref('none')
 const dataBits = ref('8')
 const stopBits = ref('1')
 const flowControl = ref('none')
@@ -39,76 +51,22 @@ const connectionOptions = computed(() => [
   { value: '协议桥接', label: tr('协议桥接') },
   { value: '映射模式', label: tr('映射模式') },
 ])
-const portOptions = ['COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM10', 'COM12']
-const baudOptions = ['4800', '9600', '19200', '38400', '57600', '115200']
+const serialPorts = ref([])
+const portOptions = computed(() => {
+  const ports = normalizeSerialPortList(serialPorts.value)
+  return ports.length ? ports : fallbackPorts
+})
+const baudOptions = supportedBaudRates.map((item) => String(item))
 const parityOptions = computed(() => [
-  { value: '无', label: tr('无') },
-  { value: '偶校验', label: tr('偶校验') },
-  { value: '奇校验', label: tr('奇校验') },
-  { value: 'Mark', label: 'Mark' },
-  { value: 'Space', label: 'Space' },
+  { value: 'none', label: tr('无') },
+  { value: 'even', label: tr('偶校验') },
+  { value: 'odd', label: tr('奇校验') },
+  { value: 'mark', label: 'Mark' },
+  { value: 'space', label: 'Space' },
 ])
 
-
-const proxies = ref([
-  {
-    id: 'proxy-com3',
-    name: tr('主控制器链路'),
-    meta: 'ID: PX-00124 · 8-N-1',
-    status: 'running',
-    statusLabel: tr('运行中'),
-    statusIcon: 'swap_horizontal_circle',
-    routeIcon: 'keyboard_double_arrow_right',
-    routeLabel: tr('转发中'),
-    routeTone: 'primary',
-    hostPort: 'COM3',
-    devicePort: 'COM5',
-    baud: '115200',
-    bandwidth: '12.4',
-    bandwidthUnit: 'KB/s',
-    spark: 'M0 35 L10 20 L20 35 L30 10 L40 30 L50 5 L60 35 L70 20 L80 30 L90 10 L100 25',
-    active: true,
-    toggleLabel: tr('运行中'),
-  },
-  {
-    id: 'proxy-com7',
-    name: tr('电机反馈继电器'),
-    meta: 'ID: PX-00992 · 8-E-1',
-    status: 'stopped',
-    statusLabel: tr('已停止'),
-    statusIcon: 'pause_circle',
-    routeIcon: 'more_horiz',
-    routeLabel: tr('离线'),
-    routeTone: 'muted',
-    hostPort: 'COM7',
-    devicePort: 'COM10',
-    baud: '9600',
-    bandwidth: '0.0',
-    bandwidthUnit: 'KB/s',
-    spark: '',
-    active: false,
-    toggleLabel: tr('已停止'),
-  },
-  {
-    id: 'proxy-com1',
-    name: tr('GPS 模块数据流'),
-    meta: 'ID: PX-00219 · 7-N-2',
-    status: 'error',
-    statusLabel: tr('异常'),
-    statusIcon: 'report',
-    routeIcon: 'sync_problem',
-    routeLabel: tr('连接失败'),
-    routeTone: 'danger',
-    hostPort: 'COM1',
-    devicePort: 'COM12',
-    baud: '4800',
-    bandwidth: '0.4',
-    bandwidthUnit: 'KB/s',
-    spark: 'M0 38 L40 38 L42 10 L48 10 L50 38 L90 38 L92 10 L98 10 L100 38',
-    active: true,
-    toggleLabel: tr('异常'),
-  },
-])
+const proxies = ref([])
+const formError = ref('')
 
 let proxySeq = 1000
 
@@ -136,13 +94,24 @@ function withBridgeResult(result, onSuccess) {
 function mapProxyFromBackend(payload) {
   const status = payload.status || 'stopped'
   const active = status === 'running'
-  const statusLabel = active ? tr('运行中') : tr('已停止')
-  const routeLabel = active ? tr('转发中') : tr('离线')
-  const routeTone = active ? 'primary' : 'muted'
-  const statusIcon = active ? 'swap_horizontal_circle' : 'pause_circle'
-  const routeIcon = active ? 'keyboard_double_arrow_right' : 'more_horiz'
+  const isError = status === 'error'
+  const statusLabel = active ? tr('运行中') : isError ? tr('异常') : tr('已停止')
+  const routeLabel = active ? tr('转发中') : isError ? tr('连接失败') : tr('离线')
+  const routeTone = active ? 'primary' : isError ? 'danger' : 'muted'
+  const statusIcon = active ? 'swap_horizontal_circle' : isError ? 'error' : 'pause_circle'
+  const routeIcon = active ? 'keyboard_double_arrow_right' : isError ? 'error' : 'more_horiz'
   const baud = payload.baud ? String(payload.baud) : '115200'
+  const error = typeof payload.error === 'string' ? payload.error.trim() : ''
   proxySeq = Math.max(proxySeq, Number(String(payload.id || '').replace(/\D/g, '')) || proxySeq)
+  const parityMap = {
+    无: 'none',
+    偶校验: 'even',
+    奇校验: 'odd',
+    Mark: 'mark',
+    Space: 'space',
+  }
+  const parityValue = String(payload.parity || 'none')
+  const normalizedParity = parityMap[parityValue] || parityValue
   return {
     id: payload.id || `proxy-${Date.now()}`,
     name: payload.name || tr('未命名转发对'),
@@ -153,16 +122,17 @@ function mapProxyFromBackend(payload) {
     routeIcon,
     routeLabel,
     routeTone,
-    hostPort: payload.hostPort || 'COM1',
-    devicePort: payload.devicePort || 'COM2',
+    hostPort: normalizeSerialPortName(payload.hostPort || fallbackPorts[0]),
+    devicePort: normalizeSerialPortName(payload.devicePort || fallbackPorts[1] || fallbackPorts[0]),
     baud,
     dataBits: payload.dataBits || '8',
     stopBits: payload.stopBits || '1',
-    parity: payload.parity || 'none',
+    parity: normalizedParity,
     flowControl: payload.flowControl || 'none',
     bandwidth: payload.bandwidth || '0.0',
     bandwidthUnit: payload.bandwidthUnit || 'KB/s',
     spark: payload.spark || '',
+    error,
     active,
     toggleLabel: statusLabel,
   }
@@ -173,6 +143,20 @@ function loadProxyPairs() {
   withBridgeResult(bridge.value.list_proxy_pairs(), (items) => {
     if (!Array.isArray(items)) return
     proxies.value = items.filter(Boolean).map((item) => mapProxyFromBackend(item))
+  })
+}
+
+function loadSerialPorts() {
+  if (!bridge || !bridge.value || !bridge.value.list_ports) {
+    serialPorts.value = []
+    return
+  }
+  withBridgeResult(bridge.value.list_ports(), (items) => {
+    if (!Array.isArray(items)) {
+      serialPorts.value = []
+      return
+    }
+    serialPorts.value = normalizeSerialPortList(items)
   })
 }
 
@@ -307,14 +291,117 @@ function hexCellClass(index, value) {
 
 const filteredFrames = computed(() => {
   const safeFrames = captureFrames.value.filter(Boolean)
-  if (captureFilter.value === 'all') return safeFrames
-  if (captureFilter.value === 'error') {
-    return safeFrames.filter((frame) => frame.tone === 'red')
-  }
-  return safeFrames.filter((frame) => frame.direction === captureFilter.value)
+  const byFilter =
+    captureFilter.value === 'all'
+      ? safeFrames
+      : captureFilter.value === 'error'
+        ? safeFrames.filter((frame) => frame.tone === 'red')
+        : safeFrames.filter((frame) => frame.direction === captureFilter.value)
+  const keyword = String(captureSearchKeyword.value || '').trim().toLowerCase()
+  if (!keyword) return byFilter
+  return byFilter.filter((frame) => {
+    const fields = [
+      frame.id,
+      frame.direction,
+      frame.summary,
+      frame.summaryText,
+      frame.note,
+      frame.protocolLabel,
+      frame.protocolTooltip,
+      frame.channel,
+    ]
+    return fields.some((item) => String(item || '').toLowerCase().includes(keyword))
+  })
 })
 
+const capturePageSize = computed(() => {
+  const rows = Math.floor((captureViewportHeight.value || 0) / 36)
+  return Math.max(1, rows || 1)
+})
+
+const capturePageCount = computed(() => Math.max(1, Math.ceil(filteredFrames.value.length / capturePageSize.value)))
+
+const capturePage = computed(() => {
+  const offset = Math.floor(captureScrollTop.value / (capturePageSize.value * 36))
+  return Math.min(capturePageCount.value, offset + 1)
+})
+
+const captureMetaView = computed(() => ({
+  ...captureMeta.value,
+  page: capturePage.value,
+  pageCount: capturePageCount.value,
+}))
+
+const frameWindow = useWindowedList({
+  itemCount: computed(() => filteredFrames.value.length),
+  rowHeight: 36,
+  overscan: 12,
+  minVisibleRows: 24,
+})
+
+const visibleFrames = computed(() => {
+  const { start, end } = frameWindow.range.value
+  return filteredFrames.value.slice(start, end)
+})
+
+function syncCaptureWindow() {
+  if (!captureTableRef.value) return
+  captureViewportHeight.value = captureTableRef.value.clientHeight || 0
+  captureScrollTop.value = captureTableRef.value.scrollTop || 0
+  frameWindow.updateViewport(captureViewportHeight.value, captureScrollTop.value)
+}
+
+function scrollCaptureToPage(targetPage) {
+  if (!captureTableRef.value) return
+  const page = Math.max(1, Math.min(capturePageCount.value, Number(targetPage) || 1))
+  const top = (page - 1) * capturePageSize.value * 36
+  captureTableRef.value.scrollTop = top
+  syncCaptureWindow()
+}
+
+function copyActiveHex() {
+  const content = String(activeFrame.value?.note || '').trim()
+  if (!content) return
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    navigator.clipboard.writeText(content).catch(() => {})
+  }
+}
+
+function openCaptureRule() {
+  if (!captureProxy.value) return
+  openEditModal(captureProxy.value)
+}
+
+function exportCaptureResults() {
+  const rows = filteredFrames.value.map((frame) => {
+    return [frame.time || '', frame.direction || '', frame.protocolLabel || '', frame.note || '', frame.summaryText || frame.summary || ''].join('\t')
+  })
+  const payload = rows.join('\n')
+  const name = `capture_${new Date().toISOString().replace(/[:.]/g, '-')}.log`
+  const blob = new Blob([payload], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = name
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+function resumeCapture() {
+  if (!captureProxy.value) return
+  if (bridge && bridge.value && bridge.value.start_capture) {
+    bridge.value.start_capture({
+      id: captureProxy.value.id,
+      channel: captureProxy.value.hostPort,
+      hostPort: captureProxy.value.hostPort,
+    })
+  }
+}
+
 function openEditModal(proxy) {
+  formError.value = ''
   modalMode.value = 'edit'
   modalProxy.value = proxy
   proxyName.value = proxy && proxy.name ? proxy.name : ''
@@ -329,12 +416,14 @@ function openEditModal(proxy) {
 }
 
 function openCreateModal() {
+  formError.value = ''
   modalMode.value = 'create'
   modalProxy.value = null
   proxyName.value = ''
-  hostPort.value = portOptions[0] || 'COM1'
-  devicePort.value = portOptions[1] || 'COM2'
-  baudRate.value = baudOptions[5] || '115200'
+  const options = portOptions.value
+  hostPort.value = options[0] || fallbackPorts[0]
+  devicePort.value = options[1] || options[0] || fallbackPorts[1] || fallbackPorts[0]
+  baudRate.value = baudOptions[baudOptions.length - 1] || String(serialDefaults.baud)
   dataBits.value = '8'
   stopBits.value = '1'
   parity.value = 'none'
@@ -351,12 +440,11 @@ function openCaptureModal(proxy) {
     })
   }
   captureProxy.value = proxy
-  captureFilter.value = 'all'
-  selectedFrame.value = captureFrames.value[0] || null
-  captureOpen.value = true
+  openCapture(captureFrames.value[0] || null)
 }
 
 function closeModal() {
+  formError.value = ''
   modalOpen.value = false
 }
 
@@ -364,7 +452,8 @@ function closeCaptureModal() {
   if (bridge && bridge.value && bridge.value.stop_capture) {
     bridge.value.stop_capture()
   }
-  captureOpen.value = false
+  captureSearchKeyword.value = ''
+  closeCapture()
 }
 
 function selectFrame(frame) {
@@ -372,6 +461,7 @@ function selectFrame(frame) {
 }
 
 function refreshProxies() {
+  loadSerialPorts()
   if (bridge && bridge.value && bridge.value.refresh_proxy_pairs) {
     withBridgeResult(bridge.value.refresh_proxy_pairs(), (items) => {
       if (!Array.isArray(items)) return
@@ -380,6 +470,16 @@ function refreshProxies() {
     return
   }
   proxies.value = proxies.value.map((proxy) => ({ ...proxy }))
+}
+
+function validateProxyPayload(payload) {
+  if (!payload.hostPort || !payload.devicePort) {
+    return tr('请选择主机端口和设备端口')
+  }
+  if (payload.hostPort === payload.devicePort) {
+    return tr('主机端口和设备端口不能相同')
+  }
+  return ''
 }
 
 function setProxyStatus(proxy, active) {
@@ -396,6 +496,7 @@ function setProxyStatus(proxy, active) {
   proxy.routeTone = routeTone
   proxy.statusIcon = statusIcon
   proxy.routeIcon = routeIcon
+  proxy.error = ''
   proxy.active = active
 
   if (bridge && bridge.value && bridge.value.set_proxy_pair_status) {
@@ -407,17 +508,28 @@ function setProxyStatus(proxy, active) {
   }
 }
 
+function retryProxy(proxy) {
+  if (!proxy) return
+  setProxyStatus(proxy, true)
+}
+
 function saveProxy() {
   const payload = {
     name: proxyName.value || tr('未命名转发对'),
-    hostPort: hostPort.value,
-    devicePort: devicePort.value,
+    hostPort: normalizeSerialPortName(hostPort.value),
+    devicePort: normalizeSerialPortName(devicePort.value),
     baud: baudRate.value,
     dataBits: dataBits.value,
     stopBits: stopBits.value,
     parity: parity.value,
     flowControl: flowControl.value,
   }
+  const validationError = validateProxyPayload(payload)
+  if (validationError) {
+    formError.value = validationError
+    return
+  }
+  formError.value = ''
 
   if (modalMode.value === 'create') {
     if (bridge && bridge.value && bridge.value.create_proxy_pair) {
@@ -512,6 +624,7 @@ function confirmDeleteProxy(proxy) {
 }
 
 onMounted(() => {
+  loadSerialPorts()
   loadProxyPairs()
 })
 
@@ -547,6 +660,18 @@ watch(
   () => captureOpen.value,
   (open) => {
     document.body.classList.toggle('proxy-modal-open', open)
+    if (!open) {
+      frameWindow.reset()
+      return
+    }
+    nextTick(() => syncCaptureWindow())
+  }
+)
+
+watch(
+  () => filteredFrames.value.length,
+  () => {
+    nextTick(() => syncCaptureWindow())
   }
 )
 
@@ -587,193 +712,52 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="proxy-dashboard-grid">
-      <article
+      <ProxyPanelCard
         v-for="proxy in filteredProxies"
         :key="proxy.id"
-        class="proxy-panel"
-        :class="`status-${proxy.status}`"
-      >
-        <div class="proxy-panel-head">
-          <div class="proxy-panel-title">
-            <div class="proxy-panel-icon" :class="`status-${proxy.status}`">
-              <span class="material-symbols-outlined">{{ proxy.statusIcon }}</span>
-            </div>
-            <div>
-            <h3>{{ tr(proxy.name) }}</h3>
-              <p>{{ proxy.meta }}</p>
-            </div>
-          </div>
-          <span class="proxy-status-pill" :class="`status-${proxy.status}`">
-            <span class="dot"></span>
-            {{ proxyStatusLabel(proxy.status) }}
-          </span>
-        </div>
-
-        <div class="proxy-route-card" :class="`status-${proxy.status}`">
-          <div class="proxy-route-col">
-            <p>{{ tr('主机源端口') }}</p>
-            <span class="proxy-route-chip proxy-mono">{{ proxy.hostPort }}</span>
-          </div>
-          <div class="proxy-route-state" :class="proxy.routeTone">
-            <span class="material-symbols-outlined">{{ proxy.routeIcon }}</span>
-            <span>{{ proxyRouteLabel(proxy.status) }}</span>
-          </div>
-          <div class="proxy-route-col">
-            <p>{{ tr('设备代理端口') }}</p>
-            <span class="proxy-route-chip proxy-mono">{{ proxy.devicePort }}</span>
-          </div>
-        </div>
-
-        <div class="proxy-metrics">
-          <div>
-            <p>{{ tr('波特率') }}</p>
-            <strong class="proxy-mono">{{ proxy.baud }}</strong>
-          </div>
-          <div class="proxy-metric-bandwidth">
-            <div>
-              <p :class="{ danger: proxy.status === 'error' }">{{ tr('实时带宽') }}</p>
-              <strong class="proxy-mono">
-                {{ proxy.bandwidth }}
-                <span>{{ proxy.bandwidthUnit }}</span>
-              </strong>
-            </div>
-            <div class="proxy-sparkline" :class="`status-${proxy.status}`">
-              <svg v-if="proxy.spark" viewBox="0 0 100 40">
-                <path :d="proxy.spark" />
-              </svg>
-              <div v-else class="proxy-sparkline-empty"></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="proxy-panel-footer" :class="`status-${proxy.status}`">
-          <label class="proxy-footer-toggle">
-            <span class="proxy-toggle" :class="{ active: proxy.active }" @click="setProxyStatus(proxy, !proxy.active)">
-              <span class="proxy-toggle-track"></span>
-            </span>
-            <span class="proxy-toggle-text">{{ proxyToggleLabel(proxy.status) }}</span>
-          </label>
-          <div class="proxy-footer-actions">
-            <button class="icon-btn" type="button" :title="tr('抓包')" @click="openCaptureModal(proxy)">
-              <span class="material-symbols-outlined">terminal</span>
-            </button>
-            <button class="icon-btn" type="button" :title="tr('编辑')" @click="openEditModal(proxy)">
-              <span class="material-symbols-outlined">edit</span>
-            </button>
-            <button class="icon-btn danger" type="button" :title="tr('删除')" @click="confirmDeleteProxy(proxy)">
-              <span class="material-symbols-outlined">delete</span>
-            </button>
-          </div>
-        </div>
-      </article>
+        :proxy="proxy"
+        :status-label="proxyStatusLabel(proxy.status)"
+        :route-label="proxyRouteLabel(proxy.status)"
+        :toggle-label="proxyToggleLabel(proxy.status)"
+        @capture="openCaptureModal"
+        @edit="openEditModal"
+        @delete="confirmDeleteProxy"
+        @retry="retryProxy"
+        @toggle="setProxyStatus($event.proxy, $event.active)"
+      />
     </div>
   </section>
 
   <teleport to="body">
-    <div v-if="modalOpen" class="proxy-modal-overlay">
-      <div class="proxy-modal" @mousedown.stop @click.stop>
-        <div class="proxy-modal-header">
-          <div class="proxy-modal-title">
-            <div class="proxy-modal-icon">
-              <span class="material-symbols-outlined">edit_square</span>
-            </div>
-            <h2>{{ modalMode === 'create' ? tr('新建转发对') : tr('编辑转发代理') }}</h2>
-          </div>
-          <button class="proxy-modal-close" type="button" @click="closeModal">
-            <span class="material-symbols-outlined">close</span>
-          </button>
-        </div>
-        <div class="proxy-modal-body">
-          <div class="proxy-modal-stack">
-            <div class="proxy-modal-grid">
-              <div class="proxy-field">
-                <label>{{ tr('代理名称') }}</label>
-                <input type="text" v-model="proxyName" />
-              </div>
-              <div class="proxy-field">
-                <label>{{ tr('连接模式') }}</label>
-                <DropdownSelect v-model="connectionMode" class="proxy-select" :options="connectionOptions" />
-              </div>
-            </div>
-            <div class="proxy-port-map">
-              <div class="proxy-field">
-                <label>
-                <span class="material-symbols-outlined">computer</span>{{ tr('主机端口') }}</label>
-                <DropdownSelect v-model="hostPort" class="proxy-select" :options="portOptions" />
-              </div>
-              <div class="proxy-field">
-                <label>
-                  <span class="material-symbols-outlined">settings_input_component</span>{{ tr('设备端口') }}</label>
-                <DropdownSelect v-model="devicePort" class="proxy-select" :options="portOptions" />
-              </div>
-            </div>
-            <div class="proxy-section">
-              <div class="proxy-section-title">
-                <span class="material-symbols-outlined">settings_ethernet</span>{{ tr('串口参数配置') }}<span>{{ tr('（两端需一致）') }}</span>
-              </div>
-              <div class="proxy-section-grid">
-                <div class="proxy-field">
-                  <label>{{ tr('波特率') }}</label>
-                  <DropdownSelect v-model="baudRate" class="proxy-select" :options="baudOptions" />
-                </div>
-                <div class="proxy-field">
-                  <label>{{ tr('数据位') }}</label>
-                  <div class="proxy-segmented">
-                    <button type="button" :class="{ active: dataBits === '5' }" @click="dataBits = '5'">5</button>
-                    <button type="button" :class="{ active: dataBits === '6' }" @click="dataBits = '6'">6</button>
-                    <button type="button" :class="{ active: dataBits === '7' }" @click="dataBits = '7'">7</button>
-                    <button type="button" :class="{ active: dataBits === '8' }" @click="dataBits = '8'">8</button>
-                  </div>
-                </div>
-                <div class="proxy-field">
-                  <label>{{ tr('校验位') }}</label>
-                  <DropdownSelect v-model="parity" class="proxy-select" :options="parityOptions" />
-                </div>
-                <div class="proxy-field">
-                  <label>{{ tr('停止位') }}</label>
-                  <div class="proxy-segmented">
-                    <button type="button" :class="{ active: stopBits === '1' }" @click="stopBits = '1'">1</button>
-                    <button type="button" :class="{ active: stopBits === '1.5' }" @click="stopBits = '1.5'">1.5</button>
-                    <button type="button" :class="{ active: stopBits === '2' }" @click="stopBits = '2'">2</button>
-                  </div>
-                </div>
-                <div class="proxy-field proxy-span-2">
-                  <label>{{ tr('流控') }}</label>
-                  <div class="proxy-segmented">
-                    <button type="button" :class="{ active: flowControl === 'none' }" @click="flowControl = 'none'">None</button>
-                    <button type="button" :class="{ active: flowControl === 'rtscts' }" @click="flowControl = 'rtscts'">RTS/CTS</button>
-                    <button type="button" :class="{ active: flowControl === 'xonxoff' }" @click="flowControl = 'xonxoff'">XON/XOFF</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="proxy-section proxy-modal-advanced">
-              <div class="proxy-section-title muted">
-                <span class="material-symbols-outlined">settings_suggest</span>{{ tr('高级选项') }}</div>
-              <div class="proxy-toggle-row">
-                <label>
-                  <span class="proxy-toggle">
-                    <input type="checkbox" checked />
-                    <span></span>
-                  </span>{{ tr('自动重连') }}</label>
-                <label>
-                  <span class="proxy-toggle">
-                    <input type="checkbox" />
-                    <span></span>
-                  </span>{{ tr('详细日志') }}</label>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="proxy-modal-footer">
-          <div></div>
-          <div class="proxy-footer-actions">
-            <button class="proxy-btn ghost" type="button" @click="closeModal">{{ tr('取消') }}</button>
-            <button class="proxy-btn primary" type="button" @click="saveProxy">{{ tr('保存') }}</button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ProxyEditModal
+      :open="modalOpen"
+      :mode="modalMode"
+      :form-error="formError"
+      :proxy-name="proxyName"
+      :connection-mode="connectionMode"
+      :host-port="hostPort"
+      :device-port="devicePort"
+      :baud-rate="baudRate"
+      :data-bits="dataBits"
+      :stop-bits="stopBits"
+      :parity="parity"
+      :flow-control="flowControl"
+      :connection-options="connectionOptions"
+      :port-options="portOptions"
+      :baud-options="baudOptions"
+      :parity-options="parityOptions"
+      @close="closeModal"
+      @save="saveProxy"
+      @update:proxy-name="proxyName = $event"
+      @update:connection-mode="connectionMode = $event"
+      @update:host-port="hostPort = $event"
+      @update:device-port="devicePort = $event"
+      @update:baud-rate="baudRate = $event"
+      @update:data-bits="dataBits = $event"
+      @update:stop-bits="stopBits = $event"
+      @update:parity="parity = $event"
+      @update:flow-control="flowControl = $event"
+    />
 
     <div v-if="captureOpen" class="proxy-modal-overlay proxy-capture" @mousedown.self="closeCaptureModal">
       <div
@@ -781,295 +765,56 @@ onBeforeUnmount(() => {
         @mousedown.stop
         @click.stop
       >
-        <header class="px-4 py-3 flex items-center justify-between border-b border-slate-200 bg-white">
-          <div class="flex items-center gap-4">
-            <div class="p-1.5 bg-blue-100 rounded text-blue-600">
-              <span class="material-symbols-outlined">analytics</span>
-            </div>
-            <div>
-              <h1 class="text-sm font-bold text-slate-900 leading-none">{{ tr('多协议通用报文分析引擎') }}</h1>
-              <div class="flex items-center gap-2 mt-1">
-                <span class="flex h-2 w-2 rounded-full bg-emerald-500"></span>
-                <p class="text-[10px] font-medium text-slate-500">
-                  {{ tr('活动通道') }}: {{ captureProxy ? captureProxy.hostPort : captureMeta.channel }} | {{ tr('引擎状态') }}: {{ tr(captureMeta.engine) }}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div class="flex items-center gap-3">
-            <div class="flex items-center bg-slate-100 rounded-md px-2 border border-slate-200">
-              <span class="material-symbols-outlined text-slate-400">search</span>
-              <input
-                class="bg-transparent border-none text-xs w-64 lg:w-96 focus:ring-0 text-slate-900 placeholder-slate-500"
-                :placeholder="tr('搜索标识、十六进制、协议、原始数据...')"
-                type="text"
-              />
-            </div>
-            <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
-            <button class="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition-colors shadow-sm">
-              <span class="material-symbols-outlined !text-sm">play_arrow</span>{{ tr('继续捕获') }}</button>
-            <button class="p-1.5 hover:bg-slate-100 rounded text-slate-400">
-              <span class="material-symbols-outlined">settings</span>
-            </button>
-          </div>
-        </header>
-
-        <div class="h-1.5 w-full bg-slate-200 relative cursor-pointer group overflow-hidden">
-          <div class="timeline-heatmap h-full w-full opacity-80 group-hover:opacity-100 transition-opacity"></div>
-          <div class="absolute top-0 bottom-0 left-[20%] w-[5%] border-x border-white/50 bg-white/20 shadow-sm pointer-events-none"></div>
-        </div>
+        <ProxyCaptureToolbar
+          :capture-proxy="captureProxy"
+          :capture-meta="captureMetaView"
+          :search-keyword="captureSearchKeyword"
+          @update:search-keyword="captureSearchKeyword = $event"
+          @resume-capture="resumeCapture"
+          @open-settings="openCaptureRule"
+        />
 
         <main class="flex-1 flex overflow-hidden">
-          <section class="flex-[2] flex flex-col min-w-0 bg-white">
-            <div class="overflow-auto flex-1">
-              <table class="w-full text-left border-separate border-spacing-0">
-                <thead class="sticky top-0 z-10 bg-slate-50 shadow-sm">
-                  <tr class="text-[10px] uppercase tracking-wider font-bold text-slate-500">
-                    <th class="px-3 py-2 border-b border-slate-200 w-16">{{ tr('序号') }}</th>
-                    <th class="px-3 py-2 border-b border-slate-200 w-28">{{ tr('时间戳') }}</th>
-                    <th class="px-3 py-2 border-b border-slate-200 w-12 text-center">{{ tr('方向') }}</th>
-                    <th class="px-3 py-2 border-b border-slate-200 w-32">{{ tr('协议') }}</th>
-                    <th class="px-3 py-2 border-b border-slate-200 w-16">{{ tr('长度') }}</th>
-                    <th class="px-3 py-2 border-b border-slate-200 w-72">{{ tr('原始数据') }}</th>
-                    <th class="px-3 py-2 border-b border-slate-200">{{ tr('摘要 (解析结果/HEX/ASCII)') }}</th>
-                  </tr>
-                </thead>
-                <tbody class="text-xs">
-                  <tr
-                    v-for="(frame, index) in filteredFrames"
-                    :key="frame?.id ?? index"
-                    class="hover:bg-slate-50 cursor-pointer border-b border-slate-100"
-                    :class="{ 'bg-orange-50/40 border-l-4 border-l-orange-400': frame.tone === 'red' }"
-                    @click="selectFrame(frame)"
-                  >
-                    <td class="px-3 py-2 text-slate-400 font-mono">
-                      {{ frame.seq ?? (captureMeta.rangeStart ? captureMeta.rangeStart + index : index + 1) }}
-                    </td>
-                    <td class="px-3 py-2 text-slate-500 font-mono">{{ frame.time }}</td>
-                    <td class="px-3 py-2 text-center">
-                      <span
-                        class="material-symbols-outlined !text-sm"
-                        :class="frame.direction === 'RX' ? 'text-emerald-500' : 'text-blue-500'"
-                      >
-                        {{ frame.direction === 'RX' ? 'arrow_downward' : 'arrow_upward' }}
-                      </span>
-                    </td>
-                    <td class="px-3 py-2">
-                      <div class="relative inline-block protocol-badge">
-                        <div
-                          class="flex items-center gap-1.5 px-2 py-0.5 rounded-full font-bold text-[9px] border"
-                          :class="
-                            frame.tone === 'red'
-                              ? 'bg-slate-100 text-slate-600 border-dashed border-slate-300'
-                              : 'bg-blue-100 text-blue-800 border-blue-200'
-                          "
-                        >
-                          <span
-                            class="w-3.5 h-3.5 flex items-center justify-center text-white rounded-full text-[8px] font-black"
-                            :class="frame.tone === 'red' ? 'bg-slate-400' : 'bg-blue-600'"
-                          >
-                            {{ frame.tone === 'red' ? '?' : 'M' }}
-                          </span>
-                          <span>{{ frame.protocolLabel || '' }}</span>
-                        </div>
-                        <div class="protocol-tooltip bg-slate-800 text-white text-[10px] px-2 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap border border-slate-700">
-                          {{ frame.protocolTooltip || '' }}
-                        </div>
-                      </div>
-                    </td>
-                    <td class="px-3 py-2 text-slate-500">{{ frame.size }}B</td>
-                    <td class="px-3 py-2 hex-font text-slate-400 truncate max-w-[240px]">{{ frame.note }}</td>
-                    <td class="px-3 py-2 text-slate-600 italic">
-                      {{ frame.summaryText || frame.summary || '' }}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
+          <div ref="captureTableRef" class="flex-[2] min-w-0 overflow-auto" @scroll.passive="syncCaptureWindow">
+            <ProxyCaptureTable
+              :visible-frames="visibleFrames"
+              :capture-meta="captureMetaView"
+              :frame-window="frameWindow"
+              @select-frame="selectFrame"
+            />
+          </div>
 
-          <aside class="flex-1 w-[450px] flex flex-col border-l border-slate-200 bg-slate-50">
-            <div class="px-4 py-3 border-b border-slate-200 flex justify-between items-center bg-white shadow-sm">
-              <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                <span class="material-symbols-outlined !text-sm text-blue-500">info</span>{{ tr('报文解析详情') }}</h2>
-              <div class="flex gap-2">
-                <button class="p-1 hover:bg-slate-100 rounded" :title="tr('复制原始十六进制')">
-                  <span class="material-symbols-outlined !text-sm">content_copy</span>
-                </button>
-                <button class="p-1 hover:bg-slate-100 rounded" @click="closeCaptureModal">
-                  <span class="material-symbols-outlined !text-sm">close</span>
-                </button>
-              </div>
-            </div>
-            <div class="flex-1 overflow-y-auto">
-              <div v-if="!activeFrame" class="p-6 text-center text-slate-400 text-sm">{{ tr('暂无报文数据') }}</div>
-              <template v-else>
-                <div class="p-6 text-center space-y-4 border-b border-slate-200 bg-orange-50/20">
-                  <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-100 text-orange-600 mb-1">
-                    <span class="material-symbols-outlined !text-3xl">question_mark</span>
-                  </div>
-                  <div>
-                    <h3 class="text-sm font-bold text-slate-800">
-                      {{ isUnknownFrame ? tr('未知协议报文 (Unknown Protocol)') : `${activeProtocolLabel} ${tr('报文')}` }}
-                    </h3>
-                    <p class="text-[11px] text-slate-500 mt-1 max-w-[280px] mx-auto leading-relaxed">
-                      {{
-                        isUnknownFrame
-                          ? tr('系统未能自动匹配已知的解析插件。您可以尝试手动配置解析规则，或使用万能解析脚本。')
-                          : tr('已匹配协议解析插件，当前展示该报文的解析详情。')
-                      }}
-                    </p>
-                  </div>
-                  <div class="flex justify-center gap-3">
-                    <button class="px-3 py-1.5 bg-white border border-slate-300 rounded text-[11px] font-bold hover:bg-slate-50 transition-colors shadow-sm">
-                      {{ isUnknownFrame ? tr('手动解析') : tr('查看详情') }}
-                    </button>
-                    <button class="px-3 py-1.5 bg-blue-600 text-white rounded text-[11px] font-bold hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-md">
-                      <span class="material-symbols-outlined !text-xs">schema</span>
-                      {{ isUnknownFrame ? tr('配置解析规则') : tr('调整解析规则') }}
-                    </button>
-                  </div>
-                </div>
-                <div class="p-4 border-b border-slate-200">
-                  <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{{ tr('原始十六进制 (RAW HEX)') }}</h3>
-                    <span class="text-[10px] font-mono bg-slate-200 px-1.5 py-0.5 rounded text-slate-600">
-                      {{ activeHexSize }} {{ tr('字节') }}
-                    </span>
-                  </div>
-                  <div v-if="activeHexCells.length" class="bg-white border border-slate-200 rounded-lg overflow-hidden flex shadow-inner">
-                    <div class="bg-slate-50 border-r border-slate-200 p-2 text-[10px] font-mono text-slate-400 leading-6 text-right w-12 shrink-0">
-                      0000<br />0008
-                    </div>
-                    <div class="flex-1 p-2 hex-font text-xs leading-6 grid grid-cols-8 gap-x-1 text-center font-medium">
-                      <span
-                        v-for="(cell, cellIndex) in activeHexCells"
-                        :key="`hex-${cellIndex}`"
-                        :class="hexCellClass(cellIndex, cell)"
-                      >
-                        {{ cell }}
-                      </span>
-                    </div>
-                    <div class="border-l border-slate-200 p-2 text-[10px] font-mono text-slate-500 leading-6 tracking-tight w-24 shrink-0 bg-slate-50/50">
-                      {{ activeHexAscii[0] }}<br />{{ activeHexAscii[1] }}
-                    </div>
-                  </div>
-                  <div v-else class="text-xs text-slate-400">{{ tr('暂无十六进制数据') }}</div>
-                </div>
-                <div class="p-4 space-y-4">
-                  <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">{{ tr('协议层级解析 (PROTOCOL TREE)') }}</h3>
-                  <div class="relative pl-4 space-y-1">
-                    <div class="flex items-center gap-2 -ml-4 cursor-pointer hover:bg-slate-100 p-1 rounded transition-colors group">
-                      <span class="material-symbols-outlined text-slate-400 group-open:rotate-90">arrow_right</span>
-                      <span class="text-[11px] font-bold text-slate-500 uppercase">{{ tr('链路层 (Data Link Layer)') }}</span>
-                    </div>
-                    <div class="tree-line relative pl-2 space-y-1">
-                      <details class="group" open>
-                        <summary class="flex items-center gap-2 list-none cursor-pointer hover:bg-slate-100 p-1 rounded -ml-4 transition-colors">
-                          <span class="material-symbols-outlined text-blue-500 group-open:rotate-90 transition-transform">arrow_drop_down</span>
-                          <span class="text-[11px] font-bold text-slate-800 uppercase">{{ activeProtocolLabel }}</span>
-                        </summary>
-                        <div class="mt-2 space-y-0.5 pl-2">
-                          <div class="grid grid-cols-12 text-[9px] font-bold text-slate-400 px-2 py-1 uppercase tracking-tighter">
-                            <div class="col-span-3">{{ tr('原始值') }}</div>
-                            <div class="col-span-4">{{ tr('字段') }}</div>
-                            <div class="col-span-5 text-right">{{ tr('解析值') }}</div>
-                          </div>
-                          <div
-                            v-for="(row, rowIndex) in activeTreeRows"
-                            :key="`tree-${rowIndex}`"
-                            class="grid grid-cols-12 items-center py-1.5 px-2 rounded hover:bg-blue-50 cursor-default transition-colors border-l-2 border-transparent hover:border-blue-500"
-                          >
-                            <div class="col-span-3 font-mono text-[11px] text-blue-600">{{ row.raw }}</div>
-                            <div class="col-span-4 text-[11px] text-slate-500">{{ row.label }}</div>
-                            <div class="col-span-5 text-[11px] text-right font-bold text-slate-700">{{ row.value }}</div>
-                          </div>
-                          <div v-if="!activeTreeRows.length" class="text-xs text-slate-400 px-2 py-2">{{ tr('暂无协议解析数据') }}</div>
-                        </div>
-                      </details>
-                    </div>
-                  </div>
-                </div>
-              </template>
-            </div>
-            <div class="p-4 bg-slate-100/50 border-t border-slate-200">
-              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">{{ tr('实时网络指标') }}</p>
-              <div class="grid grid-cols-2 gap-4">
-                <div class="bg-white p-2 rounded border border-slate-200 shadow-sm">
-                  <p class="text-[9px] text-slate-500">{{ tr('往返延时 (RTT)') }}</p>
-                  <p class="text-sm font-bold text-emerald-500">{{ captureMetrics.rtt }}</p>
-                </div>
-                <div class="bg-white p-2 rounded border border-slate-200 shadow-sm">
-                  <p class="text-[9px] text-slate-500">{{ tr('丢包率 (Packet Loss)') }}</p>
-                  <p class="text-sm font-bold text-slate-900">{{ captureMetrics.loss }}</p>
-                </div>
-              </div>
-            </div>
-          </aside>
+          <ProxyCaptureDetails
+            :active-frame="activeFrame"
+            :is-unknown-frame="isUnknownFrame"
+            :active-protocol-label="activeProtocolLabel"
+            :active-hex-size="activeHexSize"
+            :active-hex-cells="activeHexCells"
+            :active-hex-ascii="activeHexAscii"
+            :active-tree-rows="activeTreeRows"
+            :capture-metrics="captureMetrics"
+            :hex-cell-class="hexCellClass"
+            @close="closeCaptureModal"
+            @copy-hex="copyActiveHex"
+            @open-rule="openCaptureRule"
+          />
         </main>
-        <footer class="px-4 py-2 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-          <div class="flex items-center gap-6">
-            <div class="flex items-center gap-2">
-              <span class="text-[10px] font-bold text-slate-500 uppercase">{{ tr('接收缓冲区') }}</span>
-              <div class="w-32 h-2 bg-slate-200 rounded-full overflow-hidden border border-slate-300">
-                <div class="h-full bg-amber-500" :style="{ width: `${captureMeta.bufferUsed}%` }"></div>
-              </div>
-              <span class="text-[10px] font-mono font-bold text-slate-600">{{ captureMeta.bufferUsed }}%</span>
-            </div>
-            <div class="h-4 w-[1px] bg-slate-300"></div>
-            <p class="text-[10px] font-medium text-slate-500 uppercase">
-              {{ tr('显示') }} {{ captureMeta.rangeStart }}-{{ captureMeta.rangeEnd }} / {{ tr('共') }} {{ captureMeta.totalFrames }} {{ tr('报文') }}
-            </p>
-          </div>
-          <div class="flex items-center gap-4">
-            <div class="flex items-center gap-1 bg-white p-0.5 rounded border border-slate-200">
-              <button class="p-1 hover:bg-slate-100 rounded" disabled>
-                <span class="material-symbols-outlined !text-sm">first_page</span>
-              </button>
-              <button class="p-1 hover:bg-slate-100 rounded">
-                <span class="material-symbols-outlined !text-sm">chevron_left</span>
-              </button>
-              <div class="px-3 text-[10px] font-bold text-slate-700">{{ tr('第') }} {{ captureMeta.page }} / {{ captureMeta.pageCount }} {{ tr('页') }}</div>
-              <button class="p-1 hover:bg-slate-100 rounded">
-                <span class="material-symbols-outlined !text-sm">chevron_right</span>
-              </button>
-              <button class="p-1 hover:bg-slate-100 rounded">
-                <span class="material-symbols-outlined !text-sm">last_page</span>
-              </button>
-            </div>
-            <button class="flex items-center gap-1 px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[10px] font-bold transition-colors">
-              <span class="material-symbols-outlined !text-sm">download</span>{{ tr('导出分析结果') }}</button>
-          </div>
-        </footer>
+        <ProxyCaptureFooter
+          :capture-meta="captureMetaView"
+          @page-first="scrollCaptureToPage(1)"
+          @page-prev="scrollCaptureToPage(captureMetaView.page - 1)"
+          @page-next="scrollCaptureToPage(captureMetaView.page + 1)"
+          @page-last="scrollCaptureToPage(captureMetaView.pageCount)"
+          @export="exportCaptureResults"
+        />
       </div>
     </div>
 
-    <div v-if="confirmOpen" class="proxy-modal-overlay" @mousedown.self="closeConfirm">
-      <div class="proxy-modal proxy-confirm-modal" @mousedown.stop @click.stop>
-        <div class="proxy-modal-header">
-          <div class="proxy-modal-title">
-            <div class="proxy-modal-icon">
-              <span class="material-symbols-outlined">warning</span>
-            </div>
-            <h2>{{ tr('确认删除') }}</h2>
-          </div>
-          <button class="proxy-modal-close" type="button" @click="closeConfirm">
-            <span class="material-symbols-outlined">close</span>
-          </button>
-        </div>
-        <div class="proxy-modal-body">
-          <p class="proxy-confirm-text">
-            {{ tr('确认删除转发对') }}「{{ confirmProxy?.name || tr('未命名转发对') }}」{{ tr('吗？') }}{{ tr('删除前将停止转发。') }}
-          </p>
-        </div>
-        <div class="proxy-modal-footer">
-          <div></div>
-          <div class="proxy-footer-actions">
-            <button class="proxy-btn ghost" type="button" @click="closeConfirm">{{ tr('取消') }}</button>
-            <button class="proxy-btn warning" type="button" @click="applyConfirmDelete">{{ tr('确认删除') }}</button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ProxyDeleteConfirmModal
+      :open="confirmOpen"
+      :confirm-proxy="confirmProxy"
+      @close="closeConfirm"
+      @confirm="applyConfirmDelete"
+    />
   </teleport>
 </template>

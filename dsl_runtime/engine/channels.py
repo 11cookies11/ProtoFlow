@@ -51,6 +51,9 @@ class BaseChannel:
         except Exception:
             return data.hex().upper()
 
+    def close(self) -> None:
+        return None
+
 
 class SerialChannel(BaseChannel):
     def __init__(self, cfg: Dict[str, Any]) -> None:
@@ -77,6 +80,12 @@ class SerialChannel(BaseChannel):
                 time.sleep(0.01)
         return bytes(buf)
 
+    def close(self) -> None:
+        try:
+            self.ser.close()
+        except Exception:
+            pass
+
 
 class TcpChannel(BaseChannel):
     def __init__(self, cfg: Dict[str, Any]) -> None:
@@ -100,6 +109,12 @@ class TcpChannel(BaseChannel):
             except socket.timeout:
                 continue
         return bytes(buf)
+
+    def close(self) -> None:
+        try:
+            self.sock.close()
+        except Exception:
+            pass
 
 
 class LoggingChannel(BaseChannel):
@@ -143,6 +158,13 @@ class LoggingChannel(BaseChannel):
     def __getattr__(self, name):
         # Delegate everything else (e.g., close)
         return getattr(self.inner, name)
+
+    def close(self) -> None:
+        if hasattr(self.inner, "close"):
+            try:
+                self.inner.close()  # type: ignore[attr-defined]
+            except Exception:
+                pass
 
 
 def build_channels(cfg: Dict[str, Any]) -> Dict[str, BaseChannel]:

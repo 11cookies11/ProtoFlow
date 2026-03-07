@@ -1,0 +1,28 @@
+version: "0.2"
+
+params:
+  port: "COM5"
+
+session:
+  transport: serial
+  port: "${port}"
+  baud: 115200
+  data_bits: 8
+  parity: none
+  stop_bits: 1
+  encoding: ascii
+  eol: crlf
+  open_timeout_ms: 3000
+  read_timeout_ms: 200
+
+imports:
+  - "./fragments/common_steps.yaml"
+
+steps:
+  - name: send
+    text: "AT+RST"
+
+artifacts:
+  dir: "./runs/v02_import_${now}"
+  raw_log: true
+  summary_json: true

@@ -4071,6 +4071,58 @@ textarea {
   align-self: center;
 }
 
+.proxy-error-hint {
+  margin: 0 20px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.proxy-error-message {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #b91c1c;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.proxy-error-message .material-symbols-outlined {
+  font-size: 16px;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+.proxy-error-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #fda4af;
+  color: #b91c1c;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.proxy-error-retry:hover {
+  background: #ffe4e6;
+  border-color: #fb7185;
+}
+
+.proxy-error-retry .material-symbols-outlined {
+  font-size: 15px;
+}
+
 .proxy-panel-footer {
   display: flex;
   align-items: center;

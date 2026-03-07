@@ -82,7 +82,8 @@ const {
                   v-model="selectedPort"
                   :options="portOptionsList"
                   :placeholder="portPlaceholder"
-                  :disabled="noPorts || isConnected || isConnecting"
+                  :disabled="isConnected || isConnecting"
+                  :disabled-reason="isConnecting ? tr('连接中') : isConnected ? tr('已连接') : ''"
                   leading-icon="usb"
                   @change="selectPort"
                 />

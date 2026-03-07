@@ -22,7 +22,14 @@ if sys.platform == "win32":
         """Enable Windows snap/resize for frameless windows."""
         if not hwnd:
             return
+        if hasattr(hwnd, "winId"):
+            try:
+                hwnd = int(hwnd.winId())
+            except Exception:
+                return
         style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+        if style == 0:
+            return
         style |= WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU
         user32.SetWindowLongW(hwnd, GWL_STYLE, style)
         user32.SetWindowPos(

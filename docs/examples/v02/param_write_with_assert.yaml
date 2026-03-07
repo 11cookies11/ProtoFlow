@@ -1,0 +1,38 @@
+version: "0.2"
+
+params:
+  port: "COM5"
+  sn: "SN2403060002"
+
+session:
+  transport: serial
+  port: "${port}"
+  baud: 115200
+  data_bits: 8
+  parity: none
+  stop_bits: 1
+  encoding: ascii
+  eol: crlf
+  open_timeout_ms: 3000
+  read_timeout_ms: 200
+
+steps:
+  - name: send
+    text: "AT+SETSN=${sn}"
+  - name: expect
+    match: { type: contains, pattern: "OK" }
+  - name: send
+    text: "AT+GETSN"
+  - name: expect
+    match: { type: regex, pattern: "SN:([A-Z0-9]+)" }
+    capture:
+      var: "sn_read"
+      regex: "SN:([A-Z0-9]+)"
+      group: 1
+  - name: assert
+    expr: "${sn_read} == ${sn}"
+
+artifacts:
+  dir: "./runs/v02_param_${now}"
+  raw_log: true
+  summary_json: true

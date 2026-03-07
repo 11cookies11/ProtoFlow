@@ -1,8 +1,8 @@
-"""通信管理器：统一封装串口与 TCP，会话事件转发到 comm.* 通道。"""
+"""Communication manager: bridges serial/TCP sessions to unified comm.* events."""
 
 from __future__ import annotations
 
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 from infra.common.event_bus import EventBus
 from infra.comm.serial_manager import SerialManager
@@ -15,23 +15,26 @@ class CommunicationManager:
     def __init__(self, bus: EventBus) -> None:
         self._bus = bus
         self._current_session: Optional[SessionType] = None
+        self._suppress_disconnect_event = False
 
-        # 事件转发：底层 -> comm.*
+        # Bridge low-level events to unified communication events.
         self._bus.subscribe("serial.rx", lambda data: self._bus.publish("comm.rx", data))
         self._bus.subscribe("tcp.rx", lambda data: self._bus.publish("comm.rx", data))
-
         self._bus.subscribe("serial.tx", lambda data: self._bus.publish("comm.tx", data))
         self._bus.subscribe("tcp.tx", lambda data: self._bus.publish("comm.tx", data))
-
-        self._bus.subscribe(
-            "serial.error", lambda reason: self._bus.publish("comm.error", reason)
-        )
+        self._bus.subscribe("serial.error", lambda reason: self._bus.publish("comm.error", reason))
         self._bus.subscribe("tcp.error", lambda reason: self._bus.publish("comm.error", reason))
-        # 协议帧请求发送 -> 调用当前会话发送
+        self._bus.subscribe("serial.closed", self._on_serial_closed)
+        self._bus.subscribe("tcp.disconnected", self._on_tcp_disconnected)
+
+        # Serial reconnection path: SerialManager emits serial.opened again after reconnect.
+        self._bus.subscribe("serial.opened", self._on_serial_opened)
+
+        # Protocol outbound frames are sent through current selected session.
         self._bus.subscribe("protocol.tx", self._handle_protocol_tx)
 
     def select_serial(self, port: str, baud: int) -> None:
-        """选择串口通道并连接。"""
+        """Select and open a serial channel."""
         if isinstance(self._current_session, SerialManager):
             if (
                 self._current_session.is_open()
@@ -39,36 +42,39 @@ class CommunicationManager:
                 and self._current_session.baudrate == baud
             ):
                 return
+
         self.close(notify=False)
         session = SerialManager(self._bus)
-        if session.open(port=port, baudrate=baud):
-            self._current_session = session
-            self._bus.publish("comm.connected", {"type": "serial", "port": port, "baud": baud})
+        # Set current session first, so serial.opened callback can publish comm.connected.
+        self._current_session = session
+        if not session.open(port=port, baudrate=baud):
+            self._current_session = None
 
     def select_tcp(self, ip: str, port: int) -> None:
-        """选择 TCP 通道并连接。"""
+        """Select and open a TCP channel."""
         self.close(notify=False)
         session = TcpSession(self._bus)
         session.connect(ip, port)
-        self._current_session = session
-        self._bus.publish(
-            "comm.connected",
-            {"type": "tcp", "host": ip, "port": port, "address": f"{ip}:{port}"},
-        )
+        if session.is_connected():
+            self._current_session = session
+            self._bus.publish(
+                "comm.connected",
+                {"type": "tcp", "host": ip, "port": port, "address": f"{ip}:{port}"},
+            )
 
     def close(self, notify: bool = True) -> None:
-        """关闭当前会话。"""
+        """Close current session."""
         if self._current_session:
+            self._suppress_disconnect_event = not notify
             try:
                 self._current_session.close()
             except Exception:
                 pass
             self._current_session = None
-            if notify:
-                self._bus.publish("comm.disconnected")
+            self._suppress_disconnect_event = False
 
     def send(self, data: bytes) -> None:
-        """通过当前会话发送数据。"""
+        """Send bytes through current session."""
         if not self._current_session:
             self._bus.publish("comm.error", "no active session")
             return
@@ -78,11 +84,11 @@ class CommunicationManager:
             self._bus.publish("comm.error", str(exc))
 
     def list_serial_ports(self) -> list[str]:
-        """返回可用串口列表，供 UI 使用。"""
+        """Return available serial ports for UI."""
         return SerialManager.list_ports()
 
     def get_status(self) -> Optional[dict]:
-        """返回当前会话状态，供 UI 轮询。"""
+        """Return current channel status for UI polling."""
         session = self._current_session
         if isinstance(session, SerialManager):
             if not session.is_open():
@@ -99,7 +105,35 @@ class CommunicationManager:
         return None
 
     def _handle_protocol_tx(self, data: bytes) -> None:
-        """处理协议层构造好的帧并发送。"""
         if not data:
             return
         self.send(data)
+
+    def _on_serial_opened(self, _port: str) -> None:
+        session = self._current_session
+        if not isinstance(session, SerialManager):
+            return
+        if not session.is_open():
+            return
+        self._bus.publish(
+            "comm.connected",
+            {
+                "type": "serial",
+                "port": session.port,
+                "baud": session.baudrate,
+            },
+        )
+
+    def _on_serial_closed(self, _payload: Any = None) -> None:
+        if self._suppress_disconnect_event:
+            return
+        session = self._current_session
+        if isinstance(session, SerialManager):
+            self._bus.publish("comm.disconnected")
+
+    def _on_tcp_disconnected(self, _payload: Any = None) -> None:
+        if self._suppress_disconnect_event:
+            return
+        session = self._current_session
+        if isinstance(session, TcpSession):
+            self._bus.publish("comm.disconnected")

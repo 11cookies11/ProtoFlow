@@ -1,0 +1,80 @@
+version: "0.1"
+
+params:
+  port: "COM5"
+  target_version: "1.2.3"
+
+vars:
+  current_ver: ""
+
+session:
+  transport: serial
+  port: "${port}"
+  baud: 115200
+  data_bits: 8
+  parity: none
+  stop_bits: 1
+  encoding: ascii
+  eol: crlf
+  open_timeout_ms: 3000
+  read_timeout_ms: 200
+
+defaults:
+  timeout_ms: 3000
+  retry:
+    count: 2
+    backoff_ms: 200
+    strategy: exponential
+
+steps:
+  - id: enter_boot
+    name: send
+    text: "boot"
+    on_fail:
+      - name: send
+        text: "AT+RST"
+      - name: sleep
+        ms: 500
+
+  - id: wait_boot_prompt
+    name: expect
+    timeout_ms: 5000
+    match:
+      type: contains
+      pattern: "BOOT>"
+
+  - id: start_upgrade
+    name: send
+    text: "upgrade start"
+
+  - id: wait_upgrade_ready
+    name: expect
+    timeout_ms: 8000
+    match:
+      type: regex
+      pattern: "READY|WAIT_FOR_IMAGE"
+
+  - id: query_version
+    name: send
+    text: "version"
+
+  - id: parse_version
+    name: expect
+    match:
+      type: regex
+      pattern: "VER:([0-9.]+)"
+    capture:
+      var: current_ver
+      regex: "VER:([0-9.]+)"
+      group: 1
+
+  - id: assert_version
+    name: assert
+    expr: "${current_ver} == ${target_version}"
+    message: "upgrade version mismatch"
+
+artifacts:
+  dir: "./runs/v01_upgrade_${now}"
+  raw_log: true
+  summary_json: true
+  report_csv: true

@@ -1,0 +1,58 @@
+name: Target Emulator CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  mock-regression:
+    name: Mock Regression (Python 3.11)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install minimal dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml
+
+      - name: Run target emulator regressions
+        run: |
+          python scripts/target_emulator_regression.py
+          python scripts/target_emulator_fault_regression.py
+
+  nightly-virtual-serial:
+    name: Nightly Virtual Serial (Windows)
+    runs-on: windows-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run nightly virtual-serial regression
+        shell: powershell
+        env:
+          TARGET_HOST_PORT: ${{ vars.TARGET_HOST_PORT }}
+          TARGET_DEVICE_PORT: ${{ vars.TARGET_DEVICE_PORT }}
+        run: |
+          .\scripts\nightly_virtual_serial_regression.ps1

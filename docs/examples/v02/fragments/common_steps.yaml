@@ -1,0 +1,7 @@
+steps:
+  - name: send
+    text: "AT"
+  - name: expect
+    match:
+      type: contains
+      pattern: "OK"

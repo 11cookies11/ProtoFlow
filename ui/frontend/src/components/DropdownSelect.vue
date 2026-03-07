@@ -33,6 +33,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  disabledReason: {
+    type: String,
+    default: '',
+  },
 })
 
 const emit = defineEmits(['update:modelValue', 'change'])
@@ -171,8 +175,16 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="select-wrap" ref="rootRef">
-    <button class="select-trigger" type="button" @click.stop="toggle" :disabled="disabled">
+  <div class="select-wrap" ref="rootRef" :data-open="open ? 'true' : 'false'">
+    <button
+      class="select-trigger"
+      type="button"
+      @click.stop="toggle"
+      :disabled="disabled"
+      :title="disabled && disabledReason ? disabledReason : ''"
+      :aria-expanded="open ? 'true' : 'false'"
+      :aria-disabled="disabled ? 'true' : 'false'"
+    >
       <span v-if="leadingIcon" class="material-symbols-outlined">{{ leadingIcon }}</span>
       <span class="select-value">{{ selectedLabel }}</span>
       <span class="material-symbols-outlined expand">expand_more</span>

@@ -1,0 +1,39 @@
+version: "0.2"
+
+params:
+  port: "COM5"
+
+session:
+  transport: serial
+  port: "${port}"
+  baud: 115200
+  data_bits: 8
+  parity: none
+  stop_bits: 1
+  encoding: ascii
+  eol: crlf
+  open_timeout_ms: 3000
+  read_timeout_ms: 200
+
+steps:
+  - name: parse
+    format: json
+    source: '{"adc":{"voltage":12.1},"temp":42.5}'
+    save_as: "p"
+  - name: path
+    source: "${p}"
+    path: "adc.voltage"
+    save_as: "voltage"
+  - name: measure
+    metric: "voltage"
+    value: "${voltage}"
+    unit: "V"
+  - name: assert_range
+    value: "${measure.voltage}"
+    min: 11.8
+    max: 12.3
+
+artifacts:
+  dir: "./runs/v02_parse_measure_${now}"
+  raw_log: true
+  summary_json: true

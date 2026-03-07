@@ -1,0 +1,46 @@
+version: "0.2"
+
+params:
+  port: "COM7"
+
+profiles:
+  uart_common:
+    transport: serial
+    baud: 115200
+    data_bits: 8
+    parity: none
+    stop_bits: 1
+    encoding: ascii
+    eol: crlf
+    open_timeout_ms: 3000
+    read_timeout_ms: 200
+
+session:
+  profile: "uart_common"
+  port: "${port}"
+
+step_templates:
+  send_wait:
+    params: [cmd, expect_text]
+    steps:
+      - name: send
+        text: "${cmd}"
+      - name: expect
+        match:
+          type: contains
+          pattern: "${expect_text}"
+
+steps:
+  - template: send_wait
+    args:
+      cmd: "AT"
+      expect_text: "OK"
+  - template: send_wait
+    args:
+      cmd: "AT+GMR"
+      expect_text: "VER:"
+
+artifacts:
+  dir: "./runs/v02_profile_template_${now}"
+  raw_log: true
+  summary_json: true

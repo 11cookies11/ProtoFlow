@@ -88,9 +88,53 @@ class UIConfig:
 
 
 @dataclass
+class SessionConfig:
+    transport: str
+    port: str
+    baud: int = 115200
+    data_bits: int = 8
+    parity: str = "none"
+    stop_bits: int = 1
+    encoding: str = "ascii"
+    eol: str = "none"
+    open_timeout_ms: int = 3000
+    read_timeout_ms: int = 200
+
+
+@dataclass
+class RetryPolicy:
+    count: int = 0
+    backoff_ms: int = 0
+    strategy: str = "fixed"
+
+
+@dataclass
+class DefaultsConfig:
+    timeout_ms: int = 2000
+    retry: RetryPolicy = field(default_factory=RetryPolicy)
+    drain_before_expect: bool = False
+    consume_on_match: bool = True
+
+
+@dataclass
+class ArtifactsConfig:
+    dir: str = "./runs"
+    raw_log: bool = True
+    summary_json: bool = True
+    report_csv: bool = False
+
+
+@dataclass
 class ScriptAST:
-    version: int
-    vars: Dict[str, Any]
-    channels: Dict[str, Dict[str, Any]]
-    state_machine: StateMachine
+    version: str
+    params: Dict[str, Any] = field(default_factory=dict)
+    vars: Dict[str, Any] = field(default_factory=dict)
+    session: Optional[SessionConfig] = None
+    defaults: DefaultsConfig = field(default_factory=DefaultsConfig)
+    steps: List[Dict[str, Any]] = field(default_factory=list)
+    artifacts: ArtifactsConfig = field(default_factory=ArtifactsConfig)
+    security: Dict[str, Any] = field(default_factory=dict)
+    # Legacy fields kept as optional placeholders while v0.1 runtime is phased in.
+    channels: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    state_machine: Optional[StateMachine] = None
     ui: UIConfig = field(default_factory=UIConfig)

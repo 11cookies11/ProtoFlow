@@ -1,0 +1,45 @@
+version: "0.2"
+
+params:
+  port: "COM5"
+
+session:
+  transport: serial
+  port: "${port}"
+  baud: 115200
+  data_bits: 8
+  parity: none
+  stop_bits: 1
+  encoding: ascii
+  eol: crlf
+  open_timeout_ms: 3000
+  read_timeout_ms: 200
+
+security:
+  exec:
+    enabled: true
+    allow_commands: ["python"]
+    cwd_allowlist: ["."]
+  file:
+    root_allowlist: ["./runs", "./artifacts", "./tmp"]
+
+steps:
+  - name: exec
+    command: "python --version"
+    save_stdout_as: "out"
+    save_stderr_as: "err"
+  - name: file
+    op: write_text
+    path: "./tmp/v02_exec.txt"
+    content: "${out}${err}"
+  - name: file
+    op: exists
+    path: "./tmp/v02_exec.txt"
+    save_as: "f_exists"
+  - name: assert
+    expr: "${f_exists} == True"
+
+artifacts:
+  dir: "./runs/v02_exec_file_${now}"
+  raw_log: true
+  summary_json: true

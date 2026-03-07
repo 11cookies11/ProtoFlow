@@ -1,0 +1,93 @@
+name: YAML DSL Regression
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+  schedule:
+    - cron: "20 2 * * *"
+    - cron: "40 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Regression tier to run"
+        required: true
+        default: "full"
+        type: choice
+        options:
+          - fast
+          - full
+          - soak
+
+jobs:
+  pr-fast:
+    name: PR Fast Set
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.tier == 'fast')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run fast regression set
+        run: |
+          python scripts/v01_dsl_regression.py
+          python scripts/target_emulator_regression.py
+          python scripts/protocol_package_test_suite.py
+          python scripts/yaml_dsl_capability_suite.py
+          python scripts/yaml_dsl_combo_regression.py
+          python scripts/yaml_dsl_fault_injection_regression.py
+
+  nightly-full:
+    name: Nightly Full Set
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'schedule' && github.event.schedule == '20 2 * * *') || (github.event_name == 'workflow_dispatch' && github.event.inputs.tier == 'full')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run full runtime regression
+        run: |
+          python scripts/runtime_regression_suite.py
+
+  weekly-soak:
+    name: Weekly Soak Set
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'schedule' && github.event.schedule == '40 3 * * 0') || (github.event_name == 'workflow_dispatch' && github.event.inputs.tier == 'soak')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run soak + baseline
+        run: |
+          python scripts/yaml_dsl_stability_regression.py --iterations 80 --mem-delta-kb-max 12288
+          python scripts/yaml_dsl_performance_baseline.py --basic-iters 30 --retry-iters 20

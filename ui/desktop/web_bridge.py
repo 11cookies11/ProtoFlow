@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import importlib
 import json
-import pkgutil
-import re
+import shutil
 import threading
 import time
+import tempfile
 from pathlib import Path
 import logging
 import os
+import sys
 from typing import Any, Dict, List, Optional
 import yaml
 
@@ -19,9 +19,26 @@ except ImportError:  # pragma: no cover
     from PyQt6.QtCore import QObject, Q_ARG, QMetaObject, QTimer, Qt, pyqtSignal as Signal, pyqtSlot as Slot  # type: ignore
     from PyQt6.QtWidgets import QFileDialog  # type: ignore
 
-from infra.protocol.registry import ProtocolRegistry
-import infra.protocol as protocols_pkg
+from dsl_runtime.protocol_package import ProtocolPackageGateway, load_protocol_packages
+from dsl_runtime.protocol_package.runtime import ProtocolCallContext
 from ui.desktop.script_runner_qt import ScriptRunnerQt
+
+
+class _CommReadWriteAdapter:
+    def __init__(self, bridge: "WebBridge") -> None:
+        self._bridge = bridge
+
+    def write(self, data: bytes | str) -> None:
+        if self._bridge._comm is None:
+            raise RuntimeError("communication manager not available")
+        if isinstance(data, str):
+            payload = data.encode("utf-8")
+        else:
+            payload = bytes(data)
+        self._bridge._comm.send(payload)
+
+    def read(self, size: int = 256, timeout: float = 0.2) -> bytes:
+        return self._bridge._protocol_read(size=size, timeout=timeout)
 
 
 class WebBridge(QObject):
@@ -41,21 +58,30 @@ class WebBridge(QObject):
     channel_update = Signal(object)
     ui_event_log = Signal(object)
 
-    def __init__(self, bus=None, comm=None, window=None) -> None:
+    def __init__(
+        self,
+        bus=None,
+        comm=None,
+        window=None,
+        proxy_manager=None,
+        proxy_monitor_enabled: bool = True,
+    ) -> None:
         super().__init__()
         self._logger = logging.getLogger("web_bridge")
         self._bus = bus
         self._comm = comm
         self._window = window
+        self._proxy_manager = proxy_manager
+        self._proxy_monitor_enabled = bool(proxy_monitor_enabled)
+        self._proxy_disabled_logged = False
         self._script_runner: Optional[ScriptRunnerQt] = None
         self._buffer: List[Dict[str, Any]] = []
-        self._protocols_loaded = False
+        self._protocol_gateway: Optional[ProtocolPackageGateway] = None
+        self._protocol_gateway_issues: List[str] = []
         self._settings_root = Path(os.environ.get("LOCALAPPDATA", Path.cwd())) / "ProtoFlow"
         self._settings_path = self._settings_root / "config" / "ui_settings.json"
         self._proxy_pairs_path = self._settings_root / "config" / "proxy_pairs.json"
-        self._protocols_path = self._settings_root / "config" / "protocols.json"
         self._proxy_pairs: List[Dict[str, Any]] = self._load_proxy_pairs()
-        self._custom_protocols: List[Dict[str, Any]] = self._load_custom_protocols()
         self._channel_state: Dict[str, Any] = {
             "type": None,
             "status": "disconnected",
@@ -66,8 +92,11 @@ class WebBridge(QObject):
             "error": None,
         }
         self._traffic: Dict[str, int] = {"tx": 0, "rx": 0}
+        self._protocol_rx_lock = threading.Lock()
+        self._protocol_rx_buffer = bytearray()
         self._last_channel_emit = 0.0
         self._connect_lock = threading.Lock()
+        self._save_lock = threading.Lock()
         self._connect_inflight = False
         self._last_status_ts = 0.0
         self._last_error: Optional[str] = None
@@ -84,16 +113,37 @@ class WebBridge(QObject):
             self._bus.subscribe("comm.disconnected", self._on_comm_status)
             self._bus.subscribe("comm.error", self._on_comm_status)
             self._bus.subscribe("protocol.frame", self._on_protocol_frame)
-            self._bus.subscribe("capture.frame", self._on_capture_frame)
+            if self._proxy_monitor_enabled:
+                self._bus.subscribe("capture.frame", self._on_capture_frame)
+                self._bus.subscribe("proxy.status", self._on_proxy_status)
+        if self._proxy_monitor_enabled:
+            self._restore_proxy_sessions()
 
     def _read_app_version(self) -> str:
         env_version = os.environ.get("PROTOFLOW_VERSION")
         if env_version:
             return env_version.strip()
+        candidates = [
+            Path.cwd() / "VERSION",
+            Path(__file__).resolve().parents[2] / "VERSION",
+        ]
+        if getattr(sys, "frozen", False):
+            exe_dir = Path(sys.executable).resolve().parent
+            candidates.extend(
+                [
+                    exe_dir / "VERSION",
+                    exe_dir / "_internal" / "VERSION",
+                ]
+            )
+            meipass = getattr(sys, "_MEIPASS", None)
+            if meipass:
+                candidates.append(Path(meipass) / "VERSION")
         try:
-            version_path = Path(__file__).resolve().parents[1] / "VERSION"
-            if version_path.is_file():
-                return version_path.read_text(encoding="utf-8").strip()
+            for version_path in candidates:
+                if version_path.is_file():
+                    version = version_path.read_text(encoding="utf-8").strip()
+                    if version:
+                        return version
         except Exception:
             return "v0.0.0"
         return "v0.0.0"
@@ -123,42 +173,56 @@ class WebBridge(QObject):
     @Slot(result="QVariant")
     def list_protocols(self) -> List[Dict[str, Any]]:
         self._load_protocols()
-        registry = ProtocolRegistry.list()
+        gateway = self._protocol_gateway
+        if gateway is None:
+            return []
         items: List[Dict[str, Any]] = []
-        for key, cls in sorted(registry.items()):
-            doc = (cls.__doc__ or "").strip()
-            desc = doc.splitlines()[0].strip() if doc else ""
+        for key, meta in sorted(gateway.list_protocols().items()):
             category = self._protocol_category(key)
             items.append(
                 {
                     "id": key,
                     "key": key,
-                    "driver": cls.__name__,
-                    "desc": desc,
+                    "name": meta.get("name") or key,
+                    "driver": "external_package",
+                    "desc": f"version={meta.get('version', '')}",
                     "category": category,
                     "status": "available",
-                    "source": "builtin",
+                    "source": "external",
+                    "version": meta.get("version"),
+                    "api": meta.get("api") or [],
                 }
             )
-        existing = {item.get("id") for item in items}
-        for custom in self._custom_protocols:
-            if not isinstance(custom, dict):
-                continue
-            custom_id = custom.get("id") or custom.get("key")
-            if not custom_id or custom_id in existing:
-                continue
-            merged = {
-                "id": custom_id,
-                "key": custom.get("key") or custom_id,
-                "name": custom.get("name") or "",
-                "driver": custom.get("driver") or "",
-                "desc": custom.get("desc") or "",
-                "category": custom.get("category") or "custom",
-                "status": custom.get("status") or "custom",
-                "source": "custom",
-            }
-            items.append(merged)
         return items
+
+    @Slot("QVariant", result="QVariant")
+    def call_protocol(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(payload, dict):
+            return {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "payload must be mapping"}}
+        self._load_protocols()
+        gateway = self._protocol_gateway
+        if gateway is None:
+            return {"ok": False, "error": {"code": "PROTOCOL_GATEWAY_MISSING", "message": "protocol gateway not ready"}}
+        protocol_id = str(payload.get("protocol") or payload.get("id") or "").strip()
+        method = str(payload.get("method") or "rpc").strip().lower()
+        body = payload.get("payload") or payload.get("request") or {}
+        if not protocol_id:
+            return {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "protocol id is required"}}
+        if not isinstance(body, dict):
+            return {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "payload must be mapping"}}
+        timeout_ms = int(payload.get("timeout_ms", 2000))
+        if timeout_ms <= 0:
+            return {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "timeout_ms must be > 0"}}
+
+        call_ctx = ProtocolCallContext(
+            channel=_CommReadWriteAdapter(self),
+            logger=self._logger,
+            vars={},
+            timeout_ms=timeout_ms,
+            artifacts={},
+        )
+        result = gateway.call(protocol_id=protocol_id, method=method, ctx=call_ctx, payload=body)
+        return {"ok": result.ok, "data": result.data, "error": result.error}
 
     @Slot(str, result="QVariant")
     def parse_ui_yaml(self, yaml_text: str) -> Dict[str, Any]:
@@ -196,77 +260,51 @@ class WebBridge(QObject):
 
     @Slot("QVariant", result="QVariant")
     def create_protocol(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        if not isinstance(payload, dict):
-            return {}
-        self._load_protocols()
-        raw_key = payload.get("key") or payload.get("id") or payload.get("name") or "custom_protocol"
-        key = self._normalize_protocol_key(str(raw_key))
-        key = self._ensure_protocol_key_unique(key)
-        item = {
-            "id": key,
-            "key": key,
-            "name": payload.get("name") or key,
-            "desc": payload.get("desc") or "",
-            "category": payload.get("category") or "custom",
-            "status": payload.get("status") or "custom",
-            "driver": payload.get("driver") or "",
-        }
-        self._custom_protocols.append(item)
-        self._save_custom_protocols()
-        return item
+        return {"ok": False, "error": "external protocols are read-only from UI"}
 
     @Slot("QVariant", result="QVariant")
     def update_protocol(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        if not isinstance(payload, dict):
-            return {}
-        protocol_id = payload.get("id") or payload.get("key")
-        if not protocol_id:
-            return {}
-        updated: Dict[str, Any] = {}
-        for item in self._custom_protocols:
-            if item.get("id") == protocol_id or item.get("key") == protocol_id:
-                item["name"] = payload.get("name") or item.get("name") or item.get("key") or ""
-                item["desc"] = payload.get("desc") or ""
-                item["category"] = payload.get("category") or item.get("category") or "custom"
-                item["status"] = payload.get("status") or item.get("status") or "custom"
-                if payload.get("driver"):
-                    item["driver"] = payload.get("driver")
-                updated = dict(item)
-                break
-        if updated:
-            self._save_custom_protocols()
-        return updated
+        return {"ok": False, "error": "external protocols are read-only from UI"}
 
     @Slot(str, result=bool)
     def delete_protocol(self, protocol_id: str) -> bool:
-        if not protocol_id:
-            return False
-        before = len(self._custom_protocols)
-        self._custom_protocols = [
-            item
-            for item in self._custom_protocols
-            if item.get("id") != protocol_id and item.get("key") != protocol_id
-        ]
-        if len(self._custom_protocols) == before:
-            return False
-        self._save_custom_protocols()
-        return True
+        return False
 
     @Slot(result="QVariant")
     def load_settings(self) -> Dict[str, Any]:
         return self._load_settings()
 
     @Slot(result="QVariant")
+    def get_feature_flags(self) -> Dict[str, Any]:
+        return {
+            "proxyMonitorEnabled": self._proxy_monitor_enabled,
+        }
+
+    def _proxy_feature_disabled(self) -> bool:
+        if self._proxy_monitor_enabled:
+            return False
+        if not self._proxy_disabled_logged:
+            self.log.emit("[INFO] proxy monitor is disabled")
+            self._proxy_disabled_logged = True
+        return True
+
+    @Slot(result="QVariant")
     def list_proxy_pairs(self) -> List[Dict[str, Any]]:
+        if self._proxy_feature_disabled():
+            return []
         return list(self._proxy_pairs)
 
     @Slot(result="QVariant")
     def refresh_proxy_pairs(self) -> List[Dict[str, Any]]:
+        if self._proxy_feature_disabled():
+            return []
         self._proxy_pairs = self._load_proxy_pairs()
         return list(self._proxy_pairs)
 
     @Slot("QVariant", result="QVariant")
     def create_proxy_pair(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if self._proxy_feature_disabled():
+            return {}
         if not isinstance(payload, dict):
             return {}
         pair = {
@@ -280,6 +318,8 @@ class WebBridge(QObject):
             "stopBits": payload.get("stopBits") or "1",
             "parity": payload.get("parity") or "none",
             "flowControl": payload.get("flowControl") or "none",
+            "desiredActive": bool(payload.get("desiredActive", False)),
+            "error": payload.get("error") or None,
         }
         self._proxy_pairs.insert(0, pair)
         self._save_proxy_pairs()
@@ -287,6 +327,8 @@ class WebBridge(QObject):
 
     @Slot("QVariant", result="QVariant")
     def update_proxy_pair(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if self._proxy_feature_disabled():
+            return {}
         if not isinstance(payload, dict):
             return {}
         pair_id = payload.get("id")
@@ -294,6 +336,7 @@ class WebBridge(QObject):
             return {}
         for idx, pair in enumerate(self._proxy_pairs):
             if pair.get("id") == pair_id:
+                was_running = str(pair.get("status") or "").lower() == "running"
                 updated = {
                     **pair,
                     **{
@@ -314,14 +357,28 @@ class WebBridge(QObject):
                     },
                 }
                 self._proxy_pairs[idx] = updated
+                if was_running and self._proxy_manager:
+                    result = self._proxy_manager.start_pair(pair_id, updated)
+                    if not result.ok:
+                        updated["status"] = "error"
+                        updated["error"] = result.error
+                        self._proxy_pairs[idx] = updated
+                    else:
+                        updated["desiredActive"] = True
+                        updated["error"] = None
+                        self._proxy_pairs[idx] = updated
                 self._save_proxy_pairs()
                 return updated
         return {}
 
     @Slot(str, result=bool)
     def delete_proxy_pair(self, pair_id: str) -> bool:
+        if self._proxy_feature_disabled():
+            return False
         if not pair_id:
             return False
+        if self._proxy_manager:
+            self._proxy_manager.stop_pair(pair_id)
         before = len(self._proxy_pairs)
         self._proxy_pairs = [pair for pair in self._proxy_pairs if pair.get("id") != pair_id]
         if len(self._proxy_pairs) != before:
@@ -331,11 +388,28 @@ class WebBridge(QObject):
 
     @Slot(str, bool, result="QVariant")
     def set_proxy_pair_status(self, pair_id: str, active: bool) -> Dict[str, Any]:
+        if self._proxy_feature_disabled():
+            return {}
         status = "running" if active else "stopped"
         for idx, pair in enumerate(self._proxy_pairs):
             if pair.get("id") == pair_id:
                 pair = dict(pair)
-                pair["status"] = status
+                if active and self._proxy_manager:
+                    result = self._proxy_manager.start_pair(pair_id, pair)
+                    if not result.ok:
+                        pair["status"] = "error"
+                        pair["error"] = result.error
+                        pair["desiredActive"] = True
+                    else:
+                        pair["status"] = status
+                        pair["error"] = None
+                        pair["desiredActive"] = True
+                else:
+                    if self._proxy_manager:
+                        self._proxy_manager.stop_pair(pair_id)
+                    pair["status"] = status
+                    pair["error"] = None
+                    pair["desiredActive"] = False
                 self._proxy_pairs[idx] = pair
                 self._save_proxy_pairs()
                 return pair
@@ -347,6 +421,8 @@ class WebBridge(QObject):
 
     @Slot("QVariant", result=bool)
     def start_capture(self, payload: Dict[str, Any]) -> bool:
+        if self._proxy_feature_disabled():
+            return False
         if not isinstance(payload, dict):
             return False
         channel = payload.get("channel") or payload.get("hostPort")
@@ -363,6 +439,8 @@ class WebBridge(QObject):
 
     @Slot(result=bool)
     def stop_capture(self) -> bool:
+        if self._proxy_feature_disabled():
+            return False
         self._bus.publish("capture.control", {"action": "stop"})
         return True
 
@@ -602,6 +680,20 @@ class WebBridge(QObject):
         self._last_channel_emit = now
         self.channel_update.emit(self._build_channel_list())
 
+    def _protocol_read(self, *, size: int, timeout: float) -> bytes:
+        if size <= 0:
+            size = 1
+        deadline = time.time() + max(0.01, timeout)
+        while time.time() < deadline:
+            with self._protocol_rx_lock:
+                if self._protocol_rx_buffer:
+                    n = min(size, len(self._protocol_rx_buffer))
+                    out = bytes(self._protocol_rx_buffer[:n])
+                    del self._protocol_rx_buffer[:n]
+                    return out
+            time.sleep(0.01)
+        return b""
+
     @Slot(str)
     def _emit_comm_rx_signal(self, payload: str) -> None:
         self.comm_rx.emit(payload)
@@ -617,6 +709,8 @@ class WebBridge(QObject):
     def _on_comm_rx(self, payload: Any) -> None:
         if isinstance(payload, (bytes, bytearray)):
             self._traffic["rx"] += len(payload)
+            with self._protocol_rx_lock:
+                self._protocol_rx_buffer.extend(bytes(payload))
         payload_dict = self._emit_bytes(payload)
         self._append_buffer(
             {
@@ -697,6 +791,8 @@ class WebBridge(QObject):
         self._append_buffer({"kind": "FRAME", "payload": payload, "ts": time.time()})
 
     def _on_capture_frame(self, payload: Any) -> None:
+        if not self._proxy_monitor_enabled:
+            return
         self._append_buffer({"kind": "CAPTURE", "payload": payload, "ts": time.time()})
         QMetaObject.invokeMethod(
             self,
@@ -705,21 +801,60 @@ class WebBridge(QObject):
             Q_ARG(object, payload),
         )
 
-    def _load_protocols(self) -> None:
-        if self._protocols_loaded:
+    def _on_proxy_status(self, payload: Any) -> None:
+        if not self._proxy_monitor_enabled:
             return
-        self._protocols_loaded = True
+        if not isinstance(payload, dict):
+            return
+        pair_id = payload.get("pair_id")
+        if not pair_id:
+            return
+        status = payload.get("status")
+        error = payload.get("error")
+        changed = False
+        for idx, pair in enumerate(self._proxy_pairs):
+            if pair.get("id") != pair_id:
+                continue
+            new_pair = dict(pair)
+            if status:
+                new_pair["status"] = status
+            new_pair["error"] = error or None
+            self._proxy_pairs[idx] = new_pair
+            changed = True
+            break
+        if changed:
+            self._save_proxy_pairs()
+
+    def _load_protocols(self) -> None:
+        root = self._protocol_packages_root()
         try:
-            for module in pkgutil.iter_modules(protocols_pkg.__path__):
-                importlib.import_module(f"{protocols_pkg.__name__}.{module.name}")
-        except Exception as exc:  # pragma: no cover - optional UI detail
-            self.log.emit(f"[WARN] Load protocols failed: {exc}")
+            load = load_protocol_packages(root)
+            self._protocol_gateway = ProtocolPackageGateway(load.packages)
+            self._protocol_gateway_issues = [f"{x.package_dir}: {x.message}" for x in load.issues]
+            if self._protocol_gateway_issues:
+                self.log.emit(f"[WARN] External protocol issues: {len(self._protocol_gateway_issues)}")
+        except Exception as exc:
+            self._protocol_gateway = None
+            self._protocol_gateway_issues = [str(exc)]
+            self.log.emit(f"[WARN] Load external protocols failed: {exc}")
+
+    @staticmethod
+    def _protocol_packages_root() -> Path:
+        raw = os.environ.get("PROTOFLOW_PROTOCOLS_DIR", "protocols")
+        p = Path(raw)
+        if p.is_absolute():
+            return p
+        return (Path.cwd() / p).resolve()
 
     @staticmethod
     def _protocol_category(key: str) -> str:
         name = (key or "").lower()
-        if name.startswith("modbus_"):
-            return "modbus"
+        if name in {"modbus_rtu", "modbus-rtu"}:
+            return "modbus-rtu"
+        if name in {"modbus_ascii", "modbus-ascii"}:
+            return "modbus-ascii"
+        if name in {"modbus_tcp", "modbus-tcp"}:
+            return "modbus-tcp"
         if "tcp" in name:
             return "tcp"
         return "custom"
@@ -745,13 +880,7 @@ class WebBridge(QObject):
 
     def _load_settings(self) -> Dict[str, Any]:
         defaults = self._settings_defaults()
-        if not self._settings_path.exists():
-            return defaults
-        try:
-            with self._settings_path.open("r", encoding="utf-8") as handle:
-                data = json.load(handle) or {}
-        except Exception:
-            return defaults
+        data = self._load_json_with_fallback(self._settings_path, default={})
         if not isinstance(data, dict):
             return defaults
         merged = {
@@ -765,75 +894,121 @@ class WebBridge(QObject):
     def _save_settings(self, payload: Dict[str, Any]) -> bool:
         if not isinstance(payload, dict):
             return False
-        try:
-            self._settings_path.parent.mkdir(parents=True, exist_ok=True)
-            with self._settings_path.open("w", encoding="utf-8") as handle:
-                json.dump(payload, handle, ensure_ascii=False, indent=2)
-        except Exception as exc:
-            self.log.emit(f"[WARN] Save settings failed: {exc}")
-            return False
-        return True
+        return self._save_json_atomic(self._settings_path, payload, "Save settings failed")
 
     def _load_proxy_pairs(self) -> List[Dict[str, Any]]:
-        if not self._proxy_pairs_path.exists():
-            return []
-        try:
-            with self._proxy_pairs_path.open("r", encoding="utf-8") as handle:
-                data = json.load(handle) or []
-        except Exception:
-            return []
+        data = self._load_json_with_fallback(self._proxy_pairs_path, default=[])
         if not isinstance(data, list):
             return []
-        return [item for item in data if isinstance(item, dict)]
+        pairs: List[Dict[str, Any]] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            pair = dict(item)
+            pair["status"] = str(pair.get("status") or "stopped").lower()
+            if pair["status"] not in {"running", "stopped", "error"}:
+                pair["status"] = "stopped"
+            pair["desiredActive"] = bool(pair.get("desiredActive", pair["status"] == "running"))
+            pair["error"] = pair.get("error") or None
+            pairs.append(pair)
+        return pairs
 
     def _save_proxy_pairs(self) -> None:
+        self._save_json_atomic(self._proxy_pairs_path, self._proxy_pairs, "Save proxy pairs failed")
+
+    def _restore_proxy_sessions(self) -> None:
+        if not self._proxy_monitor_enabled:
+            return
+        if not self._proxy_pairs:
+            return
+        changed = False
+        for idx, pair in enumerate(self._proxy_pairs):
+            pair_id = pair.get("id")
+            normalized = dict(pair)
+            previous_status = str(normalized.get("status") or "stopped").lower()
+            desired_active = bool(normalized.get("desiredActive", previous_status == "running"))
+            normalized["desiredActive"] = desired_active
+            normalized["status"] = "stopped"
+            normalized["error"] = None
+            if desired_active and self._proxy_manager and pair_id:
+                result = self._proxy_manager.start_pair(str(pair_id), normalized)
+                if result.ok:
+                    normalized["status"] = "running"
+                    normalized["error"] = None
+                else:
+                    normalized["status"] = "error"
+                    normalized["error"] = result.error
+            if normalized != pair:
+                self._proxy_pairs[idx] = normalized
+                changed = True
+                continue
+            # Keep consistency for persisted "running" entries on cold start.
+            if previous_status == "running" and normalized["status"] != "running":
+                self._proxy_pairs[idx] = normalized
+                changed = True
+        if changed:
+            self._save_proxy_pairs()
+
+    def _save_json_atomic(self, path: Path, payload: Any, warn_prefix: str) -> bool:
+        tmp_path: Optional[Path] = None
+        with self._save_lock:
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+                os.close(fd)
+                tmp_path = Path(tmp_name)
+                with tmp_path.open("w", encoding="utf-8") as handle:
+                    json.dump(payload, handle, ensure_ascii=False, indent=2)
+
+                replaced = False
+                last_exc: Optional[Exception] = None
+                # Windows may transiently lock target files; retry replace briefly.
+                for attempt in range(6):
+                    try:
+                        os.replace(tmp_path, path)
+                        replaced = True
+                        break
+                    except PermissionError as exc:
+                        last_exc = exc
+                        time.sleep(0.03 * (attempt + 1))
+
+                if not replaced:
+                    if last_exc:
+                        raise last_exc
+                    raise RuntimeError("atomic replace failed")
+
+                backup = path.with_suffix(path.suffix + ".bak")
+                shutil.copy2(path, backup)
+                return True
+            except Exception as exc:
+                self.log.emit(f"[WARN] {warn_prefix}: {exc}")
+                if tmp_path is not None and tmp_path.exists():
+                    try:
+                        tmp_path.unlink()
+                    except Exception:
+                        pass
+                return False
+
+    def _load_json_with_fallback(self, path: Path, default: Any) -> Any:
+        if not path.exists():
+            return default
         try:
-            self._proxy_pairs_path.parent.mkdir(parents=True, exist_ok=True)
-            with self._proxy_pairs_path.open("w", encoding="utf-8") as handle:
-                json.dump(self._proxy_pairs, handle, ensure_ascii=False, indent=2)
+            with path.open("r", encoding="utf-8") as handle:
+                return json.load(handle)
         except Exception as exc:
-            self.log.emit(f"[WARN] Save proxy pairs failed: {exc}")
-
-    def _load_custom_protocols(self) -> List[Dict[str, Any]]:
-        if not self._protocols_path.exists():
-            return []
+            self.log.emit(f"[WARN] Load config failed, try backup: {path.name}: {exc}")
+        backup = path.with_suffix(path.suffix + ".bak")
+        if not backup.exists():
+            return default
         try:
-            with self._protocols_path.open("r", encoding="utf-8") as handle:
-                data = json.load(handle) or []
-        except Exception:
-            return []
-        if not isinstance(data, list):
-            return []
-        items = [item for item in data if isinstance(item, dict)]
-        return items
-
-    def _save_custom_protocols(self) -> None:
-        try:
-            self._protocols_path.parent.mkdir(parents=True, exist_ok=True)
-            with self._protocols_path.open("w", encoding="utf-8") as handle:
-                json.dump(self._custom_protocols, handle, ensure_ascii=False, indent=2)
+            with backup.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            # Restore from valid backup for next startup consistency.
+            self._save_json_atomic(path, data, "Restore config from backup failed")
+            return data
         except Exception as exc:
-            self.log.emit(f"[WARN] Save protocols failed: {exc}")
-
-    def _normalize_protocol_key(self, value: str) -> str:
-        value = value.strip().lower().replace(" ", "_")
-        value = re.sub(r"[^a-z0-9_]+", "_", value)
-        value = re.sub(r"_+", "_", value).strip("_")
-        return value or "custom_protocol"
-
-    def _ensure_protocol_key_unique(self, key: str) -> str:
-        registry_keys = set(ProtocolRegistry.list().keys())
-        existing = {item.get("id") for item in self._custom_protocols if isinstance(item, dict)}
-        existing.update({item.get("key") for item in self._custom_protocols if isinstance(item, dict)})
-        existing.update(registry_keys)
-        if key not in existing:
-            return key
-        index = 2
-        candidate = f"{key}_{index}"
-        while candidate in existing:
-            index += 1
-            candidate = f"{key}_{index}"
-        return candidate
+            self.log.emit(f"[WARN] Load backup failed: {backup.name}: {exc}")
+            return default
 
     def _append_buffer(self, item: Dict[str, Any]) -> None:
         self._buffer.append(item)

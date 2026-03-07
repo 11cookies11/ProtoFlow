@@ -29,7 +29,7 @@ class PacketAnalysisEngine:
 
     def __init__(self, bus: EventBus) -> None:
         self._bus = bus
-        self._queue: "queue.Queue[Tuple[str, bytes, float]]" = queue.Queue()
+        self._queue: "queue.Queue[Tuple[str, bytes, float, str]]" = queue.Queue()
         self._channel = _ChannelInfo()
         self._enabled = False
         self._target_channel: Optional[str] = None
@@ -42,6 +42,7 @@ class PacketAnalysisEngine:
         self._bus.subscribe("comm.connected", self._on_connected)
         self._bus.subscribe("comm.disconnected", self._on_disconnected)
         self._bus.subscribe("capture.control", self._on_control)
+        self._bus.subscribe("proxy.data", self._on_proxy_data)
 
     def _on_rx(self, payload: Any) -> None:
         if not self._enabled:
@@ -50,7 +51,7 @@ class PacketAnalysisEngine:
         if data:
             if self._target_channel and self._channel.channel and self._channel.channel != self._target_channel:
                 return
-            self._queue.put(("RX", data, time.time()))
+            self._queue.put(("RX", data, time.time(), self._channel.channel or ""))
 
     def _on_tx(self, payload: Any) -> None:
         if not self._enabled:
@@ -59,7 +60,37 @@ class PacketAnalysisEngine:
         if data:
             if self._target_channel and self._channel.channel and self._channel.channel != self._target_channel:
                 return
-            self._queue.put(("TX", data, time.time()))
+            self._queue.put(("TX", data, time.time(), self._channel.channel or ""))
+
+    def _on_proxy_data(self, payload: Any) -> None:
+        if not self._enabled:
+            return
+        if not isinstance(payload, dict):
+            return
+        data = self._to_bytes(payload.get("data"))
+        if not data:
+            return
+        src = str(payload.get("src") or "")
+        dst = str(payload.get("dst") or "")
+        if self._target_channel and self._target_channel not in {src, dst}:
+            return
+        src_role = str(payload.get("src_role") or "").lower()
+        if src_role == "host":
+            direction = "TX"
+        elif src_role == "device":
+            direction = "RX"
+        elif self._target_channel:
+            direction = "TX" if src == self._target_channel else "RX"
+        else:
+            direction = "TX"
+
+        host_port = str(payload.get("host_port") or "")
+        if self._target_channel:
+            channel = self._target_channel
+        else:
+            channel = host_port or src
+        ts = float(payload.get("ts") or time.time())
+        self._queue.put((direction, data, ts, channel))
 
     def _on_connected(self, payload: Any) -> None:
         if isinstance(payload, dict):
@@ -69,8 +100,8 @@ class PacketAnalysisEngine:
             self._channel.address = payload.get("address")
             if payload.get("type") == "serial" and self._channel.port:
                 self._channel.channel = str(self._channel.port)
-            elif payload.get("type") == "tcp-client":
-                self._channel.channel = f"{self._channel.host}:{self._channel.address}" if self._channel.host else ""
+            elif payload.get("type") in {"tcp", "tcp-client"}:
+                self._channel.channel = str(self._channel.address or "")
 
     def _on_disconnected(self, payload: Any) -> None:
         self._channel = _ChannelInfo()
@@ -90,20 +121,20 @@ class PacketAnalysisEngine:
     def _run(self) -> None:
         while not self._stop.is_set():
             try:
-                direction, data, ts = self._queue.get(timeout=0.2)
+                direction, data, ts, channel = self._queue.get(timeout=0.2)
             except queue.Empty:
                 continue
-            frame = self._build_frame(direction, data, ts)
+            frame = self._build_frame(direction, data, ts, channel)
             self._bus.publish("capture.frame", frame)
             self._queue.task_done()
 
-    def _build_frame(self, direction: str, data: bytes, ts: float) -> Dict[str, Any]:
+    def _build_frame(self, direction: str, data: bytes, ts: float, channel_override: str = "") -> Dict[str, Any]:
         self._counter += 1
         hex_bytes = [f"{b:02X}" for b in data]
         ascii_str = "".join(chr(b) if 32 <= b <= 126 else "." for b in data)
         ascii_lines = self._split_ascii(ascii_str, 8)
         protocol_name, protocol_unknown, summary, tree_rows, errors = self._parse_protocol(data)
-        channel = self._channel.channel or ""
+        channel = channel_override or self._channel.channel or ""
         frame_id = f"{direction.lower()}-{int(ts * 1000)}-{self._counter}"
         return {
             "id": frame_id,
@@ -133,7 +164,13 @@ class PacketAnalysisEngine:
         self, data: bytes
     ) -> Tuple[str, bool, str, List[Dict[str, str]], List[Dict[str, str]]]:
         if len(data) < 2:
-            return "Unknown", True, "Too short", [], []
+            return (
+                "Unknown",
+                True,
+                "Too short",
+                [],
+                [{"code": "FRAME_TOO_SHORT", "message": "Frame length < 2 bytes"}],
+            )
 
         addr = data[0]
         func = data[1]
@@ -142,29 +179,62 @@ class PacketAnalysisEngine:
             {"label": "Address", "raw": f"{addr:02X}", "value": str(addr)},
             {"label": "Function", "raw": f"{func:02X}", "value": f"0x{func:02X}"},
         ]
+        errors: List[Dict[str, str]] = []
 
-        if len(data) >= 4:
-            crc_ok = self._check_modbus_crc(data)
-            tree.append(
+        if len(data) < 5:
+            errors.append({"code": "FRAME_TOO_SHORT", "message": "Modbus RTU frame length < 5 bytes"})
+            return "Modbus RTU", False, summary, tree, errors
+
+        crc_calc = crc16_modbus(data[:-2])
+        crc_expected = int.from_bytes(data[-2:], "little")
+        crc_ok = crc_calc == crc_expected
+        payload_len = len(data) - 4
+        is_exception = bool(func & 0x80)
+        tree.append(
+            {
+                "label": "PayloadLength",
+                "raw": f"{payload_len:02X}",
+                "value": str(payload_len),
+            }
+        )
+        tree.append(
+            {
+                "label": "CRC16",
+                "raw": " ".join(f"{b:02X}" for b in data[-2:]),
+                "value": "valid" if crc_ok else "invalid",
+            }
+        )
+        tree.append(
+            {
+                "label": "CRC16(calc)",
+                "raw": f"{crc_calc:04X}",
+                "value": f"0x{crc_calc:04X}",
+            }
+        )
+        if not crc_ok:
+            errors.append(
                 {
-                    "label": "CRC16",
-                    "raw": " ".join(f"{b:02X}" for b in data[-2:]),
-                    "value": "valid" if crc_ok else "invalid",
+                    "code": "CRC_INVALID",
+                    "message": f"expected=0x{crc_expected:04X} calc=0x{crc_calc:04X}",
                 }
             )
-            if crc_ok:
-                return "Modbus RTU", False, summary, tree, []
-
-        errors = [{"code": "UNKNOWN_PROTOCOL", "message": "No known signature"}]
-        return "Unknown", True, summary, tree, errors
-
-    @staticmethod
-    def _check_modbus_crc(data: bytes) -> bool:
-        if len(data) < 3:
-            return False
-        body = data[:-2]
-        expected = int.from_bytes(data[-2:], "little")
-        return crc16_modbus(body) == expected
+        if is_exception and payload_len != 1:
+            errors.append(
+                {
+                    "code": "LENGTH_INVALID",
+                    "message": f"exception frame payload length should be 1, got {payload_len}",
+                }
+            )
+        if not is_exception and payload_len <= 0:
+            errors.append(
+                {
+                    "code": "LENGTH_INVALID",
+                    "message": "normal frame payload length should be >= 1",
+                }
+            )
+        if not errors:
+            return "Modbus RTU", False, summary, tree, []
+        return "Modbus RTU", False, summary, tree, errors
 
     @staticmethod
     def _split_ascii(text: str, width: int) -> List[str]:

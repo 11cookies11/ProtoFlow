@@ -10,8 +10,12 @@ Thumbs.db
 /.vscode/
 /.idea/
 /logs/
+/runs/
+/tmp/
+/docs/target-emulator-baseline/
 /web-ui/node_modules/
 /web-ui/dist/
 build/
 dist/
 ProtoFlow.spec
+AGENTS.md

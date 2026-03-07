@@ -1,0 +1,15 @@
+id: "modbus_rtu"
+name: "Modbus RTU Package"
+version: "1.0.0"
+
+entry:
+  module: "impl"
+  class: "ProtocolPackage"
+
+api:
+  - send
+  - recv
+  - rpc
+
+config_schema: {}
+message_schema: {}

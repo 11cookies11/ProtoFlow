@@ -14,8 +14,8 @@
         </div>
         <div class="h-4 w-px bg-slate-200"></div>
         <div class="flex items-center gap-4">
-          <span class="text-[11px] font-medium text-slate-400">{{ tr('版本') }}: 1.0.3-beta</span>
-          <span class="text-[11px] font-medium text-slate-400">{{ tr('编译日期') }}: 2024-05-20</span>
+          <span class="text-[11px] font-medium text-slate-400">{{ tr('版本') }}: {{ appVersion }}</span>
+          <span class="text-[11px] font-medium text-slate-400">{{ tr('编译日期') }}: {{ buildDate }}</span>
         </div>
       </div>
       <div class="flex gap-4">
@@ -28,6 +28,9 @@
 
 <script setup lang="ts">
 import { inject } from 'vue'
+import { uiDefaults } from '@/config/runtimeDefaults'
 
 const tr = inject('tr', (text) => text)
+const appVersion = inject('appVersion', uiDefaults.appVersionFallback)
+const buildDate = inject('buildDate', '--')
 </script>

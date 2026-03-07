@@ -1,0 +1,42 @@
+version: "0.1"
+
+params:
+  port: "COM5"
+  baud: 115200
+
+session:
+  transport: serial
+  port: "${port}"
+  baud: "${baud}"
+  data_bits: 8
+  parity: none
+  stop_bits: 1
+  encoding: ascii
+  eol: none
+
+defaults:
+  timeout_ms: 2000
+
+steps:
+  - id: clear_status
+    name: protocol.rpc
+    protocol: scpi
+    request:
+      cmd: "*CLS"
+      skip_recv: true
+    save_as: cls_result
+
+  - id: query_idn
+    name: protocol.rpc
+    protocol: scpi
+    request:
+      cmd: "*IDN?"
+      expect:
+        status: "ok"
+        contains: ","
+    save_as: idn_result
+
+  - id: assert_scpi_ok
+    name: assert
+    expr: "${cls_result.ok} and ${idn_result.ok}"
+    message: "scpi flow failed"

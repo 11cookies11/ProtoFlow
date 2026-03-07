@@ -1,0 +1,6 @@
+{
+  "js_bundle_max_kb": 820,
+  "css_bundle_max_kb": 130,
+  "js_gzip_max_kb": 270,
+  "css_gzip_max_kb": 25
+}

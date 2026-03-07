@@ -21,6 +21,7 @@ Write-Host "==> Build app (PyInstaller)"
   --add-data "config;config" `
   --add-data "plugins;plugins" `
   --add-data "ui\\assets;ui\\assets" `
+  --add-data "VERSION;." `
   main.py
 
 Write-Host "==> Generate installer icon"

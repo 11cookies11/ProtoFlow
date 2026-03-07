@@ -1,0 +1,42 @@
+version: "1"
+
+meta:
+  name: "Upgrade Window"
+  description: "Boot window with one timeout simulation then success"
+
+transport_defaults:
+  encoding: "utf-8"
+  eol: "crlf"
+
+rules:
+  - id: enter_boot_first_timeout
+    when:
+      type: exact
+      pattern: "ENTER_BOOT"
+    drop: true
+    once: true
+
+  - id: enter_boot_success
+    when:
+      type: exact
+      pattern: "ENTER_BOOT"
+    respond:
+      text: "BOOT:READY"
+
+  - id: flash_begin
+    when:
+      type: exact
+      pattern: "FLASH:BEGIN"
+    respond:
+      text: "ACK"
+
+  - id: flash_end
+    when:
+      type: exact
+      pattern: "FLASH:END"
+    respond:
+      text: "CRC:PASS\r\nOK"
+
+fallback:
+  respond:
+    text: "ERROR"

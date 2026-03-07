@@ -1,0 +1,62 @@
+version: "0.1"
+
+params:
+  port: "COM5"
+
+vars:
+  fw_ver: ""
+
+session:
+  transport: serial
+  port: "${port}"
+  baud: 115200
+  data_bits: 8
+  parity: none
+  stop_bits: 1
+  encoding: ascii
+  eol: crlf
+  open_timeout_ms: 3000
+  read_timeout_ms: 200
+
+defaults:
+  timeout_ms: 2000
+  retry:
+    count: 1
+    backoff_ms: 200
+    strategy: fixed
+
+steps:
+  - id: ping
+    name: send
+    text: "AT"
+
+  - id: wait_ok
+    name: expect
+    match:
+      type: contains
+      pattern: "OK"
+
+  - id: query_version
+    name: send
+    text: "AT+GMR"
+
+  - id: parse_version
+    name: expect
+    match:
+      type: regex
+      pattern: "VER:([0-9.]+)"
+    capture:
+      var: fw_ver
+      regex: "VER:([0-9.]+)"
+      group: 1
+
+  - id: assert_version_not_empty
+    name: assert
+    expr: "${fw_ver} != ''"
+    message: "version not found"
+
+artifacts:
+  dir: "./runs/v01_debug_${now}"
+  raw_log: true
+  summary_json: true
+  report_csv: false

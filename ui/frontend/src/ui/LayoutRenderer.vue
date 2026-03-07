@@ -93,7 +93,6 @@ const LayoutNodeRenderer = defineComponent({
                         if (widget.type === 'action.button') {
                           const payload = widget.props?.payload || { source: widget.id }
                           store.dispatchEvent({ emit: widget.emit || 'action.unknown', payload, source: widget.id })
-                          // TODO: sendEventToBackend
                         }
                       },
                     },
