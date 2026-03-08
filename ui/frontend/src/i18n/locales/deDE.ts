@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const deDE = {
   ...enUS,
   'nav.manual': 'Serielles Terminal',

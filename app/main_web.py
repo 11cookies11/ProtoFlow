@@ -12,6 +12,10 @@ import time
 from pathlib import Path
 from typing import Optional
 import yaml
+try:
+    from PySide6.QtGui import QIcon
+except ImportError:  # pragma: no cover
+    from PyQt6.QtGui import QIcon  # type: ignore
 
 try:
     from PySide6.QtWidgets import QApplication
@@ -25,6 +29,8 @@ from app.packet_engine import PacketAnalysisEngine
 from app.plugin_manager import PluginManager
 from infra.protocol.protocol_loader import ProtocolLoader
 from ui.desktop.web_window import WebWindow
+
+APP_USER_MODEL_ID = "ProtoFlow.Desktop.App"
 
 
 class _TeeStream:
@@ -104,6 +110,38 @@ def _ensure_repo_cwd() -> None:
         os.chdir(base_dir)
     except OSError:
         pass
+
+
+def _set_windows_app_id() -> None:
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
+    except Exception:
+        logging.getLogger("main_web").warning("Failed to set AppUserModelID", exc_info=True)
+
+
+def _resolve_app_icon() -> Optional[Path]:
+    root_dir = Path(__file__).resolve().parents[1]
+    candidates = [
+        root_dir / "ui" / "assets" / "icons" / "logo.png",
+        root_dir / "ui" / "assets" / "icons" / "logo.svg",
+        root_dir / "installer" / "ProtoFlow.ico",
+    ]
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        candidates = [
+            exe_dir / "ProtoFlow.ico",
+            exe_dir / "_internal" / "ProtoFlow.ico",
+            exe_dir / "ui" / "assets" / "icons" / "logo.png",
+            exe_dir / "ui" / "assets" / "icons" / "logo.svg",
+            *candidates,
+        ]
+    for path in candidates:
+        if path.exists():
+            return path
+    return None
 
 
 def _detect_d3d11() -> bool:
@@ -195,10 +233,15 @@ def _proxy_monitor_enabled() -> bool:
 
 def main() -> None:
     _ensure_repo_cwd()
+    _set_windows_app_id()
     _setup_run_logging()
     flags = _select_webengine_flags()
     if flags:
         os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", flags)
+    logging.getLogger("main_web").info(
+        "WebEngine flags: %s",
+        os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "<default>"),
+    )
     bus = EventBus()
     comm = CommunicationManager(bus)
     proxy_enabled = _proxy_monitor_enabled()
@@ -206,10 +249,15 @@ def main() -> None:
     logging.getLogger("main_web").info("Proxy monitor enabled: %s", proxy_enabled)
     protocol = ProtocolLoader(bus)
     packet_engine = PacketAnalysisEngine(bus)
-    plugins = PluginManager(bus, protocol=protocol)
-    plugins.load_all()
+    plugin_manager = PluginManager(bus, protocol=protocol)
+    plugin_manager.load_all()
 
     app = QApplication.instance() or QApplication(sys.argv)
+    icon_path = _resolve_app_icon()
+    if icon_path is not None:
+        icon = QIcon(str(icon_path))
+        if not icon.isNull():
+            app.setWindowIcon(icon)
     _shutdown_done = {"value": False}
 
     def _shutdown_proxy() -> None:
@@ -228,6 +276,7 @@ def main() -> None:
     window = WebWindow(
         bus=bus,
         comm=comm,
+        plugin_manager=plugin_manager,
         proxy_manager=proxy_manager,
         proxy_monitor_enabled=proxy_enabled,
     )

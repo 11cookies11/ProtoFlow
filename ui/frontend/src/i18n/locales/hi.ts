@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const hi = {
   ...enUS,
   'nav.manual': 'सीरियल टर्मिनल',

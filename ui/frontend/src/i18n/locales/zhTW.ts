@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const zhTW = {
   ...enUS,
   'nav.manual': '串口終端',

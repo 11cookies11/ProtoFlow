@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { useUiRuntimeStore } from './stores/uiRuntime'
 import * as i18nCore from './i18n'
@@ -108,9 +108,13 @@ const autoConnectOnStart = ref(uiDefaults.autoConnectOnStart)
 const settingsSaving = ref(false)
 const settingsSnapshot = ref(null)
 const settingsTab = ref('general')
+const pluginDirectory = ref('')
+const pluginItems = ref([])
+const protocolItems = ref([])
+const pluginsRefreshing = ref(false)
 const { translations, supportedLanguages, DEFAULT_LANGUAGE } = i18nCore
 
-const t = (key, fallback = '') => {
+const t = (key, fallback) => {
   const lang = uiLanguage.value || DEFAULT_LANGUAGE
   return translations[lang]?.[key] ?? translations[DEFAULT_LANGUAGE]?.[key] ?? fallback ?? key
 }
@@ -126,7 +130,6 @@ const uiLabels = computed(() => ({
   scripts: t('nav.scripts'),
   protocols: t('nav.protocols'),
   settings: t('nav.settings'),
-  workspace: t('nav.workspace'),
 }))
 const channelTab = ref('all')
 const uiRuntime = useUiRuntimeStore()
@@ -318,6 +321,35 @@ const themeOptions = computed(() => [
   { value: 'light', label: t('theme.light') },
 ])
 const appVersionLabel = computed(() => appVersion.value || uiDefaults.appVersionFallback)
+let systemThemeMedia = null
+
+function resolveEffectiveTheme(theme) {
+  if (theme === 'dark') return 'dark'
+  if (theme === 'light') return 'light'
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+  return prefersDark ? 'dark' : 'light'
+}
+
+function applyUiTheme(theme) {
+  const effective = resolveEffectiveTheme(theme)
+  document.documentElement.setAttribute('data-theme', effective)
+  document.documentElement.style.colorScheme = effective
+}
+
+function bindSystemThemeListener() {
+  if (!window.matchMedia) return
+  systemThemeMedia = window.matchMedia('(prefers-color-scheme: dark)')
+  const onChange = () => {
+    if (uiTheme.value === 'system') {
+      applyUiTheme('system')
+    }
+  }
+  systemThemeMedia.addEventListener?.('change', onChange)
+  onBeforeUnmount(() => {
+    systemThemeMedia?.removeEventListener?.('change', onChange)
+    systemThemeMedia = null
+  })
+}
 
 const filteredChannelCards = computed(() => {
   if (channelTab.value === 'all') return channelCards.value
@@ -485,6 +517,46 @@ function handleTitlebarDoubleClick() {
 
 function setSettingsTab(tab) {
   settingsTab.value = tab
+}
+
+function refreshPlugins() {
+  if (!bridge.value) return
+  pluginsRefreshing.value = true
+  protocolItems.value = []
+  const done = () => {
+    pluginsRefreshing.value = false
+  }
+  if (bridge.value.refresh_plugins) {
+    withResult(bridge.value.refresh_plugins(), (payload) => {
+      pluginDirectory.value = String(payload?.directory || '')
+      pluginItems.value = Array.isArray(payload?.items) ? payload.items : []
+      if (bridge.value.list_protocols) {
+        withResult(bridge.value.list_protocols(), (protocols) => {
+          protocolItems.value = Array.isArray(protocols) ? protocols : []
+          done()
+        })
+      } else {
+        done()
+      }
+    })
+    return
+  }
+  if (bridge.value.list_plugins) {
+    withResult(bridge.value.list_plugins(), (payload) => {
+      pluginDirectory.value = String(payload?.directory || '')
+      pluginItems.value = Array.isArray(payload?.items) ? payload.items : []
+      if (bridge.value.list_protocols) {
+        withResult(bridge.value.list_protocols(), (protocols) => {
+          protocolItems.value = Array.isArray(protocols) ? protocols : []
+          done()
+        })
+      } else {
+        done()
+      }
+    })
+    return
+  }
+  done()
 }
 
 const manualViewBindings = {
@@ -859,6 +931,8 @@ onMounted(() => {
     nextTick(() => initYamlEditor())
   }
   window.addEventListener('keydown', handleGlobalKeydown)
+  bindSystemThemeListener()
+  applyUiTheme(uiTheme.value)
   loadSettings()
 })
 
@@ -906,6 +980,22 @@ watch(
     }
     if (value === 'protocols') {
       refreshProtocols()
+    }
+  }
+)
+
+watch(
+  () => uiTheme.value,
+  (value) => {
+    applyUiTheme(value)
+  }
+)
+
+watch(
+  () => settingsTab.value,
+  (value) => {
+    if (value === 'plugins') {
+      refreshPlugins()
     }
   }
 )
@@ -978,6 +1068,22 @@ function setChannelTab(tab) {
   channelTab.value = tab
 }
 
+function openManualDocs() {
+  try {
+    if (bridge.value && typeof bridge.value.open_manual_docs === 'function') {
+      bridge.value.open_manual_docs()
+      return
+    }
+    if (bridge.value && typeof bridge.value.open_external_url === 'function') {
+      bridge.value.open_external_url('https://github.com/11cookies11/ProtoFlow/blob/main/README.zh-CN.md')
+      return
+    }
+  } catch (_err) {
+    // fallback below
+  }
+  window.open('https://github.com/11cookies11/ProtoFlow/blob/main/README.zh-CN.md', '_blank', 'noopener,noreferrer')
+}
+
 const { buildSettingsPayload, normalizeSettings, applySettings } = useSettingsPersistence({
   refs: {
     uiLanguage,
@@ -1039,6 +1145,7 @@ const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
   refreshPorts,
   refreshChannels,
   refreshProtocols,
+  refreshPlugins,
   loadSettings,
 })
 
@@ -1061,15 +1168,6 @@ const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
       @mousedown.left="armWindowMove"
       @contextmenu.prevent="showSystemMenu"
     >
-      <button
-        class="app-icon"
-        type="button"
-        @mousedown.stop
-        @dblclick.stop
-        @click.stop="showSystemMenu"
-      >
-        <span class="app-icon-dot"></span>
-      </button>
       <div class="app-title">ProtoFlow</div>
       <div class="title-actions">
         <button
@@ -1132,13 +1230,6 @@ const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
             <span>{{ uiLabels.settings }}</span>
           </button>
         </nav>
-        <div class="sidebar-footer">
-          <div class="user-avatar"></div>
-          <div>
-            <div class="user-name">DevUser_01</div>
-            <div class="user-meta">{{ uiLabels.workspace }}</div>
-          </div>
-        </div>
       </aside>
 
       <main class="main">
@@ -1160,6 +1251,7 @@ const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
             <SettingsHeader
               :settings-dirty="settingsDirty"
               :settings-saving="settingsSaving"
+              @open-manual-docs="openManualDocs"
               @discard="discardSettings"
               @save="saveSettings"
             />
@@ -1169,10 +1261,15 @@ const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
               :ui-theme="uiTheme"
               :auto-connect-on-start="autoConnectOnStart"
               :dsl-workspace-path="dslWorkspacePath"
+              :plugin-directory="pluginDirectory"
+              :plugin-items="pluginItems"
+              :protocol-items="protocolItems"
+              :plugins-refreshing="pluginsRefreshing"
               :language-options="languageOptions"
               :theme-options="themeOptions"
               @set-tab="setSettingsTab"
               @choose-dsl-workspace="chooseDslWorkspace"
+              @refresh-plugins="refreshPlugins"
               @update:ui-language="uiLanguage = $event"
               @update:ui-theme="uiTheme = $event"
               @update:auto-connect-on-start="autoConnectOnStart = $event"
@@ -1243,5 +1340,6 @@ const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
 
   </div>
 </template>
+
 
 

@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const jaJP = {
   ...enUS,
   'nav.manual': 'シリアルターミナル',

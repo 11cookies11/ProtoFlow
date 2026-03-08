@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const thTH = {
   ...enUS,
   'nav.manual': 'เทอร์มินัลอนุกรม',

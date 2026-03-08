@@ -7,6 +7,9 @@ By the end, you should be able to:
 - write your own script from templates
 - troubleshoot common errors
 
+Related docs:
+- i18n manual index: [`docs/i18n-manual/README.md`](./i18n-manual/README.md)
+
 ## 1. What ProtoFlow Is
 ProtoFlow is a communication automation tool, not just a serial terminal.
 It models communication as executable workflow steps (DSL), and is suitable for:

@@ -5,6 +5,7 @@ import ctypes
 import logging
 import os
 import sys
+import time
 
 try:
     from PySide6.QtCore import QEvent, QPoint, QTimer, Qt, QUrl
@@ -60,7 +61,14 @@ class LoggingWebPage(QWebEnginePage):
 class WebWindow(QMainWindow):
     """Minimal WebEngine host window for the new web UI."""
 
-    def __init__(self, bus=None, comm=None, proxy_manager=None, proxy_monitor_enabled: bool = True) -> None:
+    def __init__(
+        self,
+        bus=None,
+        comm=None,
+        plugin_manager=None,
+        proxy_manager=None,
+        proxy_monitor_enabled: bool = True,
+    ) -> None:
         super().__init__()
         self.setWindowTitle("ProtoFlow Web UI")
         self._apply_initial_geometry()
@@ -82,12 +90,14 @@ class WebWindow(QMainWindow):
         view.setPage(page)
         self._view = view
         self._stabilize_pending = False
+        self._state_transition_until = 0.0
         self.setCentralWidget(view)
 
         channel = QWebChannel(view)
         self.bridge = WebBridge(
             bus=bus,
             comm=comm,
+            plugin_manager=plugin_manager,
             window=self,
             proxy_manager=proxy_manager,
             proxy_monitor_enabled=proxy_monitor_enabled,
@@ -96,15 +106,27 @@ class WebWindow(QMainWindow):
         view.page().setWebChannel(channel)
 
         resource_root = self._resolve_resource_root()
+        icon_ico = self._find_existing_path(
+            resource_root.parent / "installer" / "ProtoFlow.ico",
+            resource_root / "installer" / "ProtoFlow.ico",
+            resource_root / "assets" / "icons" / "ProtoFlow.ico",
+            resource_root / "ui" / "assets" / "icons" / "ProtoFlow.ico",
+        )
         icon_svg = self._find_existing_path(
+            resource_root / "assets" / "icons" / "logo_mark.svg",
+            resource_root / "ui" / "assets" / "icons" / "logo_mark.svg",
             resource_root / "assets" / "icons" / "logo.svg",
             resource_root / "ui" / "assets" / "icons" / "logo.svg",
         )
         icon_png = self._find_existing_path(
+            resource_root / "assets" / "icons" / "logo_mark.png",
+            resource_root / "ui" / "assets" / "icons" / "logo_mark.png",
             resource_root / "assets" / "icons" / "logo.png",
             resource_root / "ui" / "assets" / "icons" / "logo.png",
         )
-        icon = QIcon(str(icon_svg))
+        icon = QIcon(str(icon_ico))
+        if icon.isNull():
+            icon = QIcon(str(icon_svg))
         if icon.isNull():
             icon = QIcon(str(icon_png))
         if not icon.isNull():
@@ -350,6 +372,11 @@ class WebWindow(QMainWindow):
         self._stabilize_webview_after_resize()
 
     def _stabilize_webview_after_resize(self) -> None:
+        now = time.monotonic()
+        if now < self._state_transition_until:
+            delay_ms = max(16, int((self._state_transition_until - now) * 1000))
+            QTimer.singleShot(delay_ms, self._stabilize_webview_after_resize)
+            return
         if self._stabilize_pending:
             return
         self._stabilize_pending = True
@@ -359,18 +386,17 @@ class WebWindow(QMainWindow):
             view = getattr(self, "_view", None)
             if view is None:
                 return
-            view.setUpdatesEnabled(False)
-            view.resize(self.size())
-            view.setUpdatesEnabled(True)
+            # Keep refresh lightweight to avoid black-frame flashes during maximize transitions.
             view.update()
-            view.repaint()
 
         QTimer.singleShot(0, _refresh)
-        QTimer.singleShot(80, _refresh)
 
     def changeEvent(self, event):  # type: ignore[override]
         super().changeEvent(event)
         if event.type() == QEvent.WindowStateChange:
+            # Maximize/restore on Windows may briefly recompose WebEngine surface.
+            # Delay stabilization to avoid refreshing in the unstable transition window.
+            self._state_transition_until = time.monotonic() + 0.22
             self._stabilize_webview_after_resize()
 
     def _mouse_pos(self, event) -> QPoint:

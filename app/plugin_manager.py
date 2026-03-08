@@ -52,6 +52,22 @@ class PluginManager:
     def list_plugins(self) -> List[str]:
         return list(self._plugins.keys())
 
+    def list_plugin_items(self) -> List[Dict[str, str]]:
+        items: List[Dict[str, str]] = []
+        for name in sorted(self._plugins.keys()):
+            items.append(
+                {
+                    "id": name,
+                    "name": name,
+                    "status": "enabled",
+                }
+            )
+        return items
+
+    def refresh_all(self) -> None:
+        self._plugins.clear()
+        self.load_all()
+
     def reload(self, name: str) -> None:
         """热更新插件。"""
         module = self._plugins.get(name)

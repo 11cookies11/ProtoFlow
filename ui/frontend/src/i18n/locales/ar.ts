@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const ar = {
   ...enUS,
   'nav.manual': 'طرفية تسلسلية',

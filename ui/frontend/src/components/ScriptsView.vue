@@ -34,8 +34,6 @@ const {
   scriptProgress,
   scriptElapsedLabel,
   scriptErrorCount,
-  scriptVariables,
-  refreshScriptVariables,
   clearScriptLogs,
   scrollScriptLogsToBottom,
   renderedScriptLogs,
@@ -139,29 +137,6 @@ const {
                 </div>
               </div>
 
-              <div class="panel stack">
-                <div class="panel-title simple">{{ tr('变量监控') }}<button class="link-btn" type="button" @click="refreshScriptVariables">{{ tr('刷新') }}</button>
-                </div>
-                <table class="mini-table">
-                  <thead>
-                    <tr>
-                      <th>{{ tr('变量名') }}</th>
-                      <th class="right">{{ tr('当前值') }}</th>
-                    </tr>
-                  </thead>
-                  <tbody v-if="scriptVariables.length">
-                    <tr v-for="item in scriptVariables" :key="item.name">
-                      <td>{{ item.name }}</td>
-                      <td class="right">{{ item.value || '--' }}</td>
-                    </tr>
-                  </tbody>
-                  <tbody v-else>
-                    <tr>
-                      <td colspan="2" class="right">--</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
             </div>
           </div>
 

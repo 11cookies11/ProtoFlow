@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const nlNL = {
   ...enUS,
   'nav.manual': 'Seriële terminal',

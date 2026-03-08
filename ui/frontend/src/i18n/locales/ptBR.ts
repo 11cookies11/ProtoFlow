@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const ptBR = {
   ...enUS,
   'nav.manual': 'Terminal serial',
