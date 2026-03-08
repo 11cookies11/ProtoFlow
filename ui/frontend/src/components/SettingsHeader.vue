@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { inject } from 'vue'
 
 const t = inject('t', (key) => key)
@@ -25,7 +25,7 @@ const emit = defineEmits(['discard', 'save', 'open-manual-docs'])
     </div>
     <div class="header-actions">
       <button class="btn btn-outline" type="button" @click="emit('open-manual-docs')">
-        <span class="material-symbols-outlined">menu_book</span>{{ t('文档中心') }}
+        <span class="material-symbols-outlined">menu_book</span>{{ t('action.docsCenter', '文档中心') }}
       </button>
       <button class="btn btn-outline" :disabled="!settingsDirty" @click="emit('discard')">{{ t('action.discardChanges') }}</button>
       <button class="btn btn-primary" :disabled="!settingsDirty || settingsSaving" @click="emit('save')">
@@ -34,4 +34,5 @@ const emit = defineEmits(['discard', 'save', 'open-manual-docs'])
     </div>
   </header>
 </template>
+
 

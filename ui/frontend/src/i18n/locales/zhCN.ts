@@ -19,6 +19,7 @@ export const zhCN = {
   'action.createProtocol': '新建协议',
   'action.discardChanges': '放弃更改',
   'action.saveChanges': '保存修改',
+  'action.docsCenter': '文档中心',
   'action.loadScript': '加载脚本',
   'action.save': '保存',
   'badge.readOnly': '只读',

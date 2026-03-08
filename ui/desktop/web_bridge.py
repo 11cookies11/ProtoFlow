@@ -64,6 +64,7 @@ class WebBridge(QObject):
         self,
         bus=None,
         comm=None,
+        plugin_manager=None,
         window=None,
         proxy_manager=None,
         proxy_monitor_enabled: bool = True,
@@ -72,6 +73,7 @@ class WebBridge(QObject):
         self._logger = logging.getLogger("web_bridge")
         self._bus = bus
         self._comm = comm
+        self._plugin_manager = plugin_manager
         self._window = window
         self._proxy_manager = proxy_manager
         self._proxy_monitor_enabled = bool(proxy_monitor_enabled)
@@ -196,6 +198,33 @@ class WebBridge(QObject):
                 }
             )
         return items
+
+    @Slot(result="QVariant")
+    def list_plugins(self) -> Dict[str, Any]:
+        manager = self._plugin_manager
+        if manager is None:
+            return {"directory": "", "items": []}
+        plugin_dir = str(getattr(manager, "plugin_dir", "") or "")
+        if hasattr(manager, "list_plugin_items"):
+            items = manager.list_plugin_items() or []
+        else:
+            names = manager.list_plugins() if hasattr(manager, "list_plugins") else []
+            items = [{"id": name, "name": name, "status": "enabled"} for name in names]
+        return {"directory": plugin_dir, "items": items}
+
+    @Slot(result="QVariant")
+    def refresh_plugins(self) -> Dict[str, Any]:
+        manager = self._plugin_manager
+        if manager is None:
+            return {"directory": "", "items": []}
+        try:
+            if hasattr(manager, "refresh_all"):
+                manager.refresh_all()
+            elif hasattr(manager, "load_all"):
+                manager.load_all()
+        except Exception as exc:
+            self.log.emit(f"[WARN] refresh plugins failed: {exc}")
+        return self.list_plugins()
 
     @Slot("QVariant", result="QVariant")
     def call_protocol(self, payload: Dict[str, Any]) -> Dict[str, Any]:

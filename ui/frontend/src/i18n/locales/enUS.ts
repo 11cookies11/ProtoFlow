@@ -19,6 +19,7 @@ export const enUS = {
   'action.createProtocol': 'New Protocol',
   'action.discardChanges': 'Discard Changes',
   'action.saveChanges': 'Save Changes',
+  'action.docsCenter': 'Documentation',
   'action.loadScript': 'Load Script',
   'action.save': 'Save',
   'badge.readOnly': 'Read-only',

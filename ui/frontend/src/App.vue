@@ -114,7 +114,7 @@ const protocolItems = ref([])
 const pluginsRefreshing = ref(false)
 const { translations, supportedLanguages, DEFAULT_LANGUAGE } = i18nCore
 
-const t = (key, fallback = '') => {
+const t = (key, fallback) => {
   const lang = uiLanguage.value || DEFAULT_LANGUAGE
   return translations[lang]?.[key] ?? translations[DEFAULT_LANGUAGE]?.[key] ?? fallback ?? key
 }

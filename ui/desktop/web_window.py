@@ -95,6 +95,7 @@ class WebWindow(QMainWindow):
         self.bridge = WebBridge(
             bus=bus,
             comm=comm,
+            plugin_manager=plugin_manager,
             window=self,
             proxy_manager=proxy_manager,
             proxy_monitor_enabled=proxy_monitor_enabled,
