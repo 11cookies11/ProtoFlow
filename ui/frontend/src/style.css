@@ -94,6 +94,11 @@
   --control-border-hover: #b7c4dd;
   --control-ring: rgba(25, 93, 230, 0.14);
   --menu-shadow: 0 14px 28px rgba(15, 23, 42, 0.1);
+  --hover-bg: #f1f5f9;
+  --accent-soft: rgba(37, 99, 235, 0.14);
+  --accent-soft-strong: rgba(37, 99, 235, 0.2);
+  --success: #16a34a;
+  --danger: #dc2626;
 }
 
 :root[data-theme="dark"] {
@@ -110,6 +115,11 @@
   --control-border-hover: #475569;
   --control-ring: rgba(59, 130, 246, 0.24);
   --menu-shadow: 0 18px 34px rgba(2, 6, 23, 0.55);
+  --hover-bg: #1f2937;
+  --accent-soft: rgba(59, 130, 246, 0.22);
+  --accent-soft-strong: rgba(59, 130, 246, 0.3);
+  --success: #22c55e;
+  --danger: #ef4444;
 }
 
 * {
@@ -841,7 +851,7 @@ textarea {
 }
 
 .btn {
-  border: none;
+  border: 1px solid transparent;
   border-radius: 10px;
   padding: 10px 16px;
   font-size: 13px;
@@ -850,54 +860,58 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease, transform 0.16s ease;
 }
 
 .btn-primary {
   background: var(--primary);
   color: #ffffff;
-  box-shadow: 0 12px 24px rgba(25, 93, 230, 0.2);
+  box-shadow: 0 8px 18px rgba(25, 93, 230, 0.2);
 }
 
 .btn-primary:hover {
   background: #1d4ed8;
+  transform: translateY(-1px);
 }
 
 .btn-success {
-  background: #16a34a;
+  background: var(--success);
   color: #ffffff;
-  box-shadow: 0 12px 24px rgba(22, 163, 74, 0.2);
+  box-shadow: 0 8px 18px rgba(22, 163, 74, 0.2);
 }
 
 .btn-success:hover {
   background: #15803d;
+  transform: translateY(-1px);
 }
 
 .btn-outline {
-  background: #ffffff;
-  color: #475569;
-  border: 1px solid var(--border);
+  background: var(--control-bg);
+  color: var(--text);
+  border-color: var(--control-border);
 }
 
 .btn-outline:hover {
-  border-color: var(--primary);
+  border-color: var(--control-border-hover);
   color: var(--primary);
+  background: var(--hover-bg);
 }
 
 .btn-muted {
-  background: #f1f5f9;
-  color: #94a3b8;
+  background: var(--hover-bg);
+  color: var(--muted);
   cursor: not-allowed;
 }
 
 .btn-danger {
-  background: #ef4444;
+  background: var(--danger);
   color: #ffffff;
-  box-shadow: 0 12px 24px rgba(239, 68, 68, 0.2);
+  box-shadow: 0 8px 18px rgba(239, 68, 68, 0.2);
 }
 
 .btn-danger:hover {
-  background: #dc2626;
+  background: #b91c1c;
+  transform: translateY(-1px);
 }
 
 .btn-ghost {
@@ -909,8 +923,8 @@ textarea {
 }
 
 .btn-ghost:hover {
-  border-color: var(--border);
-  background: #f8fafc;
+  border-color: var(--control-border);
+  background: var(--hover-bg);
   color: var(--primary);
 }
 
@@ -929,13 +943,13 @@ textarea {
 }
 
 .icon-btn:hover {
-  background: #f1f5f9;
+  background: var(--hover-bg);
   color: var(--primary);
 }
 
 .icon-btn.active {
-  background: #e0f2fe;
-  color: #0ea5e9;
+  background: var(--accent-soft);
+  color: var(--primary);
 }
 
 .link-btn {
@@ -1130,10 +1144,11 @@ textarea {
 .segmented {
   display: inline-flex;
   padding: 3px;
-  background: #f1f5f9;
+  background: var(--hover-bg);
   border-radius: 10px;
   margin-left: auto;
   gap: 4px;
+  border: 1px solid var(--control-border);
 }
 
 .segmented button {
@@ -1148,9 +1163,9 @@ textarea {
 }
 
 .segmented button.active {
-  background: #ffffff;
-  color: var(--text);
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.1);
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .segmented.small button {
@@ -1216,7 +1231,7 @@ textarea {
   padding: 12px;
   font-size: 13px;
   font-family: "Noto Sans", "Noto Sans SC", sans-serif;
-  background: #f8fafc;
+  background: var(--control-bg);
   outline: none;
   resize: none;
 }
@@ -1413,32 +1428,38 @@ textarea {
 .tab-strip {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   border-bottom: 1px solid var(--border);
   padding-bottom: 6px;
   flex-wrap: wrap;
 }
 
 .tab-strip button {
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
-  padding: 8px 12px;
+  padding: 7px 12px;
   font-size: 12px;
   font-weight: 600;
   color: var(--muted);
-  border-radius: 10px 10px 0 0;
+  border-radius: 10px;
   cursor: pointer;
 }
 
 .tab-strip button.active {
   color: var(--primary);
-  border-bottom: 2px solid var(--primary);
-  background: #ffffff;
+  border-color: var(--control-border);
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .tab-strip.secondary {
   border-bottom: 1px solid var(--border);
   padding-left: 4px;
+}
+
+.tab-strip button:hover:not(.active) {
+  background: var(--hover-bg);
+  color: var(--text);
 }
 
 .search {
@@ -1449,12 +1470,12 @@ textarea {
 }
 
 .search input {
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: 10px;
   padding: 6px 10px 6px 28px;
   font-size: 12px;
   outline: none;
-  background: #ffffff;
+  background: var(--control-bg);
 }
 
 .search span {
@@ -2225,11 +2246,11 @@ textarea {
 
 .form-grid input,
 .form-grid select {
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 13px;
-  background: #f8fafc;
+  background: var(--control-bg);
   outline: none;
 }
 
@@ -2260,11 +2281,11 @@ textarea {
 }
 
 .protocol-textarea textarea {
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: 12px;
   padding: 12px 14px;
   font-size: 13px;
-  background: #f8fafc;
+  background: var(--control-bg);
   min-height: 96px;
   resize: vertical;
   outline: none;
@@ -2311,10 +2332,10 @@ textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: 10px;
   padding: 8px 10px;
-  background: #f8fafc;
+  background: var(--control-bg);
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -2341,8 +2362,8 @@ textarea {
 }
 
 .plugin-filters button {
-  border: 1px solid var(--border);
-  background: #ffffff;
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
   color: var(--muted);
   border-radius: 999px;
   padding: 4px 10px;
@@ -2352,9 +2373,14 @@ textarea {
 }
 
 .plugin-filters button.active {
-  background: #e0e7ff;
-  color: #1d4ed8;
-  border-color: #bfdbfe;
+  background: var(--accent-soft);
+  color: var(--primary);
+  border-color: var(--accent-soft-strong);
+}
+
+.plugin-filters button:hover:not(.active) {
+  background: var(--hover-bg);
+  color: var(--text);
 }
 
 .plugin-item {
