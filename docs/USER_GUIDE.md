@@ -1,322 +1,232 @@
-﻿# ProtoFlow 用户使用说明书
+﻿# ProtoFlow 用户手册（新版）
 
-## 1. ProtoFlow 概述
-ProtoFlow 是面向嵌入式/工控/自动化测试的通信自动化运行时，采用 **YAML DSL + 状态机** 的声明式方式，将通信流程与协议动作解耦，帮助快速编排串口/TCP 交互、固件传输、Modbus 读写等任务。  
-架构链路：`YAML DSL → 状态机 → 动作 (Actions) → 协议适配 → 通道 (UART/TCP)`。
+本文档面向一线用户，目标是让你在最短时间内：
+- 能启动 ProtoFlow 并完成基础通信调试
+- 能运行一份 DSL 自动化脚本
+- 能根据模板编写自己的脚本
+- 能定位常见错误
 
-核心理念：流程（DSL）定义“做什么 & 顺序”，动作/协议适配层定义“怎么发/怎么收”，通道提供底层 IO。
+## 1. 软件定位
+ProtoFlow 是一个通信自动化工具，不只是“串口收发器”。
+它把通信流程拆成可执行步骤（DSL），用于：
+- 串口 / TCP 调试
+- 协议包调用（AT / SCPI / YMODEM / Modbus 等）
+- 自动化测试与产测流程
+- 过程日志与结果归档
 
-## 2. 安装与运行
-- 依赖：`pip install pyyaml`，使用串口需 `pip install pyserial`。
-- 入口：`python app/dsl_main.py <your_script.yaml>`
-- 输入：符合 DSL 规范的 YAML 脚本。
-- 输出：日志（INFO/DEBUG），状态机执行的事件流；动作可产生下行数据，通道可回传事件。
+## 2. 安装与启动
 
-## 3. YAML DSL 总览
-DSL 采用声明式状态机：
+### 2.1 环境要求
+- Python 3.11+
+- Windows（当前仓库主要按 Windows 路径组织）
+- 串口调试需要可用 COM 口
+
+### 2.2 安装依赖
+```bash
+pip install -r requirements.txt
+```
+
+### 2.3 启动桌面版（推荐）
+```bash
+python main.py
+```
+
+说明：
+- `main.py` 会启动 Qt + Web 前端的完整 UI。
+- 运行日志默认写入 `%LOCALAPPDATA%/ProtoFlow/logs/`。
+
+## 3. 5 分钟上手（第一次使用）
+
+1. 启动软件后进入 `Manual` 页面。
+2. 选择串口（Port）和波特率，点击连接。
+3. 在发送框输入 `AT`（文本模式，勾选 `+CR/+LF` 视设备要求），点击发送。
+4. 在右侧日志区确认收到 `OK` 或设备回包。
+5. 切到 `Scripts` 页面，加载示例脚本并运行。
+
+建议先用示例：
+- `scripts/examples/at_command_flow_v01.yaml`
+- `scripts/examples/scpi_flow_v01.yaml`
+
+## 4. 界面功能说明
+
+### 4.1 Manual（手动调试）
+适合联机调试和定位通信问题。
+
+主要能力：
+- 串口连接 / 断开
+- 文本与 HEX 两种发送模式
+- 快捷指令管理（新增、编辑、删除、快速发送）
+- IO 日志查看（ASCII/HEX 切换）
+- 日志过滤、暂停、清空、导出
+
+常用操作建议：
+- 命令行设备优先用文本模式 + `CR/LF`。
+- 二进制协议优先用 HEX 模式。
+- 先用 Manual 确认链路通，再跑 Scripts 自动化。
+
+### 4.2 Scripts（脚本运行）
+适合批量执行流程（发送、等待、断言、解析、记录）。
+
+主要能力：
+- YAML 脚本加载/保存
+- 运行、停止
+- 运行日志查看
+- 变量快照查看
+- 执行进度显示
+
+建议工作流：
+1. 从 `scripts/examples/` 拷贝模板。
+2. 先改 `params`（端口、地址、文件路径）。
+3. 先跑通最小流程，再逐步加 `assert/parse/capture`。
+
+### 4.3 Protocols（协议包）
+用于查看当前可用的外置协议包（来自 `protocols/` 目录）。
+
+当前行为：
+- 可查看协议列表与元信息
+- UI 内协议包为只读（不能在 UI 内新增/编辑/删除）
+
+### 4.4 Proxy Monitor（透传监控，可选）
+用于双串口透传与抓帧分析。
+
+启用方式（二选一）：
+- 环境变量：`PROTOFLOW_ENABLE_PROXY_MONITOR=1`
+- 配置文件：`config/app.yaml` 中 `app.proxy_monitor_enabled: true`
+
+未启用时，界面会隐藏/禁用相关能力。
+
+### 4.5 Settings（设置）
+可配置语言、主题、串口默认值、网络参数、工作目录等。
+
+设置保存位置：
+- `%LOCALAPPDATA%/ProtoFlow/config/ui_settings.json`
+
+## 5. DSL 脚本入门
+
+## 5.1 推荐版本
+当前内置示例以 `version: "0.1"` 为主，建议新手优先使用 v0.1 示例模板快速上手。
+
+## 5.2 最小可运行模板
 ```yaml
-version: 1
-vars: {...}          # 初始变量
-channels: {...}      # 通道定义 (uart/tcp)
-state_machine:
-  initial: <state>
-  states:
-    <state_name>:
-      do: [...]      # 动作列表
-      on_event: {...}
-      timeout: <ms>
-      on_timeout: <state>
-      when: <expr>
-      goto: <state>
-      else_goto: <state>
+version: "0.1"
+
+params:
+  port: "COM3"
+  baud: 115200
+
+session:
+  transport: serial
+  port: "${port}"
+  baud: "${baud}"
+  data_bits: 8
+  parity: none
+  stop_bits: 1
+  encoding: ascii
+  eol: crlf
+
+defaults:
+  timeout_ms: 2000
+  retry:
+    count: 1
+    backoff_ms: 200
+    strategy: fixed
+
+steps:
+  - id: ping
+    name: send
+    text: "AT"
+
+  - id: wait_ok
+    name: expect
+    match:
+      type: contains
+      pattern: "OK"
+
+  - id: done_assert
+    name: assert
+    expr: "${last_rx_text} != ''"
+    message: "no response"
+
+artifacts:
+  dir: "./runs/demo_${now}"
+  raw_log: true
+  summary_json: true
+  report_csv: false
 ```
 
-## 4. 通道（Channels）系统
-支持 UART 与 TCP。
-- UART 字段：`type: uart|serial`，`device: COMx 或 /dev/tty...`，`baudrate`（默认 115200）
-- TCP 字段：`type: tcp`，`host`，`port`，`timeout`(秒，可选)
+## 5.3 常用 Step（按使用频率）
+- `send`: 发送文本/HEX
+- `expect`: 等待并匹配响应（contains/regex/startswith）
+- `sleep`: 延时
+- `capture`: 正则提取到变量
+- `assert`: 条件断言
+- `if` / `loop`: 控制流
+- `parse` / `path`: 结构化解析与字段提取
+- `measure` / `assert_range`: 指标记录与范围校验
+- `protocol.rpc` / `protocol.send` / `protocol.recv`: 调用外置协议包
+- `switch_session`: 切换会话参数
+- `exec` / `file`: 受控执行（受 security 白名单限制）
 
-示例：
+## 5.4 协议调用示例（AT）
 ```yaml
-channels:
-  boot:
-    type: uart
-    device: COM5
-    baudrate: 115200
-  plc:
-    type: tcp
-    host: 192.168.1.10
-    port: 502
+- id: at_ping
+  name: protocol.rpc
+  protocol: at_command
+  request:
+    cmd: "AT"
+    eol: "crlf"
+    expect:
+      status: "ok"
+  save_as: at_result
+
+- id: assert_at
+  name: assert
+  expr: "${at_result.ok}"
+  message: "AT command failed"
 ```
 
-## 5. 变量系统（vars）
-- 定义：`vars:` 顶层对象，键值可为数字/字符串。
-- 作用域：全局，执行期可被 set 动作修改。
-- 访问：表达式中以 `$var` 或 `$obj.field` 引用。
-- 修改：`- set: { var_name: "<expr or literal>" }`。
+## 6. 产物与日志
+脚本运行后可输出到 `artifacts.dir`：
+- `raw_log.jsonl`: 过程明细
+- `summary.json`: 结果汇总、错误码、变量快照
+- `report.csv`: 可选报表
 
-## 6. 表达式系统（Expressions）
-- 运算符：`+ - * / % **`，比较 `== != > >= < <=`，逻辑 `and/or/not`（也支持 `&& || !` 写法）。
-- 类型：数字、字符串、布尔、对象（属性/下标访问）。
-- 内置变量：`$now` 当前时间戳 ms，`$event` 最近事件，用户变量 `$block`、`$file.block_count` 等。
+桌面运行日志：
+- `%LOCALAPPDATA%/ProtoFlow/logs/web_ui_*.log`
 
-示例：
-```yaml
-when: "$block <= file.block_count"
-set: { retry: "$retry + 1" }
-log: "progress=$block/$file.block_count at $now"
-```
+## 7. 常见问题排查
 
-## 7. 状态机 DSL（核心）
-元素：
-- `do`: 动作列表，按序执行。
-- `on_event`: 事件跳转映射。
-- `timeout` + `on_timeout`: 超时处理（ms）。
-- `when` + `goto` + `else_goto`: 条件跳转；若无 when 则直接 goto。
-- 状态结束到 `done` 视为流程完成。
+### 7.1 连接失败
+- 检查端口是否被其他工具占用
+- 检查波特率/校验位/停止位是否与设备一致
+- 先在 Manual 页面验证收发，再执行脚本
 
-执行流程：进入状态 → 执行 do → 条件/直接 goto → 等事件或等待超时 → 跳转 → 结束。
+### 7.2 expect 超时
+- 增大 `timeout_ms`
+- 校验 `match.pattern` 是否正确
+- 检查设备是否需要 `CR/LF`
 
-Mermaid 流程示例（XMODEM 核心流程）：
-```mermaid
-stateDiagram-v2
-    [*] --> wait_C
-    wait_C --> send_block: on C
-    wait_C --> fail: timeout
-    send_block --> next_block: on ACK
-    send_block --> send_block: on NAK
-    send_block --> fail: timeout
-    next_block --> send_block: when block<=file.block_count
-    next_block --> send_eot: else
-    send_eot --> done: on ACK
-    send_eot --> fail: timeout
-    fail --> done
-```
+### 7.3 变量为空导致断言失败
+- 确认 `capture` 的正则组号和文本来源
+- 先在日志中观察 `last_rx_text`
 
-## 8. 动作（Actions）系统
-- 调用：`- action: <name>`，可带 `args: { ... }`。
-- 内置动作：
-  - `set`: 更新变量。
-  - `log`: 输出日志。
-  - `wait`: 毫秒休眠。
-  - `wait_for_event`: 阻塞等待事件（可指定 `event`、`timeout`）。
-  - `if`: 条件分支（`when`/`then`/`else` 内联动作块）。
-  - `list_filter`: 列表过滤（`src`/`where`，可选 `dst`）。
-  - `list_map`: 列表映射（`src`/`expr`，可选 `dst`，可选 `where`）。
-- 协议动作：XMODEM/Modbus 等（下文详述）。
-- 自定义动作：继承 `DslActionBase`，实现 `execute(ctx, args)` 并定义参数 `schema`，使用 `ActionRegistry.register("name", MyAction())` 注册。
+### 7.4 exec/file 被拒绝
+- 在 `security` 中开启并配置白名单
+- 错误码常见为 `EXEC_NOT_ALLOWED` 或 `FILE_NOT_ALLOWED`
 
-## 9. XMODEM 动作
-- `send_xmodem_block`：发送指定块号（128B，自动 0x1A 填充），参数 `block: "$block"`。
-- `send_eot`：发送 EOT 结束。
-常见编排：等待 “C” → 发送块 → 等 ACK/NAK → 自增 block → 重复 → 发送 EOT。
+### 7.5 代理监控不可见
+- 检查是否启用 `proxy_monitor_enabled`
+- 重启应用后再查看
 
-## 10. YMODEM 动作
-当前示例主要提供 XMODEM；YMODEM 可类比扩展：发送 header、数据块、EOT（可参考 XMODEM 动作并新增 `send_ymodem_header` / `send_ymodem_block` / `send_ymodem_eot` 动作）。
+## 8. 用户最佳实践
+- 先手工、后自动：先在 Manual 确认设备链路，再迁移到 Scripts。
+- 小步迭代：每次只加 1~2 个 step，随时运行验证。
+- 先断言关键路径：对握手、关键响应、结果字段尽早 `assert`。
+- 固化模板：把稳定流程沉淀到 `scripts/examples/` 或团队模板库。
 
-## 11. Modbus（RTU/ASCII/TCP）动作
-- 预留动作：`modbus_read` / `modbus_write`（当前 DSL Runner 未实现，仅文档占位）
-  - 参数：`protocol: rtu|ascii|tcp`，`function`，`address`，`quantity`，`values`（写），`unit_id`。
-- 差异：RTU（CRC16，二进制）；ASCII（LRC，文本帧）；TCP（MBAP，无 CRC）。
-说明：仓库中已实现 Modbus 协议驱动（`infra/protocol/modbus_*.py`），可在 DSL 动作中调用（已注册 `modbus_read/modbus_write`）。
-
-## 12. 事件系统（Events）
-- 来源：通道 `read_event`（UART/TCP 读取到的字节，默认字符；无法解码则 HEX 字符串）。
-- 常见：XMODEM 场景 `"C"`、`"ACK"`、`"NAK"`（需设备回送对应字节）。
-- on_event：`on_event: { "C": send_block, ACK: next_block }`。
-
-## 13. 完整示例
-### 13.1 XMODEM 升级
-```yaml
-version: 1
-vars:
-  block: 1
-  file_path: ./firmware.bin
-channels:
-  boot:
-    type: uart
-    device: COM5
-    baudrate: 115200
-state_machine:
-  initial: wait_C
-  states:
-    wait_C:
-      on_event:
-        "C": send_block
-      timeout: 5000
-      on_timeout: fail
-    send_block:
-      do:
-        - action: send_xmodem_block
-          args: { block: "$block" }
-      on_event:
-        ACK: next_block
-        NAK: send_block
-      timeout: 2000
-      on_timeout: fail
-    next_block:
-      do:
-        - set: { block: "$block + 1" }
-      when: "$block <= file.block_count"
-      goto: send_block
-      else_goto: send_eot
-    send_eot:
-      do:
-        - action: send_eot
-      on_event:
-        ACK: done
-      timeout: 2000
-      on_timeout: fail
-    fail:
-      do: [ { log: "Failed" } ]
-      goto: done
-    done:
-      do: [ { log: "Completed" } ]
-```
-
-### 13.2 YMODEM 示例（需自扩展动作）
-```yaml
-# 假设已注册 send_ymodem_header/send_ymodem_block/send_ymodem_eot
-vars: { block: 1, file_path: ./file.bin }
-state_machine:
-  initial: start
-  states:
-    start:
-      do: [ { action: send_ymodem_header } ]
-      on_event: { ACK: send_block }
-    send_block:
-      do: [ { action: send_ymodem_block, args: { block: "$block" } } ]
-      on_event: { ACK: inc_or_end, NAK: send_block }
-    inc_or_end:
-      do: [ { set: { block: "$block + 1" } } ]
-      when: "$block <= file.block_count"
-      goto: send_block
-      else_goto: send_eot
-    send_eot:
-      do: [ { action: send_ymodem_eot } ]
-      on_event: { ACK: done }
-    done: { do: [ { log: "OK" } ] }
-```
-
-### 13.3 Modbus 轮询读写
-> 注：`modbus_read` / `modbus_write` 当前 DSL Runner 未实现，本段示例为文档预留模板。
-```yaml
-vars:
-  retries: 0
-channels:
-  plc:
-    type: tcp
-    host: 192.168.1.10
-    port: 502
-state_machine:
-  initial: read_regs
-  states:
-    read_regs:
-      do:
-        - action: modbus_read
-          args:
-            protocol: tcp
-            function: 3
-            address: 4096
-            quantity: 2
-            unit_id: 1
-      goto: write_regs
-    write_regs:
-      do:
-        - action: modbus_write
-          args:
-            protocol: tcp
-            function: 16
-            address: 4098
-            values: [1, 2]
-            unit_id: 1
-      goto: done
-    done:
-      do: [ { log: "Modbus flow done" } ]
-```
-
-### 13.4 组合示例（升级后写寄存器）
-> 注：`modbus_read` / `modbus_write` 当前 DSL Runner 未实现，本段示例为文档预留模板。
-```yaml
-vars: { block: 1, file_path: ./fw.bin }
-channels:
-  boot: { type: uart, device: COM5, baudrate: 115200 }
-  plc:  { type: tcp, host: 192.168.1.10, port: 502 }
-state_machine:
-  initial: wait_C
-  states:
-    # 略，沿用 XMODEM 流程
-    done:
-      do:
-        - action: modbus_write
-          args: { protocol: tcp, function: 6, address: 4100, values: [1], unit_id: 1 }
-        - log: "Upgrade + Modbus write finished"
-```
-
-## 14. 错误处理与调试
-- 日志：INFO 记录状态进入/动作执行，DEBUG 记录事件。
-- 常见问题：
-  - YAML 结构错误：检查 `state_machine.initial` 是否存在于 `states`。
-  - 表达式未定义变量：确保 `$var` 已在 vars 或 set 后存在。
-  - 事件未匹配：确认设备回送字符与 on_event 匹配（大小写）。
-- 调试技巧：
-  - 提高日志等级为 DEBUG。
-  - 在关键状态添加 `log` 输出变量/上下文。
-  - 合理设置 `timeout`，避免过短导致误判。
-
-## 15. 扩展指南
-- 添加新动作：
-  ```python
-  from dsl_runtime.actions.base import DslActionBase
-  from dsl_runtime.actions.registry import ActionRegistry
-
-  class MyAction(DslActionBase):
-      def __init__(self) -> None:
-          super().__init__(
-              name="my_action",
-              schema={
-                  "required": ["foo"],
-                  "optional": {"bar": 1},
-                  "types": {"foo": "string", "bar": "number"},
-                  "aliases": {"baz": "foo"},
-                  "allow_extra": False,
-              },
-          )
-
-      def execute(self, ctx, args):
-          # ctx.channel_write / ctx.set_var / ctx.vars_snapshot()
-          ...
-
-  ActionRegistry.register("my_action", MyAction())
-  ```
-- 添加新协议动作：在 `dsl_runtime/actions/*.py` 中封装协议逻辑，调用协议封包构造器（如 XMODEM/Modbus）。
-- 添加新协议适配：实现协议封包/解析，供动作调用。
-- 扩展 DSL：修改 `dsl_runtime/lang/parser.py` / `dsl_runtime/lang/ast_nodes.py` / `dsl_runtime/lang/executor.py` 增加新语法字段，保持向后兼容。
-- 让 AI 编写 DSL：提供章节 7/8 模板，明确事件名、超时、变量命名，AI 可按样例生成 YAML。
-
-## 16. 附录
-- 关键字：`version`, `vars`, `channels`, `state_machine`, `initial`, `states`, `do`, `on_event`, `timeout`, `on_timeout`, `when`, `goto`, `else_goto`
-- 内置变量：`$now`，`$event`，用户变量（vars + set 生成）；示例中 `file`、`file.block_count` 可由文件元信息动作填充。
-- 内置动作：`set`，`log`，`wait`，`wait_for_event`；曲线动作：`chart_add`，`chart_add3d`；schema 帧动作：`send_frame`，`expect_frame`；协议动作：`send_xmodem_block`，`send_eot`。
-- 说明：`meter_start/meter_add/meter_stop` 与 `modbus_read/modbus_write` 当前未在 DSL Runner 中实现（文档占位/预留字段）。
-- 表达式：算术/比较/逻辑，变量 `$var`/`$a.b`，内置 `$now/$event`。
-- 通道参数：UART `device`、`baudrate`；TCP `host`、`port`、`timeout`。
-- 简化 BNF（核心）：
-```
-script    ::= "version"? "vars"? "channels" "state_machine"
-state_machine ::= "initial" state_name "states" state_block+
-state_block ::= state_name ":" state_body
-state_body ::= ("do": action_list)? ("on_event": event_map)?
-               ("timeout": int)? ("on_timeout": state_name)?
-               ("when": expr)? ("goto": state_name)?
-               ("else_goto": state_name)?
-action_list ::= "-" action_entry+
-action_entry ::= {"action": name, "args": obj} |
-                 {"set": obj} | {"log": str} |
-                 {"wait": int|obj} | {"wait_for_event": obj}
-expr      ::= 参见表达式系统，支持 $var 引用
-```
-
----
-
-本说明书面向嵌入式开发/工控通讯/自动化测试工程师及可编程 Agent，覆盖 DSL、状态机、动作系统、协议适配与扩展方法，可直接作为开源文档发布。***
+## 9. 相关文档
+- 项目概览：`README.md`
+- 英文用户手册：`docs/USER_GUIDE_EN.md`
+- v0.1 快速参考：`docs/YAML_DSL_V01_QUICKSTART.md`
+- v0.2 规范与迁移：`docs/YAML_DSL_V02_SCHEMA_SPEC.md`、`docs/YAML_DSL_V02_MIGRATION_AND_BEST_PRACTICES.md`
+- 协议包开发指南：`docs/PROTOCOL_PACKAGE_DEVELOPER_GUIDE.zh-CN.md`
