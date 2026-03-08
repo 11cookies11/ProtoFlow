@@ -102,17 +102,17 @@ class WebWindow(QMainWindow):
         view.page().setWebChannel(channel)
 
         resource_root = self._resolve_resource_root()
-        icon_svg = self._find_existing_path(
-            resource_root / "assets" / "icons" / "logo.svg",
-            resource_root / "ui" / "assets" / "icons" / "logo.svg",
-        )
         icon_png = self._find_existing_path(
             resource_root / "assets" / "icons" / "logo.png",
             resource_root / "ui" / "assets" / "icons" / "logo.png",
         )
-        icon = QIcon(str(icon_svg))
+        icon_svg = self._find_existing_path(
+            resource_root / "assets" / "icons" / "logo.svg",
+            resource_root / "ui" / "assets" / "icons" / "logo.svg",
+        )
+        icon = QIcon(str(icon_png))
         if icon.isNull():
-            icon = QIcon(str(icon_png))
+            icon = QIcon(str(icon_svg))
         if not icon.isNull():
             self.setWindowIcon(icon)
         index_path = self._find_existing_path(
