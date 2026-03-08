@@ -199,6 +199,10 @@ def main() -> None:
     flags = _select_webengine_flags()
     if flags:
         os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", flags)
+    logging.getLogger("main_web").info(
+        "WebEngine flags: %s",
+        os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "<default>"),
+    )
     bus = EventBus()
     comm = CommunicationManager(bus)
     proxy_enabled = _proxy_monitor_enabled()

@@ -4,6 +4,7 @@ from pathlib import Path
 import ctypes
 import logging
 import os
+import subprocess
 import sys
 
 try:
@@ -60,6 +61,8 @@ class LoggingWebPage(QWebEnginePage):
 class WebWindow(QMainWindow):
     """Minimal WebEngine host window for the new web UI."""
 
+    _GPU_SAFE_FLAGS = "--disable-features=DirectComposition --disable-gpu --use-angle=swiftshader"
+
     def __init__(self, bus=None, comm=None, proxy_manager=None, proxy_monitor_enabled: bool = True) -> None:
         super().__init__()
         self.setWindowTitle("ProtoFlow Web UI")
@@ -80,8 +83,10 @@ class WebWindow(QMainWindow):
         view = QWebEngineView(self)
         page = LoggingWebPage(view)
         view.setPage(page)
+        page.renderProcessTerminated.connect(self._on_render_process_terminated)
         self._view = view
         self._stabilize_pending = False
+        self._gpu_recovery_done = os.environ.get("PROTOFLOW_WEBENGINE_RECOVERY", "0") == "1"
         self.setCentralWidget(view)
 
         channel = QWebChannel(view)
@@ -481,3 +486,38 @@ class WebWindow(QMainWindow):
     def showEvent(self, event):
         super().showEvent(event)
         self._init_titlebar()
+
+    def _on_render_process_terminated(self, termination_status, exit_code) -> None:
+        logger = logging.getLogger("web_window")
+        logger.error(
+            "WebEngine render process terminated: status=%s exit_code=%s",
+            termination_status,
+            exit_code,
+        )
+        if self._gpu_recovery_done:
+            logger.error("GPU fallback already attempted; skip auto-restart")
+            return
+        if os.environ.get("PROTOFLOW_DISABLE_GPU_RECOVERY", "0") in {"1", "true", "TRUE"}:
+            logger.warning("GPU recovery disabled by PROTOFLOW_DISABLE_GPU_RECOVERY")
+            return
+        self._gpu_recovery_done = True
+        self._restart_with_gpu_safe_mode()
+
+    def _restart_with_gpu_safe_mode(self) -> None:
+        logger = logging.getLogger("web_window")
+        env = dict(os.environ)
+        env["PROTOFLOW_WEBENGINE_RECOVERY"] = "1"
+        env["PROTOFLOW_WEBENGINE_FLAGS"] = self._GPU_SAFE_FLAGS
+
+        if getattr(sys, "frozen", False):
+            cmd = [sys.executable, *sys.argv[1:]]
+        else:
+            cmd = [sys.executable, *sys.argv]
+        try:
+            subprocess.Popen(cmd, env=env, cwd=str(Path.cwd()))
+            logger.warning("Restarting app with safe WebEngine flags: %s", self._GPU_SAFE_FLAGS)
+        except Exception:
+            logger.exception("Failed to restart app in GPU safe mode")
+            return
+
+        QTimer.singleShot(150, self.close)

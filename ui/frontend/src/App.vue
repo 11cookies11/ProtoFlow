@@ -126,7 +126,6 @@ const uiLabels = computed(() => ({
   scripts: t('nav.scripts'),
   protocols: t('nav.protocols'),
   settings: t('nav.settings'),
-  workspace: t('nav.workspace'),
 }))
 const channelTab = ref('all')
 const uiRuntime = useUiRuntimeStore()
@@ -1132,13 +1131,6 @@ const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
             <span>{{ uiLabels.settings }}</span>
           </button>
         </nav>
-        <div class="sidebar-footer">
-          <div class="user-avatar"></div>
-          <div>
-            <div class="user-name">DevUser_01</div>
-            <div class="user-meta">{{ uiLabels.workspace }}</div>
-          </div>
-        </div>
       </aside>
 
       <main class="main">
