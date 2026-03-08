@@ -5,6 +5,7 @@ import ctypes
 import logging
 import os
 import sys
+import time
 
 try:
     from PySide6.QtCore import QEvent, QPoint, QTimer, Qt, QUrl
@@ -89,6 +90,7 @@ class WebWindow(QMainWindow):
         view.setPage(page)
         self._view = view
         self._stabilize_pending = False
+        self._state_transition_until = 0.0
         self.setCentralWidget(view)
 
         channel = QWebChannel(view)
@@ -370,6 +372,11 @@ class WebWindow(QMainWindow):
         self._stabilize_webview_after_resize()
 
     def _stabilize_webview_after_resize(self) -> None:
+        now = time.monotonic()
+        if now < self._state_transition_until:
+            delay_ms = max(16, int((self._state_transition_until - now) * 1000))
+            QTimer.singleShot(delay_ms, self._stabilize_webview_after_resize)
+            return
         if self._stabilize_pending:
             return
         self._stabilize_pending = True
@@ -379,8 +386,7 @@ class WebWindow(QMainWindow):
             view = getattr(self, "_view", None)
             if view is None:
                 return
-            # Avoid aggressive forced repaint that can flash after drag/resize on Windows.
-            view.resize(self.centralWidget().size())
+            # Keep refresh lightweight to avoid black-frame flashes during maximize transitions.
             view.update()
 
         QTimer.singleShot(0, _refresh)
@@ -388,6 +394,9 @@ class WebWindow(QMainWindow):
     def changeEvent(self, event):  # type: ignore[override]
         super().changeEvent(event)
         if event.type() == QEvent.WindowStateChange:
+            # Maximize/restore on Windows may briefly recompose WebEngine surface.
+            # Delay stabilization to avoid refreshing in the unstable transition window.
+            self._state_transition_until = time.monotonic() + 0.22
             self._stabilize_webview_after_resize()
 
     def _mouse_pos(self, event) -> QPoint:
