@@ -63,7 +63,16 @@ class SerialChannel(BaseChannel):
             port=cfg["device"],
             baudrate=int(cfg.get("baudrate", 115200)),
             timeout=0,
+            rtscts=False,
+            dsrdtr=False,
+            xonxoff=False,
         )
+        # Keep ESP boards from auto-resetting when the port is opened.
+        try:
+            self.ser.dtr = False
+            self.ser.rts = False
+        except Exception:
+            pass
 
     def write(self, data: bytes | str):
         payload = data.encode() if isinstance(data, str) else data
