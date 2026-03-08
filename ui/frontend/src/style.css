@@ -2371,6 +2371,7 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  margin-top: 12px;
 }
 
 .plugin-filters {
@@ -2378,6 +2379,7 @@ textarea {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+  margin: 6px 0 10px;
 }
 
 .plugin-filters button {
