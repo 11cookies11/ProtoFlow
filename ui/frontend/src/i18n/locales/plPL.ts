@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const plPL = {
   ...enUS,
   'nav.manual': 'Terminal szeregowy',

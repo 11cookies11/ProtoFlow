@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const idID = {
   ...enUS,
   'nav.manual': 'Terminal serial',

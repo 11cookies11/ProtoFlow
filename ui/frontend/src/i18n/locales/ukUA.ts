@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const ukUA = {
   ...enUS,
   'nav.manual': 'Послідовний термінал',

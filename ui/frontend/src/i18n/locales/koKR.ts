@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const koKR = {
   ...enUS,
   'nav.manual': '시리얼 터미널',

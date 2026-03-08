@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const frFR = {
   ...enUS,
   'nav.manual': 'Terminal série',

@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const itIT = {
   ...enUS,
   'nav.manual': 'Terminale seriale',

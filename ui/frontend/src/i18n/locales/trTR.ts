@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const trTR = {
   ...enUS,
   'nav.manual': 'Seri terminal',

@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const ruRU = {
   ...enUS,
   'nav.manual': 'Последовательный терминал',

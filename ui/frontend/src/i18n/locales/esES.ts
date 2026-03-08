@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const esES = {
   ...enUS,
   'nav.manual': 'Terminal serie',

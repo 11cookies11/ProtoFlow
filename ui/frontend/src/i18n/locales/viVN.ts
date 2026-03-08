@@ -1,3 +1,4 @@
+import { enUS } from './enUS'
 export const viVN = {
   ...enUS,
   'nav.manual': 'Terminal nối tiếp',
