@@ -268,7 +268,7 @@ textarea {
   align-items: center;
   justify-content: flex-start;
   padding: 0 10px;
-  background: #f8fafc;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
   user-select: none;
   z-index: 20;
@@ -301,7 +301,7 @@ textarea {
 .app-title {
   font-size: 12px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text);
   letter-spacing: 0.2px;
   flex: 1;
 }
@@ -319,7 +319,7 @@ textarea {
   background: transparent;
   border-radius: 6px;
   cursor: pointer;
-  color: #0f172a;
+  color: var(--text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -327,12 +327,16 @@ textarea {
 }
 
 .title-btn:hover {
-  background: rgba(15, 23, 42, 0.08);
+  background: var(--hover-bg);
 }
 
 .title-btn.close:hover {
   background: #e11d48;
   color: #ffffff;
+}
+
+:root[data-theme="dark"] .app-icon:hover {
+  background: var(--hover-bg);
 }
 
 .material-symbols-outlined {
@@ -598,7 +602,7 @@ textarea {
   justify-content: space-between;
   align-items: center;
   gap: 20px;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--surface);
   border: 1px solid var(--border);
   padding: 18px 20px;
   border-radius: 14px;
@@ -607,7 +611,7 @@ textarea {
 
 .page-header.spaced {
   align-items: flex-start;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--surface);
   border-radius: 16px;
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
 }
@@ -656,7 +660,7 @@ textarea {
   padding: 18px 20px;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--surface);
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
 }
 
@@ -739,7 +743,7 @@ textarea {
   padding: 20px;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: #ffffff;
+  background: var(--surface);
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
 }
 
@@ -1520,7 +1524,7 @@ textarea {
   width: 100%;
   min-height: 360px;
   border: none;
-  background: #fafafa;
+  background: var(--surface);
   font-size: 13px;
   border-radius: 0 0 var(--radius) var(--radius);
   outline: none;
@@ -2130,6 +2134,10 @@ textarea {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 16px;
+}
+
+.protocol-cards-section .protocol-grid {
+  margin-top: 12px;
 }
 
 .protocol-card {

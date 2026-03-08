@@ -19,7 +19,7 @@ const emit = defineEmits(['set-tab', 'create', 'details', 'delete'])
 </script>
 
 <template>
-  <div>
+  <div class="protocol-cards-section">
     <div class="tab-strip secondary">
       <button :class="{ active: protocolTab === 'all' }" @click="emit('set-tab', 'all')">{{ t('protocol.tab.all') }}</button>
       <button :class="{ active: protocolTab === 'modbus-rtu' }" @click="emit('set-tab', 'modbus-rtu')">Modbus RTU</button>
