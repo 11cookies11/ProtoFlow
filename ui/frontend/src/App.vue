@@ -108,6 +108,10 @@ const autoConnectOnStart = ref(uiDefaults.autoConnectOnStart)
 const settingsSaving = ref(false)
 const settingsSnapshot = ref(null)
 const settingsTab = ref('general')
+const pluginDirectory = ref('')
+const pluginItems = ref([])
+const protocolItems = ref([])
+const pluginsRefreshing = ref(false)
 const { translations, supportedLanguages, DEFAULT_LANGUAGE } = i18nCore
 
 const t = (key, fallback = '') => {
@@ -484,6 +488,46 @@ function handleTitlebarDoubleClick() {
 
 function setSettingsTab(tab) {
   settingsTab.value = tab
+}
+
+function refreshPlugins() {
+  if (!bridge.value) return
+  pluginsRefreshing.value = true
+  protocolItems.value = []
+  const done = () => {
+    pluginsRefreshing.value = false
+  }
+  if (bridge.value.refresh_plugins) {
+    withResult(bridge.value.refresh_plugins(), (payload) => {
+      pluginDirectory.value = String(payload?.directory || '')
+      pluginItems.value = Array.isArray(payload?.items) ? payload.items : []
+      if (bridge.value.list_protocols) {
+        withResult(bridge.value.list_protocols(), (protocols) => {
+          protocolItems.value = Array.isArray(protocols) ? protocols : []
+          done()
+        })
+      } else {
+        done()
+      }
+    })
+    return
+  }
+  if (bridge.value.list_plugins) {
+    withResult(bridge.value.list_plugins(), (payload) => {
+      pluginDirectory.value = String(payload?.directory || '')
+      pluginItems.value = Array.isArray(payload?.items) ? payload.items : []
+      if (bridge.value.list_protocols) {
+        withResult(bridge.value.list_protocols(), (protocols) => {
+          protocolItems.value = Array.isArray(protocols) ? protocols : []
+          done()
+        })
+      } else {
+        done()
+      }
+    })
+    return
+  }
+  done()
 }
 
 const manualViewBindings = {
@@ -910,6 +954,15 @@ watch(
 )
 
 watch(
+  () => settingsTab.value,
+  (value) => {
+    if (value === 'plugins') {
+      refreshPlugins()
+    }
+  }
+)
+
+watch(
   () => yamlCollapsed.value,
   (collapsed) => {
     if (yamlEditorRef.value) {
@@ -1038,6 +1091,7 @@ const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
   refreshPorts,
   refreshChannels,
   refreshProtocols,
+  refreshPlugins,
   loadSettings,
 })
 
@@ -1161,10 +1215,15 @@ const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
               :ui-theme="uiTheme"
               :auto-connect-on-start="autoConnectOnStart"
               :dsl-workspace-path="dslWorkspacePath"
+              :plugin-directory="pluginDirectory"
+              :plugin-items="pluginItems"
+              :protocol-items="protocolItems"
+              :plugins-refreshing="pluginsRefreshing"
               :language-options="languageOptions"
               :theme-options="themeOptions"
               @set-tab="setSettingsTab"
               @choose-dsl-workspace="chooseDslWorkspace"
+              @refresh-plugins="refreshPlugins"
               @update:ui-language="uiLanguage = $event"
               @update:ui-theme="uiTheme = $event"
               @update:auto-connect-on-start="autoConnectOnStart = $event"

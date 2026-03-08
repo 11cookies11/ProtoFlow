@@ -63,7 +63,7 @@ class WebWindow(QMainWindow):
 
     _GPU_SAFE_FLAGS = "--disable-features=DirectComposition --disable-gpu --use-angle=swiftshader"
 
-    def __init__(self, bus=None, comm=None, proxy_manager=None, proxy_monitor_enabled: bool = True) -> None:
+    def __init__(self, bus=None, comm=None, plugin_manager=None, proxy_manager=None, proxy_monitor_enabled: bool = True) -> None:
         super().__init__()
         self.setWindowTitle("ProtoFlow Web UI")
         self._apply_initial_geometry()
@@ -93,6 +93,7 @@ class WebWindow(QMainWindow):
         self.bridge = WebBridge(
             bus=bus,
             comm=comm,
+            plugin_manager=plugin_manager,
             window=self,
             proxy_manager=proxy_manager,
             proxy_monitor_enabled=proxy_monitor_enabled,

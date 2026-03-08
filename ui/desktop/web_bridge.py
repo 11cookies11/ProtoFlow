@@ -62,6 +62,7 @@ class WebBridge(QObject):
         self,
         bus=None,
         comm=None,
+        plugin_manager=None,
         window=None,
         proxy_manager=None,
         proxy_monitor_enabled: bool = True,
@@ -70,6 +71,7 @@ class WebBridge(QObject):
         self._logger = logging.getLogger("web_bridge")
         self._bus = bus
         self._comm = comm
+        self._plugin_manager = plugin_manager
         self._window = window
         self._proxy_manager = proxy_manager
         self._proxy_monitor_enabled = bool(proxy_monitor_enabled)
@@ -273,6 +275,51 @@ class WebBridge(QObject):
     @Slot(result="QVariant")
     def load_settings(self) -> Dict[str, Any]:
         return self._load_settings()
+
+    @Slot(result="QVariant")
+    def list_plugins(self) -> Dict[str, Any]:
+        manager = self._plugin_manager
+        if manager is None:
+            return {"directory": "", "items": []}
+
+        plugin_dir = Path(getattr(manager, "plugin_dir", Path.cwd() / "plugins"))
+        loaded = set()
+        try:
+            loaded = set(manager.list_plugins())
+        except Exception:
+            loaded = set()
+
+        items: List[Dict[str, Any]] = []
+        try:
+            for path in sorted(plugin_dir.glob("*.py")):
+                if path.name.startswith("_"):
+                    continue
+                name = path.stem
+                item = {
+                    "id": name,
+                    "name": name,
+                    "version": "",
+                    "status": "enabled" if name in loaded else "available",
+                    "path": str(path),
+                }
+                module = getattr(manager, "_plugins", {}).get(name)
+                if module is not None:
+                    plugin_name = getattr(module, "PLUGIN_NAME", None)
+                    if isinstance(plugin_name, str) and plugin_name.strip():
+                        item["name"] = plugin_name.strip()
+                    version = getattr(module, "__version__", "")
+                    if isinstance(version, str):
+                        item["version"] = version
+                items.append(item)
+        except Exception as exc:
+            self._logger.exception("Failed to enumerate plugins: %s", exc)
+        return {"directory": str(plugin_dir), "items": items}
+
+    @Slot(result="QVariant")
+    def refresh_plugins(self) -> Dict[str, Any]:
+        # Refresh is intentionally enumeration-only to avoid duplicate plugin
+        # event subscriptions caused by repeated register() calls.
+        return self.list_plugins()
 
     @Slot(result="QVariant")
     def get_feature_flags(self) -> Dict[str, Any]:

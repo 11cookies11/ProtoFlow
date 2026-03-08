@@ -210,8 +210,8 @@ def main() -> None:
     logging.getLogger("main_web").info("Proxy monitor enabled: %s", proxy_enabled)
     protocol = ProtocolLoader(bus)
     packet_engine = PacketAnalysisEngine(bus)
-    plugins = PluginManager(bus, protocol=protocol)
-    plugins.load_all()
+    plugin_manager = PluginManager(bus, protocol=protocol)
+    plugin_manager.load_all()
 
     app = QApplication.instance() or QApplication(sys.argv)
     _shutdown_done = {"value": False}
@@ -232,6 +232,7 @@ def main() -> None:
     window = WebWindow(
         bus=bus,
         comm=comm,
+        plugin_manager=plugin_manager,
         proxy_manager=proxy_manager,
         proxy_monitor_enabled=proxy_enabled,
     )

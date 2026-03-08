@@ -10,6 +10,7 @@ function createBootstrap() {
   let portsCount = 0
   let channelsCount = 0
   let protocolsCount = 0
+  let pluginsCount = 0
   let settingsCount = 0
   let featureFlags: Record<string, any> | null = null
 
@@ -34,6 +35,9 @@ function createBootstrap() {
     refreshProtocols: () => {
       protocolsCount += 1
     },
+    refreshPlugins: () => {
+      pluginsCount += 1
+    },
     loadSettings: () => {
       settingsCount += 1
     },
@@ -49,6 +53,7 @@ function createBootstrap() {
       portsCount,
       channelsCount,
       protocolsCount,
+      pluginsCount,
       settingsCount,
       featureFlags,
     }),
@@ -77,6 +82,7 @@ describe('useBridgeBootstrap', () => {
       portsCount: 1,
       channelsCount: 1,
       protocolsCount: 1,
+      pluginsCount: 1,
       settingsCount: 1,
       featureFlags: { proxyMonitorEnabled: true },
     })
