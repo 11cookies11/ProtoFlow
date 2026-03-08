@@ -1254,7 +1254,15 @@ textarea {
 
 .toggle-row.spaced {
   justify-content: space-between;
-  margin-top: 10px;
+  margin-top: 12px;
+  gap: 20px;
+  padding: 10px 0 6px;
+}
+
+.toggle-row.spaced + .toggle-row.spaced {
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
 }
 
 .toggle-row p {
@@ -1459,6 +1467,8 @@ textarea {
 .tab-strip.secondary {
   border-bottom: 1px solid var(--border);
   padding-left: 4px;
+  padding-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .tab-strip button:hover:not(.active) {
@@ -2217,7 +2227,7 @@ textarea {
 .settings-stack {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 24px;
 }
 
 .empty-state {

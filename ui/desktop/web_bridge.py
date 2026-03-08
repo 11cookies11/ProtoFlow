@@ -13,10 +13,12 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 try:
-    from PySide6.QtCore import QObject, Q_ARG, QMetaObject, QTimer, Qt, Signal, Slot
+    from PySide6.QtCore import QObject, Q_ARG, QMetaObject, QTimer, Qt, Signal, Slot, QUrl
+    from PySide6.QtGui import QDesktopServices
     from PySide6.QtWidgets import QFileDialog
 except ImportError:  # pragma: no cover
-    from PyQt6.QtCore import QObject, Q_ARG, QMetaObject, QTimer, Qt, pyqtSignal as Signal, pyqtSlot as Slot  # type: ignore
+    from PyQt6.QtCore import QObject, Q_ARG, QMetaObject, QTimer, Qt, QUrl, pyqtSignal as Signal, pyqtSlot as Slot  # type: ignore
+    from PyQt6.QtGui import QDesktopServices  # type: ignore
     from PyQt6.QtWidgets import QFileDialog  # type: ignore
 
 from dsl_runtime.protocol_package import ProtocolPackageGateway, load_protocol_packages
@@ -62,7 +64,6 @@ class WebBridge(QObject):
         self,
         bus=None,
         comm=None,
-        plugin_manager=None,
         window=None,
         proxy_manager=None,
         proxy_monitor_enabled: bool = True,
@@ -71,7 +72,6 @@ class WebBridge(QObject):
         self._logger = logging.getLogger("web_bridge")
         self._bus = bus
         self._comm = comm
-        self._plugin_manager = plugin_manager
         self._window = window
         self._proxy_manager = proxy_manager
         self._proxy_monitor_enabled = bool(proxy_monitor_enabled)
@@ -275,51 +275,6 @@ class WebBridge(QObject):
     @Slot(result="QVariant")
     def load_settings(self) -> Dict[str, Any]:
         return self._load_settings()
-
-    @Slot(result="QVariant")
-    def list_plugins(self) -> Dict[str, Any]:
-        manager = self._plugin_manager
-        if manager is None:
-            return {"directory": "", "items": []}
-
-        plugin_dir = Path(getattr(manager, "plugin_dir", Path.cwd() / "plugins"))
-        loaded = set()
-        try:
-            loaded = set(manager.list_plugins())
-        except Exception:
-            loaded = set()
-
-        items: List[Dict[str, Any]] = []
-        try:
-            for path in sorted(plugin_dir.glob("*.py")):
-                if path.name.startswith("_"):
-                    continue
-                name = path.stem
-                item = {
-                    "id": name,
-                    "name": name,
-                    "version": "",
-                    "status": "enabled" if name in loaded else "available",
-                    "path": str(path),
-                }
-                module = getattr(manager, "_plugins", {}).get(name)
-                if module is not None:
-                    plugin_name = getattr(module, "PLUGIN_NAME", None)
-                    if isinstance(plugin_name, str) and plugin_name.strip():
-                        item["name"] = plugin_name.strip()
-                    version = getattr(module, "__version__", "")
-                    if isinstance(version, str):
-                        item["version"] = version
-                items.append(item)
-        except Exception as exc:
-            self._logger.exception("Failed to enumerate plugins: %s", exc)
-        return {"directory": str(plugin_dir), "items": items}
-
-    @Slot(result="QVariant")
-    def refresh_plugins(self) -> Dict[str, Any]:
-        # Refresh is intentionally enumeration-only to avoid duplicate plugin
-        # event subscriptions caused by repeated register() calls.
-        return self.list_plugins()
 
     @Slot(result="QVariant")
     def get_feature_flags(self) -> Dict[str, Any]:
@@ -608,6 +563,43 @@ class WebBridge(QObject):
             self.script_log.emit(f"[ERROR] Save YAML failed: {exc}")
             return {}
         return {"path": path, "name": Path(path).name}
+
+    @Slot(str, result=bool)
+    def open_external_url(self, url: str) -> bool:
+        target = str(url or "").strip()
+        if not target:
+            return False
+        try:
+            return bool(QDesktopServices.openUrl(QUrl(target)))
+        except Exception:
+            return False
+
+    @Slot(result=bool)
+    def open_manual_docs(self) -> bool:
+        candidates: List[Path] = [
+            Path.cwd() / "README.zh-CN.md",
+            Path.cwd() / "README.md",
+            Path.cwd() / "docs" / "USER_GUIDE.zh-CN.md",
+            Path(__file__).resolve().parents[2] / "README.zh-CN.md",
+            Path(__file__).resolve().parents[2] / "README.md",
+        ]
+        if getattr(sys, "frozen", False):
+            exe_dir = Path(sys.executable).resolve().parent
+            candidates.extend(
+                [
+                    exe_dir / "README.zh-CN.md",
+                    exe_dir / "README.md",
+                    exe_dir / "_internal" / "README.zh-CN.md",
+                    exe_dir / "_internal" / "README.md",
+                ]
+            )
+        for path in candidates:
+            try:
+                if path.is_file() and QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve()))):
+                    return True
+            except Exception:
+                continue
+        return self.open_external_url("https://github.com/11cookies11/ProtoFlow/blob/main/README.zh-CN.md")
 
     @Slot()
     def window_minimize(self) -> None:
@@ -910,7 +902,7 @@ class WebBridge(QObject):
         base_path = (self._settings_root / "workflows").resolve()
         return {
             "uiLanguage": "Simplified Chinese",
-            "uiTheme": "Dark",
+            "uiTheme": "light",
             "autoConnectOnStart": True,
             "dslWorkspacePath": str(base_path),
             "serial": {

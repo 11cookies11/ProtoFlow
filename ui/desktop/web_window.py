@@ -4,7 +4,6 @@ from pathlib import Path
 import ctypes
 import logging
 import os
-import subprocess
 import sys
 
 try:
@@ -61,9 +60,14 @@ class LoggingWebPage(QWebEnginePage):
 class WebWindow(QMainWindow):
     """Minimal WebEngine host window for the new web UI."""
 
-    _GPU_SAFE_FLAGS = "--disable-features=DirectComposition --disable-gpu --use-angle=swiftshader"
-
-    def __init__(self, bus=None, comm=None, plugin_manager=None, proxy_manager=None, proxy_monitor_enabled: bool = True) -> None:
+    def __init__(
+        self,
+        bus=None,
+        comm=None,
+        plugin_manager=None,
+        proxy_manager=None,
+        proxy_monitor_enabled: bool = True,
+    ) -> None:
         super().__init__()
         self.setWindowTitle("ProtoFlow Web UI")
         self._apply_initial_geometry()
@@ -83,17 +87,14 @@ class WebWindow(QMainWindow):
         view = QWebEngineView(self)
         page = LoggingWebPage(view)
         view.setPage(page)
-        page.renderProcessTerminated.connect(self._on_render_process_terminated)
         self._view = view
         self._stabilize_pending = False
-        self._gpu_recovery_done = os.environ.get("PROTOFLOW_WEBENGINE_RECOVERY", "0") == "1"
         self.setCentralWidget(view)
 
         channel = QWebChannel(view)
         self.bridge = WebBridge(
             bus=bus,
             comm=comm,
-            plugin_manager=plugin_manager,
             window=self,
             proxy_manager=proxy_manager,
             proxy_monitor_enabled=proxy_monitor_enabled,
@@ -102,17 +103,29 @@ class WebWindow(QMainWindow):
         view.page().setWebChannel(channel)
 
         resource_root = self._resolve_resource_root()
-        icon_png = self._find_existing_path(
-            resource_root / "assets" / "icons" / "logo.png",
-            resource_root / "ui" / "assets" / "icons" / "logo.png",
+        icon_ico = self._find_existing_path(
+            resource_root.parent / "installer" / "ProtoFlow.ico",
+            resource_root / "installer" / "ProtoFlow.ico",
+            resource_root / "assets" / "icons" / "ProtoFlow.ico",
+            resource_root / "ui" / "assets" / "icons" / "ProtoFlow.ico",
         )
         icon_svg = self._find_existing_path(
+            resource_root / "assets" / "icons" / "logo_mark.svg",
+            resource_root / "ui" / "assets" / "icons" / "logo_mark.svg",
             resource_root / "assets" / "icons" / "logo.svg",
             resource_root / "ui" / "assets" / "icons" / "logo.svg",
         )
-        icon = QIcon(str(icon_png))
+        icon_png = self._find_existing_path(
+            resource_root / "assets" / "icons" / "logo_mark.png",
+            resource_root / "ui" / "assets" / "icons" / "logo_mark.png",
+            resource_root / "assets" / "icons" / "logo.png",
+            resource_root / "ui" / "assets" / "icons" / "logo.png",
+        )
+        icon = QIcon(str(icon_ico))
         if icon.isNull():
             icon = QIcon(str(icon_svg))
+        if icon.isNull():
+            icon = QIcon(str(icon_png))
         if not icon.isNull():
             self.setWindowIcon(icon)
         index_path = self._find_existing_path(
@@ -365,14 +378,11 @@ class WebWindow(QMainWindow):
             view = getattr(self, "_view", None)
             if view is None:
                 return
-            view.setUpdatesEnabled(False)
-            view.resize(self.size())
-            view.setUpdatesEnabled(True)
+            # Avoid aggressive forced repaint that can flash after drag/resize on Windows.
+            view.resize(self.centralWidget().size())
             view.update()
-            view.repaint()
 
         QTimer.singleShot(0, _refresh)
-        QTimer.singleShot(80, _refresh)
 
     def changeEvent(self, event):  # type: ignore[override]
         super().changeEvent(event)
@@ -487,38 +497,3 @@ class WebWindow(QMainWindow):
     def showEvent(self, event):
         super().showEvent(event)
         self._init_titlebar()
-
-    def _on_render_process_terminated(self, termination_status, exit_code) -> None:
-        logger = logging.getLogger("web_window")
-        logger.error(
-            "WebEngine render process terminated: status=%s exit_code=%s",
-            termination_status,
-            exit_code,
-        )
-        if self._gpu_recovery_done:
-            logger.error("GPU fallback already attempted; skip auto-restart")
-            return
-        if os.environ.get("PROTOFLOW_DISABLE_GPU_RECOVERY", "0") in {"1", "true", "TRUE"}:
-            logger.warning("GPU recovery disabled by PROTOFLOW_DISABLE_GPU_RECOVERY")
-            return
-        self._gpu_recovery_done = True
-        self._restart_with_gpu_safe_mode()
-
-    def _restart_with_gpu_safe_mode(self) -> None:
-        logger = logging.getLogger("web_window")
-        env = dict(os.environ)
-        env["PROTOFLOW_WEBENGINE_RECOVERY"] = "1"
-        env["PROTOFLOW_WEBENGINE_FLAGS"] = self._GPU_SAFE_FLAGS
-
-        if getattr(sys, "frozen", False):
-            cmd = [sys.executable, *sys.argv[1:]]
-        else:
-            cmd = [sys.executable, *sys.argv]
-        try:
-            subprocess.Popen(cmd, env=env, cwd=str(Path.cwd()))
-            logger.warning("Restarting app with safe WebEngine flags: %s", self._GPU_SAFE_FLAGS)
-        except Exception:
-            logger.exception("Failed to restart app in GPU safe mode")
-            return
-
-        QTimer.singleShot(150, self.close)
