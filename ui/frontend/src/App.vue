@@ -321,6 +321,35 @@ const themeOptions = computed(() => [
   { value: 'light', label: t('theme.light') },
 ])
 const appVersionLabel = computed(() => appVersion.value || uiDefaults.appVersionFallback)
+let systemThemeMedia = null
+
+function resolveEffectiveTheme(theme) {
+  if (theme === 'dark') return 'dark'
+  if (theme === 'light') return 'light'
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+  return prefersDark ? 'dark' : 'light'
+}
+
+function applyUiTheme(theme) {
+  const effective = resolveEffectiveTheme(theme)
+  document.documentElement.setAttribute('data-theme', effective)
+  document.documentElement.style.colorScheme = effective
+}
+
+function bindSystemThemeListener() {
+  if (!window.matchMedia) return
+  systemThemeMedia = window.matchMedia('(prefers-color-scheme: dark)')
+  const onChange = () => {
+    if (uiTheme.value === 'system') {
+      applyUiTheme('system')
+    }
+  }
+  systemThemeMedia.addEventListener?.('change', onChange)
+  onBeforeUnmount(() => {
+    systemThemeMedia?.removeEventListener?.('change', onChange)
+    systemThemeMedia = null
+  })
+}
 
 const filteredChannelCards = computed(() => {
   if (channelTab.value === 'all') return channelCards.value
@@ -902,6 +931,8 @@ onMounted(() => {
     nextTick(() => initYamlEditor())
   }
   window.addEventListener('keydown', handleGlobalKeydown)
+  bindSystemThemeListener()
+  applyUiTheme(uiTheme.value)
   loadSettings()
 })
 
@@ -950,6 +981,13 @@ watch(
     if (value === 'protocols') {
       refreshProtocols()
     }
+  }
+)
+
+watch(
+  () => uiTheme.value,
+  (value) => {
+    applyUiTheme(value)
   }
 )
 

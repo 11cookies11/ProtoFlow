@@ -3,7 +3,7 @@ import { computed, inject, ref } from 'vue'
 import DropdownSelect from './DropdownSelect.vue'
 
 const t = inject('t', (key) => key)
-const tr = inject('tr', (text) => text)
+const tt = (key, fallback) => t(key, fallback)
 
 const props = defineProps({
   settingsTab: {
@@ -75,9 +75,13 @@ const normalizedPluginItems = computed(() => {
       name: String(item?.name || item?.id || 'unknown'),
       version: String(item?.version || ''),
       status,
-      statusLabel: isEnabled ? tr('已启用') : isError ? tr('异常') : tr('可用'),
+      statusLabel: isEnabled
+        ? tt('settings.filter.enabled', '已启用')
+        : isError
+          ? tt('filter.error', '异常')
+          : tt('settings.filter.available', '可用'),
       badgeClass: isEnabled ? 'badge-green' : isError ? 'badge-yellow' : 'badge-gray',
-      meta: item?.version ? `v${item.version}` : tr('未标注版本'),
+      meta: item?.version ? `v${item.version}` : tt('settings.meta.unversioned', '未标注版本'),
     }
   })
 })
@@ -100,8 +104,8 @@ const normalizedProtocolItems = computed(() => {
     return {
       id: String(item?.id || item?.key || item?.name || ''),
       name: String(item?.name || item?.id || item?.key || 'unknown'),
-      meta: version ? `v${version}` : tr('未标注版本'),
-      statusLabel: tr('可用'),
+      meta: version ? `v${version}` : tt('settings.meta.unversioned', '未标注版本'),
+      statusLabel: tt('settings.filter.available', '可用'),
       badgeClass: 'badge-blue',
       category: normalizedCategory,
     }
@@ -178,7 +182,7 @@ const filteredProtocolItems = computed(() => {
         </div>
 
         <div class="file-row">
-          <span class="section-title">{{ tr('插件目录') }}</span>
+          <span class="section-title">{{ tt('settings.plugins.directory', '插件目录') }}</span>
           <div class="file-row-controls">
             <div class="file-input">
               <span class="material-symbols-outlined">folder_open</span>
@@ -197,10 +201,10 @@ const filteredProtocolItems = computed(() => {
         </div>
 
         <div class="plugin-filters">
-          <button :class="{ active: pluginFilter === 'all' }" @click="pluginFilter = 'all'">{{ tr('全部') }}</button>
-          <button :class="{ active: pluginFilter === 'enabled' }" @click="pluginFilter = 'enabled'">{{ tr('已启用') }}</button>
-          <button :class="{ active: pluginFilter === 'available' }" @click="pluginFilter = 'available'">{{ tr('可用') }}</button>
-          <button :class="{ active: pluginFilter === 'error' }" @click="pluginFilter = 'error'">{{ tr('异常') }}</button>
+          <button :class="{ active: pluginFilter === 'all' }" @click="pluginFilter = 'all'">{{ tt('filter.all', '全部') }}</button>
+          <button :class="{ active: pluginFilter === 'enabled' }" @click="pluginFilter = 'enabled'">{{ tt('settings.filter.enabled', '已启用') }}</button>
+          <button :class="{ active: pluginFilter === 'available' }" @click="pluginFilter = 'available'">{{ tt('settings.filter.available', '可用') }}</button>
+          <button :class="{ active: pluginFilter === 'error' }" @click="pluginFilter = 'error'">{{ tt('filter.error', '异常') }}</button>
         </div>
 
         <div v-if="filteredPluginItems.length" class="plugin-list">
@@ -212,17 +216,17 @@ const filteredProtocolItems = computed(() => {
             <span class="badge" :class="item.badgeClass">{{ item.statusLabel }}</span>
           </div>
         </div>
-        <div v-else class="empty-state muted">{{ normalizedPluginItems.length ? tr('当前筛选无结果') : tr('未发现可用插件') }}</div>
+        <div v-else class="empty-state muted">{{ normalizedPluginItems.length ? tt('settings.empty.filtered', '当前筛选无结果') : tt('settings.empty.noPlugins', '未发现可用插件') }}</div>
 
         <div class="divider"></div>
         <div class="panel-title simple inline">
-          {{ tr('协议包') }}
+          {{ tt('settings.protocols.title', '协议包') }}
         </div>
         <div class="plugin-filters">
-          <button :class="{ active: protocolFilter === 'all' }" @click="protocolFilter = 'all'">{{ tr('全部') }}</button>
+          <button :class="{ active: protocolFilter === 'all' }" @click="protocolFilter = 'all'">{{ tt('filter.all', '全部') }}</button>
           <button :class="{ active: protocolFilter === 'modbus' }" @click="protocolFilter = 'modbus'">Modbus</button>
           <button :class="{ active: protocolFilter === 'tcp' }" @click="protocolFilter = 'tcp'">TCP</button>
-          <button :class="{ active: protocolFilter === 'custom' }" @click="protocolFilter = 'custom'">{{ tr('自定义') }}</button>
+          <button :class="{ active: protocolFilter === 'custom' }" @click="protocolFilter = 'custom'">{{ tt('protocol.tab.custom', '自定义') }}</button>
         </div>
         <div v-if="filteredProtocolItems.length" class="plugin-list">
           <div v-for="item in filteredProtocolItems" :key="item.id" class="plugin-item">
@@ -233,7 +237,7 @@ const filteredProtocolItems = computed(() => {
             <span class="badge" :class="item.badgeClass">{{ item.statusLabel }}</span>
           </div>
         </div>
-        <div v-else class="empty-state muted">{{ normalizedProtocolItems.length ? tr('当前筛选无结果') : tr('未发现可用协议包') }}</div>
+        <div v-else class="empty-state muted">{{ normalizedProtocolItems.length ? tt('settings.empty.filtered', '当前筛选无结果') : tt('settings.empty.noProtocols', '未发现可用协议包') }}</div>
 
         <div class="toggle-row spaced">
           <div>
@@ -256,7 +260,7 @@ const filteredProtocolItems = computed(() => {
           <span class="material-symbols-outlined">tune</span>{{ t('settings.tab.runtime') }}
         </div>
         <div class="empty-state muted">
-          {{ tr('暂无可配置项，运行时设置将随着模块扩展开放。') }}
+          {{ tt('settings.runtime.placeholder', '暂无可配置项，运行时设置将随着模块扩展开放。') }}
         </div>
       </div>
 
@@ -265,7 +269,7 @@ const filteredProtocolItems = computed(() => {
           <span class="material-symbols-outlined">folder_open</span>{{ t('settings.tab.logs') }}
         </div>
         <div class="empty-state muted">
-          {{ tr('日志采集与归档策略将在后续版本中提供。') }}
+          {{ tt('settings.logs.placeholder', '日志采集与归档策略将在后续版本中提供。') }}
         </div>
       </div>
     </div>
