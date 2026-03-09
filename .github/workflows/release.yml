@@ -36,6 +36,10 @@ jobs:
           MSIX_CERT_PASSWORD: ${{ secrets.MSIX_CERT_PASSWORD }}
           MSIX_SKIP_SIGN: ${{ secrets.MSIX_SKIP_SIGN }}
         run: |
+          $skipSign = "${{ secrets.MSIX_SKIP_SIGN }}"
+          if ([string]::IsNullOrWhiteSpace($skipSign)) { $skipSign = "true" }
+          $env:MSIX_SKIP_SIGN = $skipSign
+
           $version = "${{ github.event.inputs.build_version }}"
           if ([string]::IsNullOrWhiteSpace($version)) { $version = "${{ github.ref_name }}" }
           .\\scripts\\build_msix.ps1 `
