@@ -159,9 +159,13 @@ New-Item -ItemType Directory -Path $stageRoot | Out-Null
 Copy-Item -Path (Join-Path $appDist "*") -Destination $stageRoot -Recurse -Force
 
 Write-Host "==> Generate MSIX assets"
-$logoSource = Join-Path $repoRoot "ui\assets\icons\logo_mark.png"
-if (-not (Test-Path -LiteralPath $logoSource)) {
-  throw "Logo source missing: $logoSource"
+$logoCandidates = @(
+  (Join-Path $repoRoot "ui\assets\icons\logo_mark.png"),
+  (Join-Path $repoRoot "ui\assets\icons\logo.png")
+)
+$logoSource = $logoCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+if (-not $logoSource) {
+  throw "Logo source missing. Tried: $($logoCandidates -join ', ')"
 }
 Resize-Png -Source $logoSource -Target (Join-Path $assetsRoot "StoreLogo.png") -Width 50 -Height 50
 Resize-Png -Source $logoSource -Target (Join-Path $assetsRoot "Square44x44Logo.png") -Width 44 -Height 44
