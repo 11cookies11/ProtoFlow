@@ -209,6 +209,7 @@ if (-not (Test-Path -LiteralPath $certDir)) {
 }
 $certPfx = Join-Path $certDir "ProtoFlow_msix_signing.pfx"
 $certCer = Join-Path $certDir "ProtoFlow_msix_signing.cer"
+$usingSelfSignedCert = $false
 
 if ($env:MSIX_CERT_PFX_BASE64 -and $env:MSIX_CERT_PASSWORD) {
   Write-Host "==> Use provided signing certificate"
@@ -217,6 +218,7 @@ if ($env:MSIX_CERT_PFX_BASE64 -and $env:MSIX_CERT_PASSWORD) {
 }
 else {
   Write-Host "==> Generate self-signed certificate for MSIX"
+  $usingSelfSignedCert = $true
   $cert = New-SelfSignedCertificate -Type Custom `
     -KeyAlgorithm RSA `
     -KeyLength 2048 `
@@ -247,6 +249,18 @@ catch {
 
 Write-Host "==> Verify signature"
 & $signTool verify /pa $msixPath | Out-Host
+$verifyExitCode = $LASTEXITCODE
+if ($verifyExitCode -ne 0) {
+  if ($usingSelfSignedCert) {
+    Write-Warning "SignTool verify failed (exit code $verifyExitCode) because self-signed root is not trusted on this machine. Continue."
+    if (Test-Path -LiteralPath $certCer) {
+      Write-Warning "Install certificate to Trusted Root and Trusted People before local installation: $certCer"
+    }
+  }
+  else {
+    throw "SignTool verify failed with exit code $verifyExitCode. Check certificate chain trust (root/intermediate)."
+  }
+}
 
 Write-Host "MSIX generated: $msixPath"
 if (Test-Path -LiteralPath $certCer) {
