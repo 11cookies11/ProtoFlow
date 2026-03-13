@@ -13,9 +13,13 @@ on:
       include_skill_bundles:
         description: "Fetch SkillForge release bundles before packaging"
         required: false
-        default: "false"
+        default: "true"
+      skillforge_source:
+        description: "How to resolve SkillForge bundles"
+        required: false
+        default: "latest-release"
       skillforge_tag:
-        description: "SkillForge release tag to fetch (defaults to the ProtoFlow tag)"
+        description: "SkillForge release tag to fetch when source is specific-tag"
         required: false
         default: ""
 
@@ -47,19 +51,27 @@ jobs:
         run: |
           $shouldFetch = $false
           $skillforgeTag = ""
+          $skillforgeSource = "latest-release"
           if ("${{ github.event_name }}" -eq "push" -and "${{ startsWith(github.ref, 'refs/tags/') }}" -eq "true") {
             $shouldFetch = $true
-            $skillforgeTag = "${{ github.ref_name }}"
+            $skillforgeSource = "latest-release"
           }
           elseif ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ github.event.inputs.include_skill_bundles }}" -eq "true") {
             $shouldFetch = $true
-            $skillforgeTag = "${{ github.event.inputs.skillforge_tag }}"
-            if ([string]::IsNullOrWhiteSpace($skillforgeTag)) {
-              $skillforgeTag = "${{ github.event.inputs.build_version }}"
+            $skillforgeSource = "${{ github.event.inputs.skillforge_source }}"
+            if ([string]::IsNullOrWhiteSpace($skillforgeSource)) {
+              $skillforgeSource = "latest-release"
+            }
+            if ($skillforgeSource -eq "specific-tag") {
+              $skillforgeTag = "${{ github.event.inputs.skillforge_tag }}"
+              if ([string]::IsNullOrWhiteSpace($skillforgeTag)) {
+                throw "skillforge_tag is required when skillforge_source is specific-tag."
+              }
             }
           }
 
           "enabled=$($shouldFetch.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "source=$skillforgeSource" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "tag=$skillforgeTag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Download SkillForge release bundles
@@ -67,22 +79,29 @@ jobs:
         shell: pwsh
         env:
           SKILLFORGE_REPO: 11cookies11/SkillForge
+          SKILLFORGE_SOURCE: ${{ steps.skill_bundles.outputs.source }}
           SKILLFORGE_TAG: ${{ steps.skill_bundles.outputs.tag }}
           SKILLFORGE_READ_TOKEN: ${{ secrets.SKILLFORGE_READ_TOKEN }}
           GITHUB_TOKEN_FALLBACK: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:SKILLFORGE_TAG)) {
-            throw "SkillForge tag is required when bundle fetch is enabled."
-          }
           $token = $env:SKILLFORGE_READ_TOKEN
           if ([string]::IsNullOrWhiteSpace($token)) {
             $token = $env:GITHUB_TOKEN_FALLBACK
           }
-          .\scripts\download_skillforge_release_bundles.ps1 `
-            -Repo $env:SKILLFORGE_REPO `
-            -Tag $env:SKILLFORGE_TAG `
-            -OutputDir ".\build\downloads\skill-bundles" `
-            -Token $token
+          if ($env:SKILLFORGE_SOURCE -eq "specific-tag") {
+            .\scripts\download_skillforge_release_bundles.ps1 `
+              -Repo $env:SKILLFORGE_REPO `
+              -Tag $env:SKILLFORGE_TAG `
+              -OutputDir ".\build\downloads\skill-bundles" `
+              -Token $token
+          }
+          else {
+            .\scripts\download_skillforge_release_bundles.ps1 `
+              -Repo $env:SKILLFORGE_REPO `
+              -Latest `
+              -OutputDir ".\build\downloads\skill-bundles" `
+              -Token $token
+          }
 
       - name: Build MSIX package
         env:

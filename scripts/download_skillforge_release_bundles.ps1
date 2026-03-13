@@ -1,7 +1,8 @@
 param(
   [Parameter(Mandatory = $true)][string]$Repo,
-  [Parameter(Mandatory = $true)][string]$Tag,
   [Parameter(Mandatory = $true)][string]$OutputDir,
+  [string]$Tag = "",
+  [switch]$Latest,
   [string]$Token = "",
   [int]$RetryCount = 8,
   [int]$RetryDelaySeconds = 15
@@ -56,8 +57,8 @@ $targetRoot = [System.IO.Path]::GetFullPath($OutputDir)
 if ([string]::IsNullOrWhiteSpace($repo)) {
   throw "Repo is required."
 }
-if ([string]::IsNullOrWhiteSpace($tag)) {
-  throw "Tag is required."
+if (-not $Latest -and [string]::IsNullOrWhiteSpace($tag)) {
+  throw "Tag is required when -Latest is not specified."
 }
 
 if (Test-Path -LiteralPath $targetRoot) {
@@ -67,7 +68,13 @@ New-Item -ItemType Directory -Path $targetRoot -Force | Out-Null
 
 $apiHeaders = Get-AuthHeaders -AccessToken $Token
 $downloadHeaders = Get-DownloadHeaders -AccessToken $Token
-$releaseApi = "https://api.github.com/repos/$repo/releases/tags/$tag"
+$releaseApi = if ($Latest) {
+  "https://api.github.com/repos/$repo/releases/latest"
+}
+else {
+  "https://api.github.com/repos/$repo/releases/tags/$tag"
+}
+$releaseLabel = if ($Latest) { "$repo@latest" } else { "$repo@$tag" }
 
 $release = $null
 for ($attempt = 1; $attempt -le [Math]::Max(1, $RetryCount); $attempt++) {
@@ -86,7 +93,7 @@ for ($attempt = 1; $attempt -le [Math]::Max(1, $RetryCount); $attempt++) {
   }
 }
 if ($null -eq $release) {
-  throw "Release not found after retries: $repo@$tag"
+  throw "Release not found after retries: $releaseLabel"
 }
 
 $assets = @($release.assets) | Where-Object {
@@ -97,7 +104,7 @@ $assets = @($release.assets) | Where-Object {
 }
 
 if (-not $assets.Count) {
-  throw "No skill bundle zip assets found in $repo@$tag"
+  throw "No skill bundle zip assets found in $releaseLabel"
 }
 
 $downloadRoot = Join-Path $targetRoot "_downloads"
