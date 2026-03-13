@@ -11,6 +11,7 @@ type UseBridgeBootstrapOptions = {
   refreshChannels: () => void
   refreshProtocols: () => void
   refreshPlugins: () => void
+  refreshSkills: () => void
   loadSettings: () => void
 }
 
@@ -42,6 +43,7 @@ export function useBridgeBootstrap(options: UseBridgeBootstrapOptions) {
     options.refreshChannels()
     options.refreshProtocols()
     options.refreshPlugins()
+    options.refreshSkills()
     options.loadSettings()
   }
 

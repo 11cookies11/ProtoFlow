@@ -23,6 +23,7 @@ except ImportError:  # pragma: no cover
 
 from dsl_runtime.protocol_package import ProtocolPackageGateway, load_protocol_packages
 from dsl_runtime.protocol_package.runtime import ProtocolCallContext
+from infra.common.utils.path_utils import resolve_resource_path
 from ui.desktop.script_runner_qt import ScriptRunnerQt
 
 
@@ -225,6 +226,67 @@ class WebBridge(QObject):
         except Exception as exc:
             self.log.emit(f"[WARN] refresh plugins failed: {exc}")
         return self.list_plugins()
+
+    @Slot(result="QVariant")
+    def list_skills(self) -> Dict[str, Any]:
+        roots = self._skill_bundle_roots()
+        items: List[Dict[str, Any]] = []
+        seen_ids: set[str] = set()
+        for root in roots:
+            try:
+                for bundle_dir in sorted(root.iterdir()):
+                    if not bundle_dir.is_dir():
+                        continue
+                    manifest_path = bundle_dir / "manifest.json"
+                    if not manifest_path.is_file():
+                        continue
+                    try:
+                        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                    except Exception as exc:
+                        self.log.emit(f"[WARN] load skill manifest failed: {manifest_path}: {exc}")
+                        continue
+                    if not isinstance(manifest, dict):
+                        continue
+                    skill_id = str(manifest.get("id") or bundle_dir.name).strip()
+                    if not skill_id or skill_id in seen_ids:
+                        continue
+                    instruction_file = str(manifest.get("instruction_file") or "").strip()
+                    instruction_text = ""
+                    if instruction_file:
+                        instruction_path = bundle_dir / instruction_file
+                        if instruction_path.is_file():
+                            try:
+                                instruction_text = instruction_path.read_text(encoding="utf-8")
+                            except Exception:
+                                instruction_text = ""
+                    files = manifest.get("files") or []
+                    file_list = [str(item) for item in files if isinstance(item, str)]
+                    references = [item for item in file_list if item.startswith("references/")]
+                    examples = [item for item in file_list if item.startswith("examples/")]
+                    items.append(
+                        {
+                            "id": skill_id,
+                            "name": str(manifest.get("name") or skill_id),
+                            "version": str(manifest.get("version") or ""),
+                            "summary": str(manifest.get("summary") or ""),
+                            "description": str(manifest.get("description") or ""),
+                            "type": str(manifest.get("type") or "unknown"),
+                            "category": str(manifest.get("category") or ""),
+                            "tags": [str(item) for item in (manifest.get("tags") or []) if isinstance(item, str)],
+                            "instruction_file": instruction_file,
+                            "instruction_text": instruction_text,
+                            "references": references,
+                            "examples": examples,
+                            "files": file_list,
+                            "bundle_root": str(bundle_dir.resolve()),
+                            "manifest_path": str(manifest_path.resolve()),
+                            "source_path": str((manifest.get("source") or {}).get("path") or ""),
+                        }
+                    )
+                    seen_ids.add(skill_id)
+            except Exception as exc:
+                self.log.emit(f"[WARN] list skills failed: {root}: {exc}")
+        return {"roots": [str(path) for path in roots], "items": items}
 
     @Slot("QVariant", result="QVariant")
     def call_protocol(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -926,6 +988,29 @@ class WebBridge(QObject):
         if "tcp" in name:
             return "tcp"
         return "custom"
+
+    def _skill_bundle_roots(self) -> List[Path]:
+        candidates: List[Path] = []
+        env_root = os.environ.get("PROTOFLOW_SKILLS_DIR", "").strip()
+        if env_root:
+            candidates.append(resolve_resource_path(env_root))
+        candidates.extend(
+            [
+                resolve_resource_path("skills"),
+                resolve_resource_path("dist/skills"),
+                (Path(__file__).resolve().parents[3] / "SkillForge" / "dist" / "skills").resolve(),
+            ]
+        )
+        roots: List[Path] = []
+        seen: set[str] = set()
+        for path in candidates:
+            key = str(path.resolve())
+            if key in seen:
+                continue
+            seen.add(key)
+            if path.is_dir():
+                roots.append(path)
+        return roots
 
     def _settings_defaults(self) -> Dict[str, Any]:
         base_path = (self._settings_root / "workflows").resolve()

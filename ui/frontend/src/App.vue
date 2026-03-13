@@ -112,6 +112,9 @@ const pluginDirectory = ref('')
 const pluginItems = ref([])
 const protocolItems = ref([])
 const pluginsRefreshing = ref(false)
+const skillRoots = ref([])
+const skillItems = ref([])
+const skillsRefreshing = ref(false)
 const { translations, supportedLanguages, DEFAULT_LANGUAGE } = i18nCore
 
 const t = (key, fallback) => {
@@ -559,6 +562,16 @@ function refreshPlugins() {
   done()
 }
 
+function refreshSkills() {
+  if (!bridge.value || !bridge.value.list_skills) return
+  skillsRefreshing.value = true
+  withResult(bridge.value.list_skills(), (payload) => {
+    skillRoots.value = Array.isArray(payload?.roots) ? payload.roots : []
+    skillItems.value = Array.isArray(payload?.items) ? payload.items : []
+    skillsRefreshing.value = false
+  })
+}
+
 const manualViewBindings = {
   connectionInfo,
   isConnected,
@@ -997,6 +1010,9 @@ watch(
     if (value === 'plugins') {
       refreshPlugins()
     }
+    if (value === 'skills') {
+      refreshSkills()
+    }
   }
 )
 
@@ -1146,6 +1162,7 @@ const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
   refreshChannels,
   refreshProtocols,
   refreshPlugins,
+  refreshSkills,
   loadSettings,
 })
 
@@ -1265,11 +1282,15 @@ const { startBridgeBootstrap, disposeBridgeBootstrap } = useBridgeBootstrap({
               :plugin-items="pluginItems"
               :protocol-items="protocolItems"
               :plugins-refreshing="pluginsRefreshing"
+              :skill-roots="skillRoots"
+              :skill-items="skillItems"
+              :skills-refreshing="skillsRefreshing"
               :language-options="languageOptions"
               :theme-options="themeOptions"
               @set-tab="setSettingsTab"
               @choose-dsl-workspace="chooseDslWorkspace"
               @refresh-plugins="refreshPlugins"
+              @refresh-skills="refreshSkills"
               @update:ui-language="uiLanguage = $event"
               @update:ui-theme="uiTheme = $event"
               @update:auto-connect-on-start="autoConnectOnStart = $event"

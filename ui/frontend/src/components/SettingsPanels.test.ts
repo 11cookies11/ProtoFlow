@@ -89,6 +89,18 @@ describe('SettingsPanels interactions', () => {
     vm.unmount()
   })
 
+  it('switches to skills tab by clicking the skills button', async () => {
+    const vm = mountSettingsPanels()
+    const skillsTabButton = Array.from(vm.host.querySelectorAll('.tab-strip button')).find((item) =>
+      item.textContent?.includes('settings.tab.skills')
+    ) as HTMLButtonElement
+    skillsTabButton?.click()
+    await tick()
+
+    expect(vm.calls).toContain('tab:skills')
+    vm.unmount()
+  })
+
   it('updates auto connect toggle', async () => {
     const vm = mountSettingsPanels()
     const checkbox = vm.host.querySelector('input[type="checkbox"]') as HTMLInputElement

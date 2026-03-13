@@ -2414,6 +2414,19 @@ textarea {
   gap: 10px;
 }
 
+.skill-item-button {
+  width: 100%;
+  background: var(--control-bg);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.skill-item-button.active {
+  border-color: var(--accent-soft-strong);
+  background: var(--accent-soft);
+}
+
 .plugin-item.muted {
   background: #f8fafc;
 }
@@ -2426,6 +2439,53 @@ textarea {
 .plugin-meta {
   font-size: 11px;
   color: var(--muted);
+}
+
+.settings-skill-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.skill-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.skill-meta-grid p,
+.skill-section p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  word-break: break-word;
+}
+
+.skill-section {
+  display: grid;
+  gap: 8px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.skill-doc-preview {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.6;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .badge-green {
@@ -2456,6 +2516,10 @@ textarea {
   .file-row-controls {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .settings-skill-grid {
+    grid-template-columns: 1fr;
   }
 
   .file-row-controls .btn {
