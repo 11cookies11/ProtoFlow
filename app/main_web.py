@@ -6,6 +6,8 @@ import atexit
 import io
 import logging
 import os
+import shutil
+import subprocess
 import sys
 import traceback
 import time
@@ -231,10 +233,94 @@ def _proxy_monitor_enabled() -> bool:
     return False
 
 
+def _frontend_root(root_dir: Path) -> Path:
+    return root_dir / "ui" / "frontend"
+
+
+def _frontend_dist_index(root_dir: Path) -> Path:
+    return _frontend_root(root_dir) / "dist" / "index.html"
+
+
+def _latest_mtime(paths: list[Path]) -> float:
+    latest = 0.0
+    for path in paths:
+        if not path.exists():
+            continue
+        if path.is_file():
+            latest = max(latest, path.stat().st_mtime)
+            continue
+        for child in path.rglob("*"):
+            if child.is_file():
+                latest = max(latest, child.stat().st_mtime)
+    return latest
+
+
+def _frontend_build_reason(root_dir: Path) -> Optional[str]:
+    dist_index = _frontend_dist_index(root_dir)
+    if not dist_index.exists():
+        return "missing-dist"
+    if _parse_bool(os.environ.get("PROTOFLOW_FORCE_BUILD_FRONTEND"), default=False):
+        return "forced"
+    if not _parse_bool(os.environ.get("PROTOFLOW_AUTO_BUILD_FRONTEND"), default=False):
+        return None
+    frontend_root = _frontend_root(root_dir)
+    source_paths = [
+        frontend_root / "src",
+        frontend_root / "public",
+        frontend_root / "package.json",
+        frontend_root / "package-lock.json",
+        frontend_root / "vite.config.js",
+    ]
+    latest_source_mtime = _latest_mtime(source_paths)
+    try:
+        dist_mtime = dist_index.stat().st_mtime
+    except OSError:
+        return "missing-dist"
+    if latest_source_mtime > dist_mtime:
+        return "stale-dist"
+    return None
+
+
+def _ensure_frontend_dist() -> None:
+    if getattr(sys, "frozen", False):
+        return
+    if _parse_bool(os.environ.get("PROTOFLOW_SKIP_FRONTEND_BUILD"), default=False):
+        return
+
+    logger = logging.getLogger("main_web")
+    root_dir = Path(__file__).resolve().parents[1]
+    reason = _frontend_build_reason(root_dir)
+    if not reason:
+        return
+
+    frontend_root = _frontend_root(root_dir)
+    npm_cmd = shutil.which("npm")
+    if not npm_cmd:
+        message = "Frontend build skipped because npm was not found in PATH."
+        if reason == "missing-dist":
+            raise RuntimeError(f"{message} Please run `npm --prefix ui/frontend run build` first.")
+        logger.warning("%s", message)
+        return
+
+    logger.info("Building frontend bundle before launch (reason=%s)", reason)
+    install_cmd = [npm_cmd, "ci"]
+    build_cmd = [npm_cmd, "run", "build"]
+    try:
+        if not (frontend_root / "node_modules").exists():
+            subprocess.run(install_cmd, cwd=frontend_root, check=True)
+        subprocess.run(build_cmd, cwd=frontend_root, check=True)
+    except subprocess.CalledProcessError as exc:
+        message = f"Frontend build failed with exit code {exc.returncode}."
+        if reason == "missing-dist":
+            raise RuntimeError(message) from exc
+        logger.warning("%s Continuing with existing dist if available.", message)
+
+
 def main() -> None:
     _ensure_repo_cwd()
     _set_windows_app_id()
     _setup_run_logging()
+    _ensure_frontend_dist()
     flags = _select_webengine_flags()
     if flags:
         os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", flags)

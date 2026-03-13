@@ -24,6 +24,28 @@ function mountSettingsPanels() {
         uiTheme: this.uiTheme,
         autoConnectOnStart: this.autoConnectOnStart,
         dslWorkspacePath: '/tmp/workspace',
+        skillRoots: [],
+        skillItems: [
+          {
+            id: 'protoflow-yaml-dsl-author',
+            name: 'ProtoFlow YAML-DSL Author',
+            summary: 'placeholder skill',
+            version: 'preview',
+            type: 'assistant-skill',
+            is_placeholder: true,
+            availability: 'placeholder',
+          },
+          {
+            id: 'protoflow-skill-bundle-loader',
+            name: 'ProtoFlow Skill Bundle Loader',
+            summary: 'placeholder loader',
+            version: 'preview',
+            type: 'host-capability',
+            is_placeholder: true,
+            availability: 'placeholder',
+          },
+        ],
+        skillsRefreshing: false,
         languageOptions: [
           { value: 'zh-CN', label: '简体中文' },
           { value: 'en-US', label: 'English (US)' },
@@ -98,6 +120,19 @@ describe('SettingsPanels interactions', () => {
     await tick()
 
     expect(vm.calls).toContain('tab:skills')
+    vm.unmount()
+  })
+
+  it('renders placeholder skill badge in skills tab', async () => {
+    const vm = mountSettingsPanels()
+    const skillsTabButton = Array.from(vm.host.querySelectorAll('.tab-strip button')).find((item) =>
+      item.textContent?.includes('settings.tab.skills')
+    ) as HTMLButtonElement
+    skillsTabButton?.click()
+    await tick()
+
+    expect(vm.host.textContent).toContain('settings.skills.placeholder')
+    expect(vm.host.textContent).toContain('ProtoFlow YAML-DSL Author')
     vm.unmount()
   })
 

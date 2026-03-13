@@ -281,11 +281,15 @@ class WebBridge(QObject):
                             "bundle_root": str(bundle_dir.resolve()),
                             "manifest_path": str(manifest_path.resolve()),
                             "source_path": str((manifest.get("source") or {}).get("path") or ""),
+                            "availability": "installed",
+                            "is_placeholder": False,
                         }
                     )
                     seen_ids.add(skill_id)
             except Exception as exc:
                 self.log.emit(f"[WARN] list skills failed: {root}: {exc}")
+        if not items:
+            items = self._placeholder_skills()
         return {"roots": [str(path) for path in roots], "items": items}
 
     @Slot("QVariant", result="QVariant")
@@ -994,13 +998,9 @@ class WebBridge(QObject):
         env_root = os.environ.get("PROTOFLOW_SKILLS_DIR", "").strip()
         if env_root:
             candidates.append(resolve_resource_path(env_root))
-        candidates.extend(
-            [
-                resolve_resource_path("skills"),
-                resolve_resource_path("dist/skills"),
-                (Path(__file__).resolve().parents[3] / "SkillForge" / "dist" / "skills").resolve(),
-            ]
-        )
+        candidates.extend([resolve_resource_path("skills"), resolve_resource_path("dist/skills")])
+        if not getattr(sys, "frozen", False) and os.environ.get("PROTOFLOW_ENABLE_DEV_SKILL_BUNDLES", "0") == "1":
+            candidates.append((Path(__file__).resolve().parents[3] / "SkillForge" / "dist" / "skills").resolve())
         roots: List[Path] = []
         seen: set[str] = set()
         for path in candidates:
@@ -1011,6 +1011,70 @@ class WebBridge(QObject):
             if path.is_dir():
                 roots.append(path)
         return roots
+
+    def _placeholder_skills(self) -> List[Dict[str, Any]]:
+        placeholder_root = "占位展示（发布包将替换为真实 skill bundle）"
+        return [
+            {
+                "id": "protoflow-yaml-dsl-author",
+                "name": "ProtoFlow YAML-DSL Author",
+                "version": "preview",
+                "summary": "用于展示 ProtoFlow YAML-DSL 编写类 skill 在 Settings 中的呈现效果。",
+                "description": "当前为占位 skill。发布打包时会从 SkillForge 导出的 bundle 注入真实内容。",
+                "type": "assistant-skill",
+                "category": "yaml-dsl",
+                "tags": ["placeholder", "protoflow", "yaml-dsl"],
+                "instruction_file": "SKILL.md",
+                "instruction_text": (
+                    "# ProtoFlow YAML-DSL Author\n\n"
+                    "这是一个占位 skill，用于提前展示 Settings -> Skills 的管理界面。\n"
+                    "正式发布包会替换成真实 bundle，并显示完整的 SKILL.md、references 与 examples。"
+                ),
+                "references": ["references/structure.md", "references/step-patterns.md"],
+                "examples": ["examples/nl-to-yaml.md", "examples/capture-if-loop.md"],
+                "files": [
+                    "SKILL.md",
+                    "references/structure.md",
+                    "references/step-patterns.md",
+                    "examples/nl-to-yaml.md",
+                    "examples/capture-if-loop.md",
+                ],
+                "bundle_root": placeholder_root,
+                "manifest_path": placeholder_root,
+                "source_path": "SkillForge/dist/skills/protoflow-yaml-dsl-author",
+                "availability": "placeholder",
+                "is_placeholder": True,
+            },
+            {
+                "id": "protoflow-skill-bundle-loader",
+                "name": "ProtoFlow Skill Bundle Loader",
+                "version": "preview",
+                "summary": "用于展示未来 ProtoFlow 安装/加载 skill bundle 的宿主能力入口。",
+                "description": "当前为占位 skill。后续可扩展为 bundle 安装、版本检查与启停管理能力。",
+                "type": "host-capability",
+                "category": "platform",
+                "tags": ["placeholder", "platform", "bundle-loader"],
+                "instruction_file": "SKILL.md",
+                "instruction_text": (
+                    "# ProtoFlow Skill Bundle Loader\n\n"
+                    "这是一个宿主能力占位项，用于预览多个 skill 在 Settings 中的列表效果。\n"
+                    "正式版本将通过打包流程注入真实 skill bundle。"
+                ),
+                "references": ["references/release-packaging.md", "references/settings-entry.md"],
+                "examples": ["examples/release-bundle-layout.md"],
+                "files": [
+                    "SKILL.md",
+                    "references/release-packaging.md",
+                    "references/settings-entry.md",
+                    "examples/release-bundle-layout.md",
+                ],
+                "bundle_root": placeholder_root,
+                "manifest_path": placeholder_root,
+                "source_path": "ProtoFlow/build/packaging/skills",
+                "availability": "placeholder",
+                "is_placeholder": True,
+            },
+        ]
 
     def _settings_defaults(self) -> Dict[str, Any]:
         base_path = (self._settings_root / "workflows").resolve()

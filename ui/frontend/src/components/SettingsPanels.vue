@@ -155,6 +155,8 @@ const normalizedSkillItems = computed(() => {
       bundleRoot: String(item?.bundle_root || ''),
       manifestPath: String(item?.manifest_path || ''),
       sourcePath: String(item?.source_path || ''),
+      availability: String(item?.availability || 'installed'),
+      isPlaceholder: Boolean(item?.is_placeholder),
       meta: item?.version ? `v${item.version}` : tt('settings.meta.unversioned', '未标注版本'),
     }
   })
@@ -336,7 +338,9 @@ const selectedInstructionPreview = computed(() => {
                 <div class="plugin-meta">{{ item.meta }} · {{ item.type }}</div>
                 <div class="plugin-meta">{{ item.summary || tt('settings.skills.noSummary', '暂无摘要') }}</div>
               </div>
-              <span class="badge badge-blue">{{ tt('settings.filter.available', '可用') }}</span>
+              <span :class="item.isPlaceholder ? 'badge badge-gray' : 'badge badge-blue'">
+                {{ item.isPlaceholder ? tt('settings.skills.placeholder', '占位') : tt('settings.filter.available', '可用') }}
+              </span>
             </button>
           </div>
 
@@ -347,6 +351,7 @@ const selectedInstructionPreview = computed(() => {
               <div><strong>{{ tt('settings.skills.version', '版本') }}</strong><p>{{ selectedSkill.version || '--' }}</p></div>
               <div><strong>{{ tt('settings.skills.type', '类型') }}</strong><p>{{ selectedSkill.type || '--' }}</p></div>
               <div><strong>{{ tt('settings.skills.category', '分类') }}</strong><p>{{ selectedSkill.category || '--' }}</p></div>
+              <div><strong>{{ tt('settings.skills.availability', '状态') }}</strong><p>{{ selectedSkill.isPlaceholder ? tt('settings.skills.placeholder', '占位') : tt('settings.skills.installed', '已安装') }}</p></div>
             </div>
 
             <div class="skill-section">
