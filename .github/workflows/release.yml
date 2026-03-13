@@ -10,6 +10,17 @@ on:
         description: "Version for MSIX package (e.g. v0.3.2)"
         required: false
         default: "v0.0.0-dev"
+      include_skill_bundles:
+        description: "Fetch SkillForge release bundles before packaging"
+        required: false
+        default: "false"
+      skillforge_tag:
+        description: "SkillForge release tag to fetch (defaults to the ProtoFlow tag)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -30,11 +41,55 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Resolve SkillForge bundle mode
+        id: skill_bundles
+        shell: pwsh
+        run: |
+          $shouldFetch = $false
+          $skillforgeTag = ""
+          if ("${{ github.event_name }}" -eq "push" -and "${{ startsWith(github.ref, 'refs/tags/') }}" -eq "true") {
+            $shouldFetch = $true
+            $skillforgeTag = "${{ github.ref_name }}"
+          }
+          elseif ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ github.event.inputs.include_skill_bundles }}" -eq "true") {
+            $shouldFetch = $true
+            $skillforgeTag = "${{ github.event.inputs.skillforge_tag }}"
+            if ([string]::IsNullOrWhiteSpace($skillforgeTag)) {
+              $skillforgeTag = "${{ github.event.inputs.build_version }}"
+            }
+          }
+
+          "enabled=$($shouldFetch.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "tag=$skillforgeTag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Download SkillForge release bundles
+        if: steps.skill_bundles.outputs.enabled == 'true'
+        shell: pwsh
+        env:
+          SKILLFORGE_REPO: 11cookies11/SkillForge
+          SKILLFORGE_TAG: ${{ steps.skill_bundles.outputs.tag }}
+          SKILLFORGE_READ_TOKEN: ${{ secrets.SKILLFORGE_READ_TOKEN }}
+          GITHUB_TOKEN_FALLBACK: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SKILLFORGE_TAG)) {
+            throw "SkillForge tag is required when bundle fetch is enabled."
+          }
+          $token = $env:SKILLFORGE_READ_TOKEN
+          if ([string]::IsNullOrWhiteSpace($token)) {
+            $token = $env:GITHUB_TOKEN_FALLBACK
+          }
+          .\scripts\download_skillforge_release_bundles.ps1 `
+            -Repo $env:SKILLFORGE_REPO `
+            -Tag $env:SKILLFORGE_TAG `
+            -OutputDir ".\build\downloads\skill-bundles" `
+            -Token $token
+
       - name: Build MSIX package
         env:
           MSIX_CERT_PFX_BASE64: ${{ secrets.MSIX_CERT_PFX_BASE64 }}
           MSIX_CERT_PASSWORD: ${{ secrets.MSIX_CERT_PASSWORD }}
           MSIX_SKIP_SIGN: ${{ secrets.MSIX_SKIP_SIGN }}
+          PROTOFLOW_SKILL_BUNDLE_SOURCE: ${{ github.workspace }}\build\downloads\skill-bundles
         run: |
           $skipSign = "${{ secrets.MSIX_SKIP_SIGN }}"
           if ([string]::IsNullOrWhiteSpace($skipSign)) { $skipSign = "true" }
