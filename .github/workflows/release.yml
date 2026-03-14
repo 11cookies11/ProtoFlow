@@ -144,17 +144,47 @@ jobs:
           path: ./dist
           merge-multiple: true
 
-      - name: Create Release
+      - name: Create Release And Upload Assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: "ProtoFlow ${{ github.ref_name }}"
           body: |
-            Auto-generated MSIX package for ProtoFlow.
-            Includes Qt WebEngine UI + Vue bundle.
-      - name: Upload MSIX to Release
-        uses: softprops/action-gh-release@v2
-        with:
+            ## 中文
+
+            本次版本为 ProtoFlow 带来了首批 Skill bundle 支持，重点补齐了技能内容的浏览、打包分发和发布链路集成能力。
+
+            ### 更新内容
+            - 新增 `Settings -> Skills` 页面，可浏览本地 Skill bundle。
+            - 支持展示 skill 的基础信息，包括名称、版本、类型、分类、标签与路径来源。
+            - 支持在界面中预览 `SKILL.md` 内容，并查看 `references` 与 `examples` 文件列表。
+            - 开发模式下提供 placeholder skills，便于在没有真实 bundle 时预览和验证界面。
+            - 发布构建时可将真实 SkillForge bundle 注入 ProtoFlow 安装包。
+            - Release 流程支持自动拉取 SkillForge 的 bundle 产物并参与打包。
+            - 默认从 SkillForge 最新 Release 获取 bundle，同时保留手动指定 tag 的能力，便于版本固定和回滚。
+
+            ### 说明
+            - 当前版本主要提供 Skill bundle 的浏览与随包分发能力。
+            - 在线安装、启停管理、版本管理等更完整的 skill 生命周期能力将在后续版本继续完善。
+
+            ## English
+
+            This release introduces the first Skill bundle experience in ProtoFlow, focusing on skill browsing, packaged distribution, and release pipeline integration.
+
+            ### Highlights
+            - Added a new `Settings -> Skills` panel for browsing local Skill bundles.
+            - Displayed core skill metadata including name, version, type, category, tags, and bundle paths.
+            - Added in-app preview for `SKILL.md`, plus visible `references` and `examples` lists.
+            - Introduced placeholder skills for source-based development and UI preview without live bundles.
+            - Enabled real SkillForge bundles to be injected into packaged ProtoFlow builds.
+            - Updated the release pipeline to fetch SkillForge bundle artifacts automatically during packaging.
+            - Defaulted bundle resolution to the latest SkillForge Release, while keeping manual tag pinning for rollback and reproducible builds.
+
+            ### Note
+            - This version focuses on Skill bundle browsing and packaged delivery.
+            - Full lifecycle features such as online installation, enable/disable controls, and version management will come in future releases.
           files: |
             dist/**/*.msix
             dist/**/*.cer
+          fail_on_unmatched_files: false
+          overwrite_files: true
